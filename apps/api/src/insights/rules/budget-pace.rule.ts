@@ -1,16 +1,5 @@
 import { InsightSeverity } from '@prisma/client';
-
-export type InsightDraft = {
-  type: string;
-  severity: InsightSeverity;
-  title: string;
-  body: string;
-  estimatedSavingsCents?: number | null;
-  data: Record<string, unknown>;
-  periodStart: Date;
-  periodEnd: Date;
-  dedupeKey: string;
-};
+import { dollars, InsightDraft } from './types';
 
 export type BudgetPaceCtx = {
   budgetAmountCents: number;
@@ -39,7 +28,7 @@ export function evaluateBudgetPace(ctx: BudgetPaceCtx): InsightDraft[] {
       type: 'budget_pace',
       severity: InsightSeverity.WARNING,
       title: `${ctx.categoryLabel} budget off pace`,
-      body: `On pace for $${(projected / 100).toFixed(2)} against a $${(ctx.budgetAmountCents / 100).toFixed(2)} ${ctx.categoryLabel.toLowerCase()} budget.`,
+      body: `On pace for ${dollars(projected)} against a ${dollars(ctx.budgetAmountCents)} ${ctx.categoryLabel.toLowerCase()} budget.`,
       estimatedSavingsCents: overBy,
       data: {
         spentCents: ctx.spentCents,

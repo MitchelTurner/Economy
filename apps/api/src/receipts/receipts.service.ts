@@ -12,6 +12,7 @@ import { CatalogService } from '../catalog/catalog.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { receiptArithmeticOk } from '../common/money';
 import {
+  QUEUE_INSIGHTS_GENERATE,
   QUEUE_RECEIPT_EXTRACT,
   QUEUE_RECEIPT_MATCH,
   QUEUE_PRICE_OBSERVE,
@@ -34,6 +35,7 @@ export class ReceiptsService {
     @InjectQueue(QUEUE_RECEIPT_EXTRACT) private readonly extractQueue: Queue,
     @InjectQueue(QUEUE_RECEIPT_MATCH) private readonly matchQueue: Queue,
     @InjectQueue(QUEUE_PRICE_OBSERVE) private readonly observeQueue: Queue,
+    @InjectQueue(QUEUE_INSIGHTS_GENERATE) private readonly insightsQueue: Queue,
   ) {}
 
   async createUploadUrl(user: AuthUser, dto: UploadUrlDto) {
@@ -354,6 +356,16 @@ export class ReceiptsService {
       'match',
       { receiptId: id },
       { attempts: 2, removeOnComplete: 100 },
+    );
+    await this.insightsQueue.add(
+      'household',
+      { householdId: user.householdId },
+      {
+        jobId: `insights-${user.householdId}`,
+        delay: 5_000,
+        removeOnComplete: 50,
+        removeOnFail: 20,
+      },
     );
 
     return updated;

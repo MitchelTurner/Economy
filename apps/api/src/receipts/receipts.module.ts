@@ -4,6 +4,7 @@ import { ReceiptsController } from './receipts.controller';
 import { ReceiptsService } from './receipts.service';
 import { CatalogModule } from '../catalog/catalog.module';
 import {
+  QUEUE_INSIGHTS_GENERATE,
   QUEUE_PRICE_OBSERVE,
   QUEUE_RECEIPT_EXTRACT,
   QUEUE_RECEIPT_MATCH,
@@ -16,6 +17,7 @@ import {
       { name: QUEUE_RECEIPT_EXTRACT },
       { name: QUEUE_RECEIPT_MATCH },
       { name: QUEUE_PRICE_OBSERVE },
+      { name: QUEUE_INSIGHTS_GENERATE },
     ),
   ],
   controllers: [ReceiptsController],

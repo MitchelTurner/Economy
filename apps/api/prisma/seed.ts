@@ -175,12 +175,182 @@ async function seedStores() {
   }
 }
 
+async function seedBaselines() {
+  const targets = [
+    { name: 'Whole milk, 1 gal', seattle: 380, national: 360 },
+    { name: 'Butter, salted 1 lb', seattle: 900, national: 850 },
+    { name: 'Coffee, ground 12 oz', seattle: 700, national: 650 },
+    { name: 'Eggs, large dozen', seattle: 320, national: 300 },
+    { name: 'Peanut butter, 16 oz', seattle: 350, national: 330 },
+  ];
+  const effectiveOn = new Date('2026-01-01T00:00:00Z');
+  for (const t of targets) {
+    const product = await prisma.product.findFirst({ where: { name: t.name } });
+    if (!product) continue;
+    for (const [region, price] of [
+      ['seattle', t.seattle],
+      ['us-national', t.national],
+    ] as const) {
+      await prisma.baselinePrice.upsert({
+        where: {
+          productId_region_effectiveOn: {
+            productId: product.id,
+            region,
+            effectiveOn,
+          },
+        },
+        update: { pricePerBaseUom: price, source: 'seed' },
+        create: {
+          productId: product.id,
+          region,
+          pricePerBaseUom: price,
+          source: 'seed',
+          effectiveOn,
+        },
+      });
+    }
+  }
+}
+
+/** Six months of synthetic confirmed receipts for analytics / insight screens. */
+async function seedSyntheticHistory(userId: string, householdId: string) {
+  const marker = await prisma.receipt.findFirst({
+    where: { householdId, imageHash: { startsWith: 'seed-synth:' } },
+  });
+  if (marker) return;
+
+  const safeway = await prisma.store.findFirst({ where: { name: 'Safeway' } });
+  const ags = await prisma.store.findFirst({ where: { name: 'Alaska General Store' } });
+  if (!safeway || !ags) return;
+
+  const products = await prisma.product.findMany({
+    where: {
+      name: {
+        in: [
+          'Whole milk, 1 gal',
+          'Eggs, large dozen',
+          'Bananas, per lb',
+          'Butter, salted 1 lb',
+          'Coffee, ground 12 oz',
+          'Peanut butter, 16 oz',
+        ],
+      },
+    },
+  });
+  const byName = new Map(products.map((p) => [p.name, p]));
+
+  const dairy = await prisma.category.findUnique({ where: { slug: 'dairy' } });
+  await prisma.budget.create({
+    data: {
+      householdId,
+      categoryId: dairy?.id,
+      period: 'MONTHLY',
+      amountCents: 25000,
+      startsOn: new Date(Date.UTC(2026, 0, 1)),
+    },
+  });
+
+  const catalog: Array<{
+    name: string;
+    raw: string;
+    baseUnit: number;
+    drift: number;
+  }> = [
+    { name: 'Whole milk, 1 gal', raw: 'GV MLK WHL 1GA', baseUnit: 529, drift: 4 },
+    { name: 'Eggs, large dozen', raw: 'EGGS LG 12CT', baseUnit: 399, drift: 3 },
+    { name: 'Bananas, per lb', raw: 'BANANAS', baseUnit: 79, drift: 1 },
+    { name: 'Butter, salted 1 lb', raw: 'BUTTER SALTED 1LB', baseUnit: 549, drift: 8 },
+    { name: 'Coffee, ground 12 oz', raw: 'COFFEE GRND 12OZ', baseUnit: 899, drift: -6 },
+    { name: 'Peanut butter, 16 oz', raw: 'PNUT BTR 16OZ', baseUnit: 449, drift: 2 },
+  ];
+
+  const now = new Date('2026-07-20T18:00:00Z');
+  for (let monthOffset = 5; monthOffset >= 0; monthOffset--) {
+    for (let trip = 0; trip < 3; trip++) {
+      const purchasedAt = new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth() - monthOffset,
+          4 + trip * 8,
+          trip === 2 ? 19 : 11,
+        ),
+      );
+      const store = trip % 2 === 0 ? safeway : ags;
+      const storeFactor = store.id === safeway.id ? 1.12 : 1.0;
+      const lines = catalog.map((c, i) => {
+        const product = byName.get(c.name)!;
+        const unit = Math.round(
+          (c.baseUnit + c.drift * (5 - monthOffset) + (store.id === safeway.id ? 20 : 0)) *
+            storeFactor,
+        );
+        return {
+          lineNumber: i + 1,
+          rawText: c.raw,
+          quantity: 1,
+          unitPriceCents: unit,
+          extendedCents: unit,
+          discountCents: 0,
+          productId: product.id,
+          categoryId: product.categoryId,
+          matchMethod: 'seed',
+          matchConfidence: 1,
+        };
+      });
+      // Amplify dairy spend in recent months for category_creep / budget_pace
+      if (monthOffset <= 1) {
+        lines[0]!.quantity = 2;
+        lines[0]!.extendedCents = lines[0]!.unitPriceCents! * 2;
+        lines[3]!.quantity = 2;
+        lines[3]!.extendedCents = lines[3]!.unitPriceCents! * 2;
+      }
+      const totalCents = lines.reduce((s, l) => s + l.extendedCents, 0);
+      const receipt = await prisma.receipt.create({
+        data: {
+          householdId,
+          uploadedById: userId,
+          storeId: store.id,
+          status: 'CONFIRMED',
+          imageKey: `seed/${householdId}/${purchasedAt.toISOString()}`,
+          imageHash: `seed-synth:${householdId}:${purchasedAt.toISOString()}`,
+          purchasedAt,
+          taxCents: 0,
+          totalCents,
+          reviewedAt: purchasedAt,
+          arithmeticOk: true,
+          lines: { create: lines },
+        },
+        include: { lines: { include: { product: true } } },
+      });
+
+      for (const line of receipt.lines) {
+        if (!line.product?.baseFactor || !line.product.sizeValue) continue;
+        const unit = line.unitPriceCents ?? line.extendedCents;
+        const perBase =
+          unit / (Number(line.product.sizeValue) * Number(line.product.baseFactor));
+        await prisma.priceObservation.create({
+          data: {
+            productId: line.productId!,
+            storeId: store.id,
+            observedAt: purchasedAt,
+            unitPriceCents: unit,
+            pricePerBaseUom: perBase,
+            receiptLineId: line.id,
+            householdId,
+          },
+        });
+      }
+    }
+  }
+}
+
 async function main() {
   const categoryBySlug = await seedCategories();
   await seedBasketProducts(categoryBySlug);
   await seedProductAliases();
   await seedStores();
-  await seedDevHousehold();
+  await seedBaselines();
+  const user = await seedDevHousehold();
+  await seedSyntheticHistory(user.id, user.householdId);
   console.log('Seed complete.');
   console.log('Demo login: demo@islandledger.local / demo-password-123');
 }

@@ -10,6 +10,8 @@ import {
 } from './queues';
 import { InsightsModule } from '../insights/insights.module';
 import { InsightsGenerateProcessor } from './insights-generate.processor';
+import { ReceiptCleanupProcessor } from './receipt-cleanup.processor';
+import { SchedulersService } from './schedulers.service';
 
 @Module({
   imports: [
@@ -23,6 +25,11 @@ import { InsightsGenerateProcessor } from './insights-generate.processor';
       { name: QUEUE_RECEIPT_CLEANUP },
     ),
   ],
-  providers: [InsightsGenerateProcessor],
+  providers: [
+    InsightsGenerateProcessor,
+    ReceiptCleanupProcessor,
+    SchedulersService,
+  ],
+  exports: [SchedulersService],
 })
 export class JobsModule {}

@@ -6,15 +6,22 @@ type Budget = {
   id: string;
   amountCents: number;
   period: string;
-  category: { name: string } | null;
+  category: { id: string; name: string } | null;
+};
+
+type SpendResponse = {
+  totalCents: number;
+  groups: Array<{ key: string; label: string; totalCents: number }>;
 };
 
 export function BudgetsPage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [amount, setAmount] = useState('600');
+  const [spend, setSpend] = useState<SpendResponse | null>(null);
+  const [amount, setAmount] = useState('250');
 
   async function load() {
     setBudgets(await api<Budget[]>('/budgets'));
+    setSpend(await api<SpendResponse>('/analytics/spend?groupBy=category'));
   }
 
   useEffect(() => {
@@ -41,7 +48,9 @@ export function BudgetsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-3xl font-semibold">Budgets</h1>
-        <p className="mt-1 text-[var(--ink-muted)]">Monthly household or category caps.</p>
+        <p className="mt-1 text-[var(--ink-muted)]">
+          Monthly caps. Insights warn when spend projects over pace.
+        </p>
       </div>
 
       <form onSubmit={onSubmit} className="flex gap-2">
@@ -60,14 +69,31 @@ export function BudgetsPage() {
       </form>
 
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
-        {budgets.map((b) => (
-          <li key={b.id} className="flex justify-between py-3">
-            <span>
-              {b.category?.name ?? 'Overall'} · {b.period.toLowerCase()}
-            </span>
-            <span className="font-semibold tabular-nums">{formatCents(b.amountCents)}</span>
-          </li>
-        ))}
+        {budgets.map((b) => {
+          const spent = b.category
+            ? (spend?.groups.find((g) => g.label === b.category!.name)?.totalCents ?? 0)
+            : (spend?.totalCents ?? 0);
+          const pct = b.amountCents ? Math.round((spent / b.amountCents) * 100) : 0;
+          return (
+            <li key={b.id} className="py-3">
+              <div className="flex justify-between gap-3">
+                <span>
+                  {b.category?.name ?? 'Overall'} · {b.period.toLowerCase()}
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {formatCents(spent)} / {formatCents(b.amountCents)}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10">
+                <div
+                  className="h-full rounded-full bg-[var(--brand)]"
+                  style={{ width: `${Math.min(100, pct)}%` }}
+                />
+              </div>
+              <p className="mt-1 text-xs text-[var(--ink-muted)]">{pct}% of period budget</p>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

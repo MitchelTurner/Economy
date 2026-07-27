@@ -13,6 +13,21 @@ export class InsightsController {
     return this.insights.list(user, active !== 'false');
   }
 
+  @Get('digest')
+  digest(@CurrentUser() user: AuthUser) {
+    return this.insights.weeklyDigest(user);
+  }
+
+  @Get('behavior')
+  behavior(@CurrentUser() user: AuthUser) {
+    return this.insights.behaviorSummary(user);
+  }
+
+  @Post('generate')
+  generate(@CurrentUser() user: AuthUser) {
+    return this.insights.generateForHousehold(user.householdId);
+  }
+
   @Post(':id/dismiss')
   dismiss(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.insights.dismiss(user, id);
