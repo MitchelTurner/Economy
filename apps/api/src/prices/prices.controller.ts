@@ -47,4 +47,22 @@ export class PricesController {
   rollupNow() {
     return this.rollup.rollupAll();
   }
+
+  @Get('shipping-lanes')
+  shippingLanes(@Query('destRegion') destRegion = 'ketchikan') {
+    return this.prices.listShippingLanes(destRegion);
+  }
+
+  @Get('delivered/:productId')
+  delivered(
+    @CurrentUser() user: AuthUser,
+    @Param('productId') productId: string,
+    @Query('laneId') laneId?: string,
+    @Query('quantity') quantity?: string,
+  ) {
+    return this.prices.deliveredCost(user, productId, {
+      laneId,
+      quantity: quantity ? Number(quantity) : 1,
+    });
+  }
 }

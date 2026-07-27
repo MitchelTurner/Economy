@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { pricePerBaseUom } from '../common/normalize';
 import { AuthUser } from '../common/decorators/current-user.decorator';
+import { computeDeliveredCost } from './delivered-cost';
 
 @Injectable()
 export class PricesService {
@@ -161,5 +162,92 @@ export class PricesService {
     const base = Number(baseline.pricePerBaseUom);
     const premiumPct = base > 0 ? ((local - base) / base) * 100 : null;
     return { local: latestLocal, baseline, premiumPct };
+  }
+
+  listShippingLanes(destRegion = 'ketchikan') {
+    return this.prisma.shippingLane.findMany({
+      where: { active: true, destRegion },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async deliveredCost(
+    user: AuthUser,
+    productId: string,
+    opts: { laneId?: string; quantity?: number },
+  ) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) return { error: 'Product not found' };
+
+    const quantity = opts.quantity ?? 1;
+    const local = await this.prisma.priceObservation.findFirst({
+      where: { productId, householdId: user.householdId },
+      orderBy: { observedAt: 'desc' },
+      include: { store: true },
+    });
+
+    const baseline = await this.prisma.baselinePrice.findFirst({
+      where: {
+        productId,
+        region: { in: ['seattle', 'us-national', 'anchorage'] },
+      },
+      orderBy: { effectiveOn: 'desc' },
+    });
+
+    const lane = opts.laneId
+      ? await this.prisma.shippingLane.findUnique({ where: { id: opts.laneId } })
+      : await this.prisma.shippingLane.findFirst({
+          where: { active: true, destRegion: 'ketchikan' },
+          orderBy: { flatFeeCents: 'asc' },
+        });
+
+    if (!lane || !baseline || !local) {
+      return {
+        product,
+        local,
+        baseline,
+        lane,
+        comparison: null,
+        message: 'Need a local observation, baseline price, and shipping lane',
+      };
+    }
+
+    // Convert baseline pricePerBaseUom (cents per base) back to approx unit cents
+    const size = product.sizeValue ? Number(product.sizeValue) : 1;
+    const factor = product.baseFactor ? Number(product.baseFactor) : 1;
+    const mainlandUnitCents = Math.round(Number(baseline.pricePerBaseUom) * size * factor);
+
+    let weightLb: number | null = null;
+    let weightKg: number | null = null;
+    if (product.sizeUom === 'lb') weightLb = size * quantity;
+    else if (product.sizeUom === 'oz') weightLb = (size / 16) * quantity;
+    else if (product.baseUom === 'kg' && factor) weightKg = size * factor * quantity;
+
+    const comparison = computeDeliveredCost({
+      mainlandUnitCents,
+      quantity,
+      weightLb,
+      weightKg,
+      flatFeeCents: lane.flatFeeCents,
+      perLbCents: lane.perLbCents,
+      perKgCents: lane.perKgCents,
+      localUnitCents: local.unitPriceCents,
+    });
+
+    return {
+      product: {
+        id: product.id,
+        name: product.name,
+        sizeValue: size,
+        sizeUom: product.sizeUom,
+      },
+      lane,
+      baselineRegion: baseline.region,
+      mainlandUnitCents,
+      localUnitCents: local.unitPriceCents,
+      localStore: local.store.name,
+      quantity,
+      comparison,
+    };
   }
 }

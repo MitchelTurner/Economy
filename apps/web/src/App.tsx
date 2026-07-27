@@ -11,6 +11,10 @@ import { PriceIndexPage } from './pages/PriceIndexPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { BudgetsPage } from './pages/BudgetsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { PublicIndexPage } from './pages/PublicIndexPage';
+import { AlertsPage } from './pages/AlertsPage';
+import { DeliveredCostPage } from './pages/DeliveredCostPage';
+import { InviteAcceptPage } from './pages/InviteAcceptPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -30,6 +34,8 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/island" element={<PublicIndexPage />} />
+        <Route path="/invite" element={<InviteAcceptPage />} />
         <Route
           path="/"
           element={
@@ -46,6 +52,8 @@ export default function App() {
           <Route path="prices/index" element={<PriceIndexPage />} />
           <Route path="insights" element={<InsightsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />
+          <Route path="alerts" element={<AlertsPage />} />
+          <Route path="delivered" element={<DeliveredCostPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

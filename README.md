@@ -42,3 +42,5 @@ data/        abbreviation dictionary + staple basket seed data
 **Phase 1:** product/alias matching pipeline (`receipt.match`), review-screen product chips + alias learning, price history charts (per base UOM), store comparison matrix.
 
 **Phase 2:** insight rule engine (8 rules + fixture tests), nightly staples index rollup, baseline prices, weekly digest, behavior-vs-inflation split, 6-month synthetic seed.
+
+**Phase 3:** public anonymized island index (≥3 household gate), price-drop alerts, mainland delivered-cost comparison, household invites, JSON/CSV export + hard delete.

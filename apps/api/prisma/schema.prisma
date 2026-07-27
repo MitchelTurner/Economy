@@ -10,24 +10,78 @@ datasource db {
 // ---------- identity ----------
 
 model Household {
-  id        String     @id @default(cuid())
+  id        String            @id @default(cuid())
   name      String
   users     User[]
   receipts  Receipt[]
   budgets   Budget[]
-  createdAt DateTime   @default(now())
+  invites   HouseholdInvite[]
+  alerts    PriceAlert[]
+  createdAt DateTime          @default(now())
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String            @id @default(cuid())
+  email        String            @unique
   passwordHash String
   displayName  String?
+  role         String            @default("member") // owner | member
   householdId  String
-  household    Household @relation(fields: [householdId], references: [id])
+  household    Household         @relation(fields: [householdId], references: [id])
   receipts     Receipt[]
   insights     Insight[]
-  createdAt    DateTime  @default(now())
+  alerts       PriceAlert[]
+  invitesSent  HouseholdInvite[] @relation("InvitedBy")
+  createdAt    DateTime          @default(now())
+}
+
+model HouseholdInvite {
+  id          String    @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  email       String
+  token       String    @unique
+  invitedById String
+  invitedBy   User      @relation("InvitedBy", fields: [invitedById], references: [id])
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([householdId, email])
+}
+
+model PriceAlert {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  householdId     String
+  household       Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id])
+  /// Fire when latest unit price is ≥ this % below the 30-day max (e.g. 10).
+  dropPct         Float?
+  /// Or fire when unit price ≤ this absolute target (cents).
+  targetCents     Int?
+  active          Boolean   @default(true)
+  lastTriggeredAt DateTime?
+  lastPriceCents  Int?
+  createdAt       DateTime  @default(now())
+
+  @@index([householdId, productId])
+  @@index([userId, active])
+}
+
+/// Barge / freight lane for mainland → island delivered-cost comparisons.
+model ShippingLane {
+  id           String  @id @default(cuid())
+  name         String
+  originRegion String
+  destRegion   String
+  flatFeeCents Int
+  perLbCents   Int     @default(0)
+  perKgCents   Int     @default(0)
+  leadTimeDays Int     @default(7)
+  active       Boolean @default(true)
 }
 
 // ---------- places ----------
@@ -156,6 +210,7 @@ model Product {
   lines        ReceiptLine[]
   prices       PriceObservation[]
   baselines    BaselinePrice[]
+  alerts       PriceAlert[]
 }
 
 model ProductAlias {

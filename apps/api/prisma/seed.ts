@@ -142,7 +142,12 @@ async function seedProductAliases() {
 async function seedDevHousehold() {
   const email = 'demo@islandledger.local';
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return existing;
+  if (existing) {
+    return prisma.user.update({
+      where: { id: existing.id },
+      data: { role: 'owner' },
+    });
+  }
 
   const household = await prisma.household.create({
     data: { name: 'Demo Household' },
@@ -154,9 +159,129 @@ async function seedDevHousehold() {
       email,
       passwordHash,
       displayName: 'Demo User',
+      role: 'owner',
       householdId: household.id,
     },
   });
+}
+
+async function seedShippingLanes() {
+  const lanes = [
+    {
+      name: 'Barge from Seattle',
+      originRegion: 'seattle',
+      destRegion: 'ketchikan',
+      flatFeeCents: 2500,
+      perLbCents: 45,
+      perKgCents: 100,
+      leadTimeDays: 10,
+    },
+    {
+      name: 'Air cargo Anchorage',
+      originRegion: 'anchorage',
+      destRegion: 'ketchikan',
+      flatFeeCents: 4000,
+      perLbCents: 120,
+      perKgCents: 265,
+      leadTimeDays: 2,
+    },
+  ];
+  for (const lane of lanes) {
+    const existing = await prisma.shippingLane.findFirst({
+      where: { name: lane.name, destRegion: lane.destRegion },
+    });
+    if (existing) {
+      await prisma.shippingLane.update({ where: { id: existing.id }, data: lane });
+    } else {
+      await prisma.shippingLane.create({ data: lane });
+    }
+  }
+}
+
+/** Two extra households so public aggregates clear the ≥3 contributor gate. */
+async function seedPublicContributors(primaryHouseholdId: string) {
+  const marker = await prisma.household.findFirst({
+    where: { name: 'Public Contributor A' },
+  });
+  if (marker) return;
+
+  const safeway = await prisma.store.findFirst({ where: { name: 'Safeway' } });
+  if (!safeway) return;
+
+  const products = await prisma.product.findMany({
+    where: {
+      name: {
+        in: [
+          'Whole milk, 1 gal',
+          'Eggs, large dozen',
+          'Butter, salted 1 lb',
+          'Coffee, ground 12 oz',
+          'Peanut butter, 16 oz',
+          'Bananas, per lb',
+        ],
+      },
+    },
+  });
+
+  const passwordHash = await argon2.hash('contributor-password');
+  for (const label of ['A', 'B'] as const) {
+    const household = await prisma.household.create({
+      data: { name: `Public Contributor ${label}` },
+    });
+    await prisma.user.create({
+      data: {
+        email: `contributor-${label.toLowerCase()}@islandledger.local`,
+        passwordHash,
+        displayName: `Contributor ${label}`,
+        role: 'owner',
+        householdId: household.id,
+      },
+    });
+
+    const observedAt = new Date('2026-07-15T12:00:00Z');
+    for (const product of products) {
+      const unit = 400 + label.charCodeAt(0);
+      const size = product.sizeValue ? Number(product.sizeValue) : 1;
+      const factor = product.baseFactor ? Number(product.baseFactor) : 1;
+      await prisma.priceObservation.create({
+        data: {
+          productId: product.id,
+          storeId: safeway.id,
+          observedAt,
+          unitPriceCents: unit,
+          pricePerBaseUom: unit / (size * factor),
+          householdId: household.id,
+        },
+      });
+    }
+  }
+
+  // Primary household must share the same UTC day so the ≥3 gate can pass
+  const publicDay = new Date('2026-07-15T12:00:00Z');
+  for (const product of products) {
+    const existing = await prisma.priceObservation.findFirst({
+      where: {
+        householdId: primaryHouseholdId,
+        productId: product.id,
+        storeId: safeway.id,
+        observedAt: publicDay,
+      },
+    });
+    if (existing) continue;
+    const unit = 520;
+    const size = product.sizeValue ? Number(product.sizeValue) : 1;
+    const factor = product.baseFactor ? Number(product.baseFactor) : 1;
+    await prisma.priceObservation.create({
+      data: {
+        productId: product.id,
+        storeId: safeway.id,
+        observedAt: publicDay,
+        unitPriceCents: unit,
+        pricePerBaseUom: unit / (size * factor),
+        householdId: primaryHouseholdId,
+      },
+    });
+  }
 }
 
 async function seedStores() {
@@ -349,8 +474,10 @@ async function main() {
   await seedProductAliases();
   await seedStores();
   await seedBaselines();
+  await seedShippingLanes();
   const user = await seedDevHousehold();
   await seedSyntheticHistory(user.id, user.householdId);
+  await seedPublicContributors(user.householdId);
   console.log('Seed complete.');
   console.log('Demo login: demo@islandledger.local / demo-password-123');
 }
