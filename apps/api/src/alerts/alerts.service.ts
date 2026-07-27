@@ -33,8 +33,8 @@ export class AlertsService {
         userId: user.userId,
         householdId: user.householdId,
         productId: dto.productId,
-        dropPct: dto.dropPct,
-        targetCents: dto.targetCents,
+        dropPct: dto.dropPct ?? null,
+        targetCents: dto.targetCents ?? null,
       },
       include: { product: true },
     });

@@ -18,6 +18,7 @@ export function ReceiptReviewPage() {
   const [receipt, setReceipt] = useState<ReceiptDetail | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -117,11 +118,23 @@ export function ReceiptReviewPage() {
 
   async function sameAsLast() {
     if (!id) return;
-    const res = await api<{ applied: number }>(`/receipts/${id}/same-as-last`, {
-      method: 'POST',
-    });
+    setError(null);
+    setInfo(null);
+    const res = await api<{ applied: number; reason?: string }>(
+      `/receipts/${id}/same-as-last`,
+      { method: 'POST' },
+    );
     await reload();
-    if (res.applied === 0) setError('No prior confirmed trip at this store to copy from.');
+    if (res.applied > 0) {
+      setInfo(`Applied ${res.applied} product binding${res.applied === 1 ? '' : 's'} from last trip.`);
+      return;
+    }
+    const reasons: Record<string, string> = {
+      no_store: 'Set a store first, then try again.',
+      no_prior: 'No prior confirmed trip at this store to copy from.',
+      none_matched: 'Prior trip found, but no unmatched lines shared the same printed text.',
+    };
+    setError(reasons[res.reason ?? ''] ?? 'Nothing to apply.');
   }
 
   if (!receipt) {
@@ -172,7 +185,21 @@ export function ReceiptReviewPage() {
         >
           Re-run matching
         </button>
+        {(receipt.status === 'FAILED' || receipt.lines.length === 0) && (
+          <Link
+            to="/capture/manual"
+            className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold"
+          >
+            Start fresh manual entry
+          </Link>
+        )}
       </div>
+
+      {info && (
+        <p className="border-l-4 border-[var(--ok)] bg-[var(--surface)] px-3 py-2 text-sm">
+          {info}
+        </p>
+      )}
 
       {receipt.failureReason && (
         <p className="border-l-4 border-[var(--warn)] bg-[var(--surface)] px-3 py-2 text-sm">
@@ -290,6 +317,11 @@ function HeaderEditor({
   receipt: ReceiptDetail;
   onSave: (patch: Record<string, unknown>) => void;
 }) {
+  const [stores, setStores] = useState<Array<{ id: string; name: string; address: string | null }>>(
+    [],
+  );
+  const [storeId, setStoreId] = useState(receipt.store?.id ?? '');
+  const [newStore, setNewStore] = useState('');
   const [tax, setTax] = useState(
     receipt.taxCents != null ? (receipt.taxCents / 100).toFixed(2) : '',
   );
@@ -302,60 +334,130 @@ function HeaderEditor({
   );
 
   useEffect(() => {
+    void api<Array<{ id: string; name: string; address: string | null }>>(
+      '/catalog/stores',
+    ).then(setStores);
+  }, []);
+
+  useEffect(() => {
+    setStoreId(receipt.store?.id ?? '');
     setTax(receipt.taxCents != null ? (receipt.taxCents / 100).toFixed(2) : '');
     setTotal(receipt.totalCents != null ? (receipt.totalCents / 100).toFixed(2) : '');
     setPayment(receipt.paymentMethod ?? '');
     setDate(receipt.purchasedAt ? receipt.purchasedAt.slice(0, 10) : '');
-  }, [receipt.id, receipt.taxCents, receipt.totalCents, receipt.paymentMethod, receipt.purchasedAt]);
+  }, [
+    receipt.id,
+    receipt.store?.id,
+    receipt.taxCents,
+    receipt.totalCents,
+    receipt.paymentMethod,
+    receipt.purchasedAt,
+  ]);
+
+  async function createStore() {
+    if (!newStore.trim()) return;
+    const created = await api<{ id: string; name: string; address: string | null }>(
+      '/catalog/stores',
+      {
+        method: 'POST',
+        json: { name: newStore.trim(), region: 'ketchikan' },
+      },
+    );
+    setStores((s) => [created, ...s.filter((x) => x.id !== created.id)]);
+    setStoreId(created.id);
+    setNewStore('');
+    onSave({ storeId: created.id });
+  }
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <label className="text-xs">
-        Date
-        <input
-          type="date"
-          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          onBlur={() => {
-            if (!date) return;
-            onSave({ purchasedAt: new Date(`${date}T12:00:00.000Z`).toISOString() });
-          }}
-        />
-      </label>
-      <label className="text-xs">
-        Tax $
-        <input
-          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
-          value={tax}
-          onChange={(e) => setTax(e.target.value)}
-          onBlur={() => {
-            const cents = parseDollarsToCents(tax);
-            if (cents != null) onSave({ taxCents: cents });
-          }}
-        />
-      </label>
-      <label className="text-xs">
-        Printed total $
-        <input
-          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
-          value={total}
-          onChange={(e) => setTotal(e.target.value)}
-          onBlur={() => {
-            const cents = parseDollarsToCents(total);
-            if (cents != null) onSave({ totalCents: cents });
-          }}
-        />
-      </label>
-      <label className="text-xs">
-        Payment
-        <input
-          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
-          value={payment}
-          onChange={(e) => setPayment(e.target.value)}
-          onBlur={() => onSave({ paymentMethod: payment || null })}
-        />
-      </label>
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <label className="text-xs">
+          Store
+          <select
+            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+            value={storeId}
+            onChange={(e) => {
+              setStoreId(e.target.value);
+              onSave({ storeId: e.target.value || null });
+            }}
+          >
+            <option value="">Unknown store</option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+                {s.address && s.address !== 'unknown' ? ` · ${s.address}` : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs">
+          Or create store
+          <div className="mt-1 flex gap-2">
+            <input
+              className="w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+              value={newStore}
+              onChange={(e) => setNewStore(e.target.value)}
+              placeholder="New store name"
+            />
+            <button
+              type="button"
+              className="shrink-0 rounded-md border border-[var(--line)] px-2 text-xs font-semibold"
+              onClick={() => void createStore()}
+            >
+              Add
+            </button>
+          </div>
+        </label>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <label className="text-xs">
+          Date
+          <input
+            type="date"
+            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            onBlur={() => {
+              if (!date) return;
+              onSave({ purchasedAt: new Date(`${date}T12:00:00.000Z`).toISOString() });
+            }}
+          />
+        </label>
+        <label className="text-xs">
+          Tax $
+          <input
+            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+            value={tax}
+            onChange={(e) => setTax(e.target.value)}
+            onBlur={() => {
+              const cents = parseDollarsToCents(tax);
+              if (cents != null) onSave({ taxCents: cents });
+            }}
+          />
+        </label>
+        <label className="text-xs">
+          Printed total $
+          <input
+            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+            value={total}
+            onChange={(e) => setTotal(e.target.value)}
+            onBlur={() => {
+              const cents = parseDollarsToCents(total);
+              if (cents != null) onSave({ totalCents: cents });
+            }}
+          />
+        </label>
+        <label className="text-xs">
+          Payment
+          <input
+            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+            value={payment}
+            onChange={(e) => setPayment(e.target.value)}
+            onBlur={() => onSave({ paymentMethod: payment || null })}
+          />
+        </label>
+      </div>
     </div>
   );
 }
@@ -404,13 +506,15 @@ function LineEditor({
 
   async function createAndBind() {
     if (!search.trim() || !categories[0]) return;
-    const dairy =
-      categories.find((c) => c.slug === 'dairy') ??
+    const preferred =
+      (line.categoryId
+        ? categories.find((c) => c.id === line.categoryId)
+        : undefined) ??
       categories.find((c) => c.slug === 'other') ??
       categories[0];
     const created = await api<Product>('/catalog/products', {
       method: 'POST',
-      json: { name: search.trim(), categoryId: dairy.id },
+      json: { name: search.trim(), categoryId: preferred.id },
     });
     if (storeId) {
       await api('/catalog/aliases', {

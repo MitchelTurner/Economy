@@ -117,8 +117,16 @@ export function InsightsPage() {
           </li>
         ))}
         {items.length === 0 && (
-          <li className="text-[var(--ink-muted)]">
-            No active insights. Seed history then hit Generate.
+          <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
+            No active insights yet. Confirm a few receipts, then hit Generate — or open the{' '}
+            <button
+              type="button"
+              className="font-semibold text-[var(--brand-soft)]"
+              onClick={() => void regenerate()}
+            >
+              weekly digest
+            </button>{' '}
+            after seed data is loaded.
           </li>
         )}
       </ul>

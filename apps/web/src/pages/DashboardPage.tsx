@@ -64,6 +64,7 @@ export function DashboardPage() {
   const [habits, setHabits] = useState<Habits | null>(null);
   const [indexPoints, setIndexPoints] = useState<IndexPoint[]>([]);
   const [needsReview, setNeedsReview] = useState(0);
+  const [failedCount, setFailedCount] = useState(0);
 
   useEffect(() => {
     void api<SpendResponse>('/analytics/spend?groupBy=category').then(setSpend);
@@ -78,7 +79,7 @@ export function DashboardPage() {
       .then((r) => setNeedsReview(r.items.length))
       .catch(() => undefined);
     void api<{ items: ReceiptSummary[] }>('/receipts?status=FAILED&limit=50')
-      .then((r) => setNeedsReview((n) => n + r.items.length))
+      .then((r) => setFailedCount(r.items.length))
       .catch(() => undefined);
   }, []);
 
@@ -140,18 +141,35 @@ export function DashboardPage() {
         </div>
       </section>
 
-      {needsReview > 0 && (
-        <Link
-          to="/receipts?status=NEEDS_REVIEW"
-          className="block border-l-4 border-[var(--warn)] bg-[var(--surface)] px-4 py-3"
-        >
-          <p className="font-semibold">
-            {needsReview} receipt{needsReview === 1 ? '' : 's'} need review
-          </p>
-          <p className="text-sm text-[var(--ink-muted)]">
-            Finish confirming so prices and insights stay current.
-          </p>
-        </Link>
+      {(needsReview > 0 || failedCount > 0) && (
+        <div className="space-y-2">
+          {needsReview > 0 && (
+            <Link
+              to="/receipts?status=NEEDS_REVIEW"
+              className="block border-l-4 border-[var(--warn)] bg-[var(--surface)] px-4 py-3"
+            >
+              <p className="font-semibold">
+                {needsReview} receipt{needsReview === 1 ? '' : 's'} need review
+              </p>
+              <p className="text-sm text-[var(--ink-muted)]">
+                Finish confirming so prices and insights stay current.
+              </p>
+            </Link>
+          )}
+          {failedCount > 0 && (
+            <Link
+              to="/receipts?status=FAILED"
+              className="block border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3"
+            >
+              <p className="font-semibold">
+                {failedCount} failed extraction{failedCount === 1 ? '' : 's'}
+              </p>
+              <p className="text-sm text-[var(--ink-muted)]">
+                Fix totals on review, or enter the receipt manually.
+              </p>
+            </Link>
+          )}
+        </div>
       )}
 
       {habits && habits.tripCount > 0 && (

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { blobToBase64, preprocessReceiptImage } from '../lib/image';
 import {
@@ -177,8 +177,16 @@ export function CapturePage() {
         capture="environment"
         multiple
         className="hidden"
+        aria-label="Choose or take receipt photos"
         onChange={(e) => void handleFiles(e.target.files)}
       />
+
+      <p className="text-center text-sm text-[var(--ink-muted)]">
+        Photo failed?{' '}
+        <Link to="/capture/manual" className="font-semibold text-[var(--brand-soft)]">
+          Enter receipt manually
+        </Link>
+      </p>
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 

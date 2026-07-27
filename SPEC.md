@@ -472,6 +472,9 @@ Anthropic extraction as the non-dev path (mock still default locally), extractio
 **Phase 5 — review & household polish**
 Zoomable receipt image on review, header edits + suspect-line highlighting + add/delete lines, HEIC→JPEG capture, dashboard (index Δ, habits, review queue), receipt status/date filters, PWA app-shell caching, invite peek/revoke and move-household confirmation.
 
+**Phase 6 — core-loop finish**
+Store picker/create on review, manual receipt entry UI, FAILED extractions store binding, same-as-last reason copy, alerts product search + target $, receipt store filter/delete/empty CTAs, Prices→Alerts deep link, placeholder eval fixture image.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -498,6 +501,12 @@ Phase 5 is done when:
 - HEIC uploads convert (or fail with a clear message) before preprocess.
 - Dashboard surfaces live index Δ, habits summary, and a needs-review queue link.
 - Pending invites can be revoked; accepting while already in another household requires explicit confirmation.
+
+Phase 6 is done when:
+- Review can select or create a store; FAILED extractions receipts still get a storeId when the model returned one.
+- Users can create a receipt via `/capture/manual` without a photo and land on review.
+- Same-as-last returns actionable reasons (`no_store` / `no_prior` / `none_matched`).
+- Alerts support product search + optional target price; receipts list supports store filter and delete.
 
 ## 13. Testing
 

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeRawText } from '../common/normalize';
-import { CreateAliasDto, CreateProductDto } from './catalog.dto';
+import { CreateAliasDto, CreateProductDto, CreateStoreDto } from './catalog.dto';
 import {
   extractGtin,
   MatchCandidate,
@@ -18,6 +18,72 @@ export class CatalogService {
       where: { parentId: null },
       orderBy: { name: 'asc' },
       include: { children: { orderBy: { name: 'asc' } } },
+    });
+  }
+
+  /**
+   * Stores the household has shopped at, plus any other known island stores.
+   * Prefer recent household receipts when ranking.
+   */
+  async listStores(householdId: string, q?: string) {
+    const recent = await this.prisma.receipt.findMany({
+      where: {
+        householdId,
+        storeId: { not: null },
+      },
+      distinct: ['storeId'],
+      orderBy: { purchasedAt: 'desc' },
+      take: 40,
+      select: { storeId: true },
+    });
+    const recentIds = recent.map((r) => r.storeId!).filter(Boolean);
+
+    const where = q?.trim()
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { address: { contains: q, mode: 'insensitive' as const } },
+            { chain: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
+
+    const stores = await this.prisma.store.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      take: 80,
+    });
+
+    const rank = new Map(recentIds.map((id, i) => [id, i]));
+    return stores.sort((a, b) => {
+      const ar = rank.has(a.id) ? rank.get(a.id)! : 999;
+      const br = rank.has(b.id) ? rank.get(b.id)! : 999;
+      if (ar !== br) return ar - br;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  async createStore(dto: CreateStoreDto) {
+    const address = dto.address?.trim() || 'unknown';
+    return this.prisma.store.upsert({
+      where: {
+        name_address: { name: dto.name.trim(), address },
+      },
+      update: {
+        region: dto.region,
+        chain: dto.chain,
+      },
+      create: {
+        name: dto.name.trim(),
+        address,
+        region: dto.region || 'ketchikan',
+        chain: dto.chain,
+        aliases: {
+          create: {
+            raw: dto.name.trim().toUpperCase().replace(/\s+/g, ' '),
+          },
+        },
+      },
     });
   }
 
@@ -247,7 +313,9 @@ export class CatalogService {
       where: { id: receiptId, householdId },
       include: { lines: true },
     });
-    if (!receipt?.storeId) return { applied: 0 };
+    if (!receipt?.storeId) {
+      return { applied: 0, reason: 'no_store' as const };
+    }
 
     const prior = await this.prisma.receipt.findFirst({
       where: {
@@ -259,7 +327,9 @@ export class CatalogService {
       orderBy: { purchasedAt: 'desc' },
       include: { lines: { where: { productId: { not: null } } } },
     });
-    if (!prior) return { applied: 0 };
+    if (!prior) {
+      return { applied: 0, reason: 'no_prior' as const };
+    }
 
     const byNorm = new Map(
       prior.lines.map((l) => [normalizeRawText(l.rawText), l] as const),
@@ -282,7 +352,14 @@ export class CatalogService {
       await this.upsertAlias(line.rawText, prev.productId, receipt.storeId, 'manual');
       applied += 1;
     }
-    return { applied };
+    return {
+      applied,
+      reason: (applied === 0 ? 'none_matched' : 'ok') as
+        | 'ok'
+        | 'none_matched'
+        | 'no_store'
+        | 'no_prior',
+    };
   }
 
   async applyCategoryToSimilar(

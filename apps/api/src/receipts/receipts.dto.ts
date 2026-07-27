@@ -65,7 +65,7 @@ export class ManualReceiptDto {
 }
 
 export const PatchReceiptSchema = z.object({
-  storeId: z.string().optional(),
+  storeId: z.string().nullable().optional(),
   purchasedAt: z.string().datetime().nullable().optional(),
   subtotalCents: z.number().int().nullable().optional(),
   taxCents: z.number().int().nullable().optional(),
@@ -75,7 +75,7 @@ export const PatchReceiptSchema = z.object({
 
 @ZodBody(PatchReceiptSchema)
 export class PatchReceiptDto {
-  storeId?: string;
+  storeId?: string | null;
   purchasedAt?: string | null;
   subtotalCents?: number | null;
   taxCents?: number | null;

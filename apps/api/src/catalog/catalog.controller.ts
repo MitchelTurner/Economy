@@ -1,7 +1,8 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { CatalogService } from './catalog.service';
-import { CreateAliasDto, CreateProductDto } from './catalog.dto';
+import { CreateAliasDto, CreateProductDto, CreateStoreDto } from './catalog.dto';
 
 @Controller('catalog')
 @UseGuards(JwtAuthGuard)
@@ -11,6 +12,16 @@ export class CatalogController {
   @Get('categories')
   categories() {
     return this.catalog.listCategories();
+  }
+
+  @Get('stores')
+  stores(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.catalog.listStores(user.householdId, q);
+  }
+
+  @Post('stores')
+  createStore(@Body() dto: CreateStoreDto) {
+    return this.catalog.createStore(dto);
   }
 
   @Get('products')

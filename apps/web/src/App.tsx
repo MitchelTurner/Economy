@@ -14,6 +14,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { PublicIndexPage } from './pages/PublicIndexPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { DeliveredCostPage } from './pages/DeliveredCostPage';
+import { ManualEntryPage } from './pages/ManualEntryPage';
 import { InviteAcceptPage } from './pages/InviteAcceptPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="capture" element={<CapturePage />} />
+          <Route path="capture/manual" element={<ManualEntryPage />} />
           <Route path="receipts" element={<ReceiptsPage />} />
           <Route path="receipts/:id" element={<ReceiptReviewPage />} />
           <Route path="prices" element={<PricesPage />} />

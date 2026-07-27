@@ -74,17 +74,21 @@ export function PricesPage() {
             Per-unit history across stores — always compare on base UOM.
           </p>
         </div>
-        <Link to="/prices/index" className="text-sm font-semibold text-[var(--brand-soft)]">
-          Cost index
-        </Link>
+        <div className="flex flex-col items-end gap-1 text-sm font-semibold text-[var(--brand-soft)]">
+          <Link to="/prices/index">Cost index</Link>
+          <Link to="/alerts">Alerts</Link>
+        </div>
       </div>
 
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Search products"
-        className="w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
-      />
+      <label className="block text-sm">
+        Search products
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search products"
+          className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+        />
+      </label>
 
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
         {products.map((p) => (
@@ -101,6 +105,12 @@ export function PricesPage() {
                 {p.baseUom ? ` · base ${p.baseUom}` : ''}
               </span>
             </button>
+            <Link
+              to={`/alerts?productId=${p.id}`}
+              className="rounded-md border border-[var(--line)] px-2 py-1 text-xs font-semibold"
+            >
+              Alert
+            </Link>
             <button
               type="button"
               onClick={() => toggleCompare(p.id)}
@@ -114,6 +124,11 @@ export function PricesPage() {
             </button>
           </li>
         ))}
+        {products.length === 0 && (
+          <li className="py-8 text-center text-[var(--ink-muted)]">
+            No products yet. Confirm matched receipt lines to grow the catalog.
+          </li>
+        )}
       </ul>
 
       {selected && history && (

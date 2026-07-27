@@ -4,8 +4,8 @@ import { ZodBody } from '../common/pipes/zod-validation.pipe';
 export const CreateAlertSchema = z
   .object({
     productId: z.string().min(1),
-    dropPct: z.number().positive().max(90).optional(),
-    targetCents: z.number().int().positive().optional(),
+    dropPct: z.number().positive().max(90).nullish(),
+    targetCents: z.number().int().positive().nullish(),
   })
   .refine((v) => v.dropPct != null || v.targetCents != null, {
     message: 'Provide dropPct and/or targetCents',
@@ -14,6 +14,6 @@ export const CreateAlertSchema = z
 @ZodBody(CreateAlertSchema)
 export class CreateAlertDto {
   productId!: string;
-  dropPct?: number;
-  targetCents?: number;
+  dropPct?: number | null;
+  targetCents?: number | null;
 }

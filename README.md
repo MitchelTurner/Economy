@@ -49,6 +49,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 5:** zoomable receipt image on review, header + line add/delete, suspect-line highlight, HEIC conversion, dashboard index/habits/review queue, receipt filters, PWA shell cache, invite peek/revoke + move confirmation.
 
+**Phase 6:** store picker on review, manual receipt entry, alerts search/target $, receipt store filter/delete, same-as-last reason copy, Prices→Alerts links, eval fixture image placeholder.
+
 ### Production notes
 
 - Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.

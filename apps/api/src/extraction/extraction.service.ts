@@ -128,6 +128,10 @@ export class ExtractionService {
           totalCents: parsed.data.totalCents,
           paymentMethod: parsed.data.paymentMethod,
           purchasedAt: parsed.data.purchasedAt ? new Date(parsed.data.purchasedAt) : null,
+          storeId: await this.resolveStore(
+            parsed.data.store.name,
+            parsed.data.store.address,
+          ),
         },
       });
       // Still persist lines so user can manually fix, then attempt matches
