@@ -1,0 +1,523 @@
+# Island Ledger — Build Spec
+
+_Receipt scanning, island cost-of-goods tracking, and spending insights. Written to be dropped into a repo as `SPEC.md` and worked through with Cursor._
+
+---
+
+## 1. Problem
+
+Groceries and household goods on an island cost more than the mainland, prices move unpredictably with barge schedules and season, and the same item can differ meaningfully between stores. Households have no visibility into any of it — the receipt goes in the trash and the data dies with it.
+
+This app turns a photo of a receipt into structured, queryable data: what was bought, where, for how much, per unit. From that it builds a per-item price history, a local cost-of-goods index, spending habits by category, and concrete suggestions.
+
+## 2. Product summary
+
+**Core loop:** photograph receipt → automatic extraction → user confirms/corrects → data persists → insights accumulate.
+
+**Three value layers, in build order:**
+
+1. **Bookkeeping** — where does the money go, by category and store.
+2. **Price intelligence** — per-unit price history for a canonical item, across stores and over time. "Milk is $2.40/gal more than in March" and "this store is 14% cheaper on staples."
+3. **Advice** — rules-driven and LLM-narrated suggestions: switch stores for this category, stock up now, this recurring charge doubled, this budget is off-pace.
+
+**Non-goals for v1:** bank/card sync, tax prep, receipt storage for warranty purposes, multi-currency, investments.
+
+## 3. Stack
+
+| Layer | Choice |
+|---|---|
+| Backend | NestJS (modular, one module per domain below) |
+| ORM/DB | Prisma + PostgreSQL |
+| Queue | BullMQ on Redis — all extraction and analytics run out-of-band |
+| Frontend | React + Vite + Tailwind, mobile-first PWA (camera capture is the primary entry point) |
+| Object storage | S3-compatible bucket (R2 or Railway volume for dev) for receipt images |
+| Extraction | Vision LLM with structured JSON output (see §6) |
+| Hosting | Railway |
+| Auth | Email + password w/ argon2, JWT access + refresh; sessions in Redis |
+
+## 4. Domain model
+
+Money is stored as **integer cents** (`Int`) everywhere. Per-unit prices, which need fractions, use `Decimal(12, 4)`. Never `Float`.
+
+```prisma
+// ---------- identity ----------
+
+model Household {
+  id        String   @id @default(cuid())
+  name      String
+  users     User[]
+  receipts  Receipt[]
+  budgets   Budget[]
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  displayName  String?
+  householdId  String
+  household    Household @relation(fields: [householdId], references: [id])
+  receipts     Receipt[]
+  insights     Insight[]
+  createdAt    DateTime  @default(now())
+}
+
+// ---------- places ----------
+
+model Store {
+  id          String   @id @default(cuid())
+  name        String
+  chain       String?
+  address     String?
+  latitude    Float?
+  longitude   Float?
+  region      String   // e.g. "ketchikan" — enables island vs. mainland comparison
+  isOnline    Boolean  @default(false)
+  receipts    Receipt[]
+  prices      PriceObservation[]
+  aliases     StoreAlias[]
+
+  @@unique([name, address])
+}
+
+model StoreAlias {
+  id      String @id @default(cuid())
+  raw     String @unique   // normalized header text seen on receipts
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+}
+
+// ---------- receipts ----------
+
+enum ReceiptStatus {
+  UPLOADED
+  EXTRACTING
+  NEEDS_REVIEW
+  CONFIRMED
+  FAILED
+}
+
+model Receipt {
+  id            String        @id @default(cuid())
+  householdId   String
+  household     Household     @relation(fields: [householdId], references: [id])
+  uploadedById  String
+  uploadedBy    User          @relation(fields: [uploadedById], references: [id])
+  storeId       String?
+  store         Store?        @relation(fields: [storeId], references: [id])
+
+  status        ReceiptStatus @default(UPLOADED)
+  imageKey      String        // object storage key
+  imageHash     String        // sha256 of bytes — dedupe re-uploads
+  purchasedAt   DateTime?
+  subtotalCents Int?
+  taxCents      Int?
+  totalCents    Int?
+  paymentMethod String?
+
+  rawExtraction Json?         // full model output, kept for debugging + re-processing
+  extractionModel String?
+  confidence    Float?
+  reviewedAt    DateTime?
+  failureReason String?
+
+  lines         ReceiptLine[]
+  createdAt     DateTime      @default(now())
+
+  @@unique([householdId, imageHash])
+  @@index([householdId, purchasedAt])
+}
+
+model ReceiptLine {
+  id             String   @id @default(cuid())
+  receiptId      String
+  receipt        Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  lineNumber     Int
+  rawText        String   // exactly as printed: "GV MLK WHL 1GA"
+  quantity       Decimal  @db.Decimal(10, 3) @default(1)
+  unitPriceCents Int?
+  extendedCents  Int      // what this line actually added to the total
+  discountCents  Int      @default(0)
+  isTaxable      Boolean  @default(false)
+  isRefund       Boolean  @default(false)
+
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id])
+  matchConfidence Float?
+  matchMethod    String?  // "alias" | "gtin" | "embedding" | "manual"
+  categoryId     String?
+  category       Category? @relation(fields: [categoryId], references: [id])
+
+  @@index([receiptId])
+  @@index([productId])
+}
+
+// ---------- canonical catalog ----------
+
+model Category {
+  id       String     @id @default(cuid())
+  name     String
+  slug     String     @unique
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+  lines    ReceiptLine[]
+  budgets  Budget[]
+}
+
+model Product {
+  id         String   @id @default(cuid())
+  name       String   // "Whole milk, 1 gal"
+  brand      String?
+  gtin       String?  @unique
+  sizeValue  Decimal? @db.Decimal(10, 3)
+  sizeUom    String?  // "gal", "oz", "ct", "lb"
+  baseUom    String?  // normalized for comparison: "L", "kg", "ct"
+  baseFactor Decimal? @db.Decimal(12, 6) // sizeValue * baseFactor = quantity in baseUom
+  isStoreBrand Boolean @default(false)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  aliases    ProductAlias[]
+  lines      ReceiptLine[]
+  prices     PriceObservation[]
+  baselines  BaselinePrice[]
+}
+
+/// The learning layer. Every confirmed manual match writes a row here,
+/// so the same cryptic receipt string auto-resolves next time.
+model ProductAlias {
+  id         String  @id @default(cuid())
+  normalized String  // uppercased, punctuation-stripped rawText
+  storeId    String?
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  hitCount   Int     @default(1)
+  source     String  // "manual" | "seed" | "model"
+
+  @@unique([normalized, storeId])
+}
+
+// ---------- price intelligence ----------
+
+model PriceObservation {
+  id            String   @id @default(cuid())
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  storeId       String
+  store         Store    @relation(fields: [storeId], references: [id])
+  observedAt    DateTime
+  unitPriceCents Int
+  pricePerBaseUom Decimal @db.Decimal(12, 4) // the comparable number
+  isPromo       Boolean  @default(false)
+  receiptLineId String?  @unique
+  householdId   String   // for privacy scoping; never exposed in aggregates
+
+  @@index([productId, storeId, observedAt])
+  @@index([productId, observedAt])
+}
+
+/// Mainland/national reference price, for computing the island premium.
+model BaselinePrice {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  region          String   // "us-national" | "seattle" | "anchorage"
+  pricePerBaseUom Decimal  @db.Decimal(12, 4)
+  source          String
+  effectiveOn     DateTime
+
+  @@unique([productId, region, effectiveOn])
+}
+
+/// Nightly rollup: fixed-basket cost index per store and region.
+model PriceIndexPoint {
+  id            String   @id @default(cuid())
+  basketSlug    String   // "staples-25"
+  storeId       String?
+  region        String
+  periodStart   DateTime
+  indexValue    Decimal  @db.Decimal(10, 4)
+  basketCostCents Int
+  coverage      Float    // fraction of basket items with fresh observations
+
+  @@unique([basketSlug, storeId, region, periodStart])
+}
+
+// ---------- budgeting + advice ----------
+
+enum BudgetPeriod { WEEKLY MONTHLY }
+
+model Budget {
+  id          String       @id @default(cuid())
+  householdId String
+  household   Household    @relation(fields: [householdId], references: [id])
+  categoryId  String?
+  category    Category?    @relation(fields: [categoryId], references: [id])
+  period      BudgetPeriod @default(MONTHLY)
+  amountCents Int
+  startsOn    DateTime
+  endsOn      DateTime?
+}
+
+enum InsightSeverity { INFO OPPORTUNITY WARNING }
+
+model Insight {
+  id          String          @id @default(cuid())
+  householdId String
+  userId      String?
+  user        User?           @relation(fields: [userId], references: [id])
+  type        String          // "store_switch" | "price_spike" | "stock_up" | ...
+  severity    InsightSeverity @default(INFO)
+  title       String
+  body        String
+  estimatedSavingsCents Int?
+  data        Json            // structured evidence used to render charts
+  periodStart DateTime
+  periodEnd   DateTime
+  dedupeKey   String
+  dismissedAt DateTime?
+  createdAt   DateTime        @default(now())
+
+  @@unique([householdId, dedupeKey, periodStart])
+  @@index([householdId, createdAt])
+}
+```
+
+## 5. Backend modules (NestJS)
+
+One module per bounded concern; each owns its own service, controller, and queue processors.
+
+- `auth` — register, login, refresh, household invite
+- `receipts` — upload, list, get, confirm, delete; enqueues extraction
+- `extraction` — vision-model client, prompt, schema validation, retry, cost accounting
+- `catalog` — products, categories, alias resolution, match candidate search
+- `prices` — price observations, per-item history, store comparison, index rollups
+- `budgets`
+- `insights` — rule engine + narration
+- `analytics` — spending by category/store/period, habit metrics
+- `jobs` — BullMQ registration and schedulers
+
+### API surface
+
+```
+POST   /auth/register
+POST   /auth/login
+POST   /auth/refresh
+
+POST   /receipts/upload-url          -> { uploadUrl, imageKey }   (presigned PUT)
+POST   /receipts                     -> { receiptId }             (register uploaded key)
+GET    /receipts?from=&to=&storeId=&status=&cursor=
+GET    /receipts/:id                 -> receipt + lines + match candidates
+PATCH  /receipts/:id                 -> edit header fields
+PATCH  /receipts/:id/lines/:lineId   -> correct qty/price/product/category
+POST   /receipts/:id/confirm         -> validates totals, writes PriceObservations
+DELETE /receipts/:id
+
+GET    /catalog/products?q=
+POST   /catalog/products             -> create canonical product
+POST   /catalog/aliases              -> bind rawText -> product
+
+GET    /prices/product/:id/history?storeId=&from=&to=
+GET    /prices/compare?productIds=   -> per-store current price matrix
+GET    /prices/index?basket=staples-25&region=ketchikan
+GET    /prices/premium/:productId    -> local vs. baseline delta
+
+GET    /analytics/spend?groupBy=category|store|month&from=&to=
+GET    /analytics/habits             -> cadence, basket size, store mix, recurring items
+
+GET    /budgets  POST /budgets  PATCH /budgets/:id
+GET    /insights?active=true
+POST   /insights/:id/dismiss
+```
+
+### Background jobs
+
+| Queue | Trigger | Work |
+|---|---|---|
+| `receipt.extract` | on upload | call vision model, validate JSON, create lines, set `NEEDS_REVIEW` |
+| `receipt.match` | after extract, after confirm | resolve each line to a Product via alias → GTIN → fuzzy/embedding → null |
+| `price.observe` | on confirm | write `PriceObservation` rows, compute `pricePerBaseUom` |
+| `price.index` | nightly cron | recompute `PriceIndexPoint` for each basket/store/region |
+| `insights.generate` | weekly cron + on confirm (debounced) | run rule set, upsert by `dedupeKey` |
+| `receipt.cleanup` | daily | purge failed uploads with no receipt row |
+
+## 6. Extraction pipeline
+
+Do **not** use classic OCR (Tesseract) as the primary path. Crumpled thermal receipts wreck it. Send the image to a vision model and ask for structured JSON directly; treat OCR as an optional fallback.
+
+**Client-side pre-processing before upload:** downscale longest edge to 1600px, convert HEIC→JPEG, quality 0.8, strip EXIF GPS. This cuts token cost and upload time substantially.
+
+**Prompt contract** — model returns only JSON matching this shape, validated with zod on receipt:
+
+```ts
+{
+  store: { name: string | null, address: string | null },
+  purchasedAt: string | null,        // ISO 8601
+  paymentMethod: string | null,
+  currency: "USD",
+  subtotalCents: number | null,
+  taxCents: number | null,
+  totalCents: number | null,
+  lines: Array<{
+    lineNumber: number,
+    rawText: string,                 // verbatim, do not clean
+    quantity: number,
+    unitPriceCents: number | null,
+    extendedCents: number,
+    discountCents: number,
+    isTaxable: boolean,
+    isRefund: boolean,
+    guessedCategory: string | null
+  }>,
+  confidence: number                 // 0..1, model's own assessment
+}
+```
+
+**Validation gate before `NEEDS_REVIEW`:**
+- `sum(extendedCents) - sum(discountCents) + taxCents` must equal `totalCents` within ±2 cents. If not, flag the receipt and highlight lines whose parsed price is furthest from a plausible value.
+- Retry once with a "your previous output failed arithmetic check" follow-up before giving up.
+- On repeated failure → `FAILED` with reason; user can still enter the receipt manually.
+
+**Human-in-the-loop is a feature, not a fallback.** The review screen is where alias learning happens. Every correction the user makes writes a `ProductAlias`, which is what makes the second month of use dramatically less work than the first.
+
+**Cost control:** hash the image and dedupe; cap per-household extractions per day; log token usage per receipt so unit economics are visible from day one.
+
+## 7. Product normalization
+
+This is the hard part and the actual moat. Resolution order for each line's `rawText`:
+
+1. **Exact alias hit** on `(normalized, storeId)` → confidence 1.0, done.
+2. **Store-agnostic alias hit** on `(normalized, null)` → 0.9.
+3. **GTIN** if the receipt printed one → 1.0.
+4. **Fuzzy/vector match** — trigram similarity (`pg_trgm`) over product names + aliases; take the top candidate if score > threshold, else return top 5 as *suggestions* and leave `productId` null.
+5. **Unmatched** — line still counts toward spend and category totals, just not toward price history.
+
+Normalization function: uppercase, strip punctuation, collapse whitespace, expand a small abbreviation dictionary (`WHL`→`WHOLE`, `MLK`→`MILK`, `GA`/`GAL`→`GALLON`, `LB`, `OZ`, `CT`, `PK`). Keep the dictionary in a seed file so it's editable without a deploy.
+
+Unit normalization matters more than it looks: comparing "$5.99" across a 12oz and an 18oz jar is meaningless. Every matched line computes `pricePerBaseUom` and every comparison in the app uses that number.
+
+## 8. Insight rules
+
+Each rule is a class implementing `evaluate(ctx): Insight[]`. Deterministic detection, LLM only for phrasing the copy. Never let the model invent a number — it receives the computed figures and writes the sentence around them.
+
+Ship these:
+
+| Rule | Fires when | Output |
+|---|---|---|
+| `store_switch` | Same basket of ≥5 matched items available at 2+ stores, one is >8% cheaper over the last 60 days | "Buying your regular staples at X would have saved ~$Y last month" |
+| `price_spike` | An item's current price is >20% above its trailing 90-day median | "Butter is up 27% since May" |
+| `stock_up` | Current price is in the bottom decile of its own history and the item is bought regularly | "Coffee is at its lowest price since January" |
+| `island_premium` | Matched item has a `BaselinePrice` and local exceeds it by >30% | Flags candidates for bulk/mainland ordering |
+| `budget_pace` | Spend-to-date projects over budget for the period | "On pace for $X against a $Y grocery budget" |
+| `category_creep` | Category spend up >15% for 2 consecutive months, controlling for the index | Distinguishes "prices rose" from "you bought more" |
+| `recurring_change` | A recurring charge's amount changed | Subscription/utility drift |
+| `impulse_pattern` | Basket size correlates with time-of-day or trip frequency | Habit-level nudge |
+
+Every insight carries `estimatedSavingsCents` where it can be computed honestly, and `data` with the evidence so the UI can render a chart under the sentence. Dedupe by `dedupeKey` so the same suggestion doesn't nag weekly.
+
+**Separating price inflation from behavior change is the single most valuable analytic here.** Compute both: `Δspend_total` and `Δspend` holding quantities fixed at the prior period's basket. The gap is behavior.
+
+## 9. Frontend
+
+Mobile-first PWA. Camera capture must be reachable in one tap from the home screen.
+
+```
+/                      Dashboard — month spend, budget pace, top 3 insights, index tile
+/capture               Camera + multi-shot queue, offline-tolerant (IndexedDB outbox)
+/receipts              List, filter by store/date/status
+/receipts/:id          Review & confirm — the core screen (see below)
+/prices                Item search → price history chart, store comparison
+/prices/index          Cost-of-goods index over time, by store
+/insights              Full feed, dismissible
+/budgets               Set and track
+/settings              Household, members, export, data deletion
+```
+
+**Review screen requirements** — this screen determines whether the product is usable:
+- Receipt image pinned on one side (zoomable), parsed lines on the other; tapping a line highlights nothing on the image unless you have bounding boxes, so instead keep line order faithful to print order.
+- Inline edit of qty / price / product / category without leaving the row.
+- Unmatched lines float to the top with suggested product chips; one tap binds and creates the alias.
+- Running total with a live diff against the printed total; confirm is blocked until it reconciles or the user explicitly overrides.
+- Bulk actions: "apply category to all similar", "same as last time at this store".
+
+Charts: Recharts. Currency formatting centralized in one helper; cents never rendered raw.
+
+## 10. Privacy
+
+If a community/public price index is ever built on top of this, the shared unit is **(product, store, date, unit price)** and nothing else. Basket composition, totals, and receipt images never leave the household scope. Enforce it at the query layer, not just the API — `PriceObservation.householdId` exists so aggregates can require a `GROUP BY` with a minimum-contributor threshold (≥3 distinct households) before any figure is exposed publicly.
+
+Also: user-triggered full export (JSON + CSV) and hard delete, including object storage keys.
+
+## 11. Build phases
+
+**Phase 0 — skeleton (get one receipt end-to-end)**
+Auth, household, presigned upload, extraction job, review screen, confirm, receipt list, spend-by-category. No matching, no products. A receipt line is just text and a number.
+
+**Phase 1 — catalog & prices**
+Product/alias models, matching pipeline, review-screen binding UI, price history charts, store comparison.
+
+**Phase 2 — intelligence**
+Budgets, index rollups, baseline prices, rule engine, insight feed, weekly digest.
+
+**Phase 3 — reach**
+Public/anonymized island index page, price-drop alerts, delivered-cost comparison for bulk mainland ordering, multi-user household sharing.
+
+## 12. Acceptance criteria
+
+Phase 0 is done when:
+- A photo taken on a phone becomes a `CONFIRMED` receipt with correct total in under 60 seconds of user time.
+- Arithmetic validation catches an intentionally corrupted extraction.
+- Re-uploading the same image returns the existing receipt rather than creating a duplicate.
+- Spend-by-category for a month matches hand-tallied receipts exactly.
+
+Phase 3 is done when:
+- Every insight's stated dollar figure can be reproduced from a SQL query against the stored data.
+- No insight repeats within its dedupe window.
+
+## 13. Testing
+
+- **Extraction eval set**: photograph 30 real receipts across every store you shop, hand-label the expected JSON, commit as fixtures. Score line-level precision/recall and total accuracy on every prompt change. Without this you are guessing whether a prompt tweak helped.
+- Unit tests: money math, unit normalization, alias normalization, each insight rule against fixture datasets.
+- Integration: full upload→confirm flow against a test DB with a mocked extraction response.
+- Seed script: a household with 6 months of synthetic receipts so analytics screens have something to render in dev.
+
+## 14. Environment
+
+```
+DATABASE_URL=
+REDIS_URL=
+JWT_SECRET=
+JWT_REFRESH_SECRET=
+S3_ENDPOINT=
+S3_BUCKET=
+S3_ACCESS_KEY_ID=
+S3_SECRET_ACCESS_KEY=
+ANTHROPIC_API_KEY=
+EXTRACTION_MODEL=
+MAX_EXTRACTIONS_PER_DAY=50
+```
+
+## 15. Working this with Cursor
+
+Put this file at repo root as `SPEC.md`, and add `.cursor/rules/project.md` containing:
+
+- Stack and conventions (NestJS module structure, Prisma, no `Float` for money, cents everywhere, zod for all external input).
+- "Consult `SPEC.md` §4 before changing the schema; schema changes require a migration in the same commit."
+- File layout map so it stops inventing directories.
+
+Then drive it in this order, one prompt per step, committing between:
+
+1. `prisma/schema.prisma` from §4, plus initial migration and seed (categories, abbreviation dictionary, a starter basket).
+2. Auth module + household scoping guard. Every subsequent query is household-scoped — establish that guard early or retrofitting it is miserable.
+3. Receipts module: upload URL, register, list, get. No extraction yet — a manual-entry endpoint proves the model works.
+4. Extraction module with the §6 schema, a mocked provider, and the arithmetic validator. Only then wire the real model.
+5. Review UI. Spend real time here; it's the screen the product lives or dies on.
+6. Catalog + matching, then price observations on confirm.
+7. Analytics endpoints, then charts.
+8. Insight rules one at a time, each with a fixture test written before the rule.
+
+Ask Cursor for the *test* first on anything involving money math or rule thresholds. Those are the places where a plausible-looking wrong answer is expensive and invisible.

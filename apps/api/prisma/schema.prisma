@@ -1,0 +1,275 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- identity ----------
+
+model Household {
+  id        String     @id @default(cuid())
+  name      String
+  users     User[]
+  receipts  Receipt[]
+  budgets   Budget[]
+  createdAt DateTime   @default(now())
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  displayName  String?
+  householdId  String
+  household    Household @relation(fields: [householdId], references: [id])
+  receipts     Receipt[]
+  insights     Insight[]
+  createdAt    DateTime  @default(now())
+}
+
+// ---------- places ----------
+
+model Store {
+  id        String             @id @default(cuid())
+  name      String
+  chain     String?
+  address   String?
+  latitude  Float?
+  longitude Float?
+  region    String
+  isOnline  Boolean            @default(false)
+  receipts  Receipt[]
+  prices    PriceObservation[]
+  aliases   StoreAlias[]
+
+  @@unique([name, address])
+}
+
+model StoreAlias {
+  id      String @id @default(cuid())
+  raw     String @unique
+  storeId String
+  store   Store  @relation(fields: [storeId], references: [id])
+}
+
+// ---------- receipts ----------
+
+enum ReceiptStatus {
+  UPLOADED
+  EXTRACTING
+  NEEDS_REVIEW
+  CONFIRMED
+  FAILED
+}
+
+model Receipt {
+  id              String        @id @default(cuid())
+  householdId     String
+  household       Household     @relation(fields: [householdId], references: [id])
+  uploadedById    String
+  uploadedBy      User          @relation(fields: [uploadedById], references: [id])
+  storeId         String?
+  store           Store?        @relation(fields: [storeId], references: [id])
+
+  status          ReceiptStatus @default(UPLOADED)
+  imageKey        String
+  imageHash       String
+  purchasedAt     DateTime?
+  subtotalCents   Int?
+  taxCents        Int?
+  totalCents      Int?
+  paymentMethod   String?
+
+  rawExtraction   Json?
+  extractionModel String?
+  confidence      Float?
+  reviewedAt      DateTime?
+  failureReason   String?
+  arithmeticOk    Boolean?
+  tokenUsage      Json?
+
+  lines           ReceiptLine[]
+  createdAt       DateTime      @default(now())
+
+  @@unique([householdId, imageHash])
+  @@index([householdId, purchasedAt])
+}
+
+model ReceiptLine {
+  id              String    @id @default(cuid())
+  receiptId       String
+  receipt         Receipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  lineNumber      Int
+  rawText         String
+  quantity        Decimal   @default(1) @db.Decimal(10, 3)
+  unitPriceCents  Int?
+  extendedCents   Int
+  discountCents   Int       @default(0)
+  isTaxable       Boolean   @default(false)
+  isRefund        Boolean   @default(false)
+
+  productId       String?
+  product         Product?  @relation(fields: [productId], references: [id])
+  matchConfidence Float?
+  matchMethod     String?
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
+
+  priceObservation PriceObservation?
+
+  @@index([receiptId])
+  @@index([productId])
+}
+
+// ---------- canonical catalog ----------
+
+model Category {
+  id       String        @id @default(cuid())
+  name     String
+  slug     String        @unique
+  parentId String?
+  parent   Category?     @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[]    @relation("CategoryTree")
+  products Product[]
+  lines    ReceiptLine[]
+  budgets  Budget[]
+}
+
+model Product {
+  id           String             @id @default(cuid())
+  name         String
+  brand        String?
+  gtin         String?            @unique
+  sizeValue    Decimal?           @db.Decimal(10, 3)
+  sizeUom      String?
+  baseUom      String?
+  baseFactor   Decimal?           @db.Decimal(12, 6)
+  isStoreBrand Boolean            @default(false)
+  categoryId   String
+  category     Category           @relation(fields: [categoryId], references: [id])
+
+  aliases      ProductAlias[]
+  lines        ReceiptLine[]
+  prices       PriceObservation[]
+  baselines    BaselinePrice[]
+}
+
+model ProductAlias {
+  id         String  @id @default(cuid())
+  normalized String
+  storeId    String?
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  hitCount   Int     @default(1)
+  source     String
+
+  @@unique([normalized, storeId])
+}
+
+// ---------- price intelligence ----------
+
+model PriceObservation {
+  id              String      @id @default(cuid())
+  productId       String
+  product         Product     @relation(fields: [productId], references: [id])
+  storeId         String
+  store           Store       @relation(fields: [storeId], references: [id])
+  observedAt      DateTime
+  unitPriceCents  Int
+  pricePerBaseUom Decimal     @db.Decimal(12, 4)
+  isPromo         Boolean     @default(false)
+  receiptLineId   String?     @unique
+  receiptLine     ReceiptLine? @relation(fields: [receiptLineId], references: [id])
+  householdId     String
+
+  @@index([productId, storeId, observedAt])
+  @@index([productId, observedAt])
+}
+
+model BaselinePrice {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id])
+  region          String
+  pricePerBaseUom Decimal  @db.Decimal(12, 4)
+  source          String
+  effectiveOn     DateTime
+
+  @@unique([productId, region, effectiveOn])
+}
+
+model PriceIndexPoint {
+  id              String   @id @default(cuid())
+  basketSlug      String
+  storeId         String?
+  region          String
+  periodStart     DateTime
+  indexValue      Decimal  @db.Decimal(10, 4)
+  basketCostCents Int
+  coverage        Float
+
+  @@unique([basketSlug, storeId, region, periodStart])
+}
+
+// ---------- budgeting + advice ----------
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+}
+
+model Budget {
+  id          String       @id @default(cuid())
+  householdId String
+  household   Household    @relation(fields: [householdId], references: [id])
+  categoryId  String?
+  category    Category?    @relation(fields: [categoryId], references: [id])
+  period      BudgetPeriod @default(MONTHLY)
+  amountCents Int
+  startsOn    DateTime
+  endsOn      DateTime?
+}
+
+enum InsightSeverity {
+  INFO
+  OPPORTUNITY
+  WARNING
+}
+
+model Insight {
+  id                    String          @id @default(cuid())
+  householdId           String
+  userId                String?
+  user                  User?           @relation(fields: [userId], references: [id])
+  type                  String
+  severity              InsightSeverity @default(INFO)
+  title                 String
+  body                  String
+  estimatedSavingsCents Int?
+  data                  Json
+  periodStart           DateTime
+  periodEnd             DateTime
+  dedupeKey             String
+  dismissedAt           DateTime?
+  createdAt             DateTime        @default(now())
+
+  @@unique([householdId, dedupeKey, periodStart])
+  @@index([householdId, createdAt])
+}
+
+/// Tracks vision-model token spend for unit economics.
+model ExtractionUsage {
+  id           String   @id @default(cuid())
+  householdId  String
+  receiptId    String?
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([householdId, createdAt])
+}

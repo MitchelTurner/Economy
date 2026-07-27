@@ -1,0 +1,22 @@
+{
+  "name": "island-ledger",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev -w @island-ledger/api",
+    "dev:web": "npm run dev -w @island-ledger/web",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w @island-ledger/api",
+    "db:seed": "npm run db:seed -w @island-ledger/api",
+    "db:generate": "npm run db:generate -w @island-ledger/api"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

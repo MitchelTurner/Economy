@@ -1,0 +1,134 @@
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import * as argon2 from 'argon2';
+import Redis from 'ioredis';
+import { PrismaService } from '../prisma/prisma.service';
+import { LoginDto, RefreshDto, RegisterDto } from './auth.dto';
+
+@Injectable()
+export class AuthService {
+  private readonly redis: Redis;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+  ) {
+    this.redis = new Redis(this.config.get('REDIS_URL') ?? 'redis://localhost:6379', {
+      maxRetriesPerRequest: null,
+      lazyConnect: true,
+    });
+    void this.redis.connect().catch(() => {
+      // Redis optional at boot for unit tests; login refresh needs it.
+    });
+  }
+
+  async register(dto: RegisterDto) {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new ConflictException('Email already registered');
+
+    const passwordHash = await argon2.hash(dto.password);
+    const household = await this.prisma.household.create({
+      data: {
+        name: dto.householdName ?? `${dto.displayName ?? dto.email}'s household`,
+        users: {
+          create: {
+            email: dto.email.toLowerCase(),
+            passwordHash,
+            displayName: dto.displayName,
+          },
+        },
+      },
+      include: { users: true },
+    });
+
+    const user = household.users[0];
+    return this.issueTokens(user.id, user.householdId, user.email);
+  }
+
+  async login(dto: LoginDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
+    const ok = await argon2.verify(user.passwordHash, dto.password);
+    if (!ok) throw new UnauthorizedException('Invalid credentials');
+
+    return this.issueTokens(user.id, user.householdId, user.email);
+  }
+
+  async refresh(dto: RefreshDto) {
+    let payload: { sub: string; householdId: string; email: string; typ?: string };
+    try {
+      payload = await this.jwt.verifyAsync(dto.refreshToken, {
+        secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (payload.typ !== 'refresh') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const key = this.refreshKey(payload.sub, dto.refreshToken);
+    const stored = await this.redis.get(key).catch(() => null);
+    if (!stored) throw new UnauthorizedException('Refresh session expired');
+
+    await this.redis.del(key).catch(() => undefined);
+    return this.issueTokens(payload.sub, payload.householdId, payload.email);
+  }
+
+  async me(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        householdId: true,
+        household: { select: { id: true, name: true } },
+        createdAt: true,
+      },
+    });
+  }
+
+  private async issueTokens(userId: string, householdId: string, email: string) {
+    const accessToken = await this.jwt.signAsync(
+      { sub: userId, householdId, email },
+      {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: '15m',
+      },
+    );
+
+    const refreshToken = await this.jwt.signAsync(
+      { sub: userId, householdId, email, typ: 'refresh' },
+      {
+        secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'),
+        expiresIn: '30d',
+      },
+    );
+
+    const ttlSeconds = 30 * 24 * 60 * 60;
+    await this.redis
+      .set(this.refreshKey(userId, refreshToken), '1', 'EX', ttlSeconds)
+      .catch(() => undefined);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: { id: userId, householdId, email },
+    };
+  }
+
+  private refreshKey(userId: string, token: string) {
+    return `session:refresh:${userId}:${token.slice(-24)}`;
+  }
+}

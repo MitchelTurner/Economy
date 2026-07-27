@@ -1,0 +1,32 @@
+{
+  "slug": "staples-25",
+  "name": "Island staples (25)",
+  "description": "Fixed basket for cost-of-goods index rollups",
+  "items": [
+    { "name": "Whole milk, 1 gal", "sizeValue": 1, "sizeUom": "gal", "baseUom": "L", "baseFactor": 3.78541, "categorySlug": "dairy" },
+    { "name": "Eggs, large dozen", "sizeValue": 12, "sizeUom": "ct", "baseUom": "ct", "baseFactor": 1, "categorySlug": "dairy" },
+    { "name": "Butter, salted 1 lb", "sizeValue": 1, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "dairy" },
+    { "name": "Cheddar cheese, 8 oz", "sizeValue": 8, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "dairy" },
+    { "name": "White bread loaf", "sizeValue": 1, "sizeUom": "ct", "baseUom": "ct", "baseFactor": 1, "categorySlug": "bakery" },
+    { "name": "All-purpose flour, 5 lb", "sizeValue": 5, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "pantry" },
+    { "name": "White rice, 5 lb", "sizeValue": 5, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "pantry" },
+    { "name": "Spaghetti pasta, 16 oz", "sizeValue": 16, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "pantry" },
+    { "name": "Peanut butter, 16 oz", "sizeValue": 16, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "pantry" },
+    { "name": "Coffee, ground 12 oz", "sizeValue": 12, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "beverages" },
+    { "name": "Sugar, granulated 4 lb", "sizeValue": 4, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "pantry" },
+    { "name": "Vegetable oil, 48 oz", "sizeValue": 48, "sizeUom": "oz", "baseUom": "L", "baseFactor": 0.0295735, "categorySlug": "pantry" },
+    { "name": "Canned tomatoes, 14.5 oz", "sizeValue": 14.5, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "pantry" },
+    { "name": "Bananas, per lb", "sizeValue": 1, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "produce" },
+    { "name": "Yellow onions, 3 lb", "sizeValue": 3, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "produce" },
+    { "name": "Russet potatoes, 5 lb", "sizeValue": 5, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "produce" },
+    { "name": "Chicken breast, per lb", "sizeValue": 1, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "meat" },
+    { "name": "Ground beef 80/20, per lb", "sizeValue": 1, "sizeUom": "lb", "baseUom": "kg", "baseFactor": 0.453592, "categorySlug": "meat" },
+    { "name": "Toilet paper, 12 rolls", "sizeValue": 12, "sizeUom": "ct", "baseUom": "ct", "baseFactor": 1, "categorySlug": "household" },
+    { "name": "Paper towels, 6 rolls", "sizeValue": 6, "sizeUom": "ct", "baseUom": "ct", "baseFactor": 1, "categorySlug": "household" },
+    { "name": "Dish soap, 24 oz", "sizeValue": 24, "sizeUom": "oz", "baseUom": "L", "baseFactor": 0.0295735, "categorySlug": "household" },
+    { "name": "Laundry detergent, 100 oz", "sizeValue": 100, "sizeUom": "oz", "baseUom": "L", "baseFactor": 0.0295735, "categorySlug": "household" },
+    { "name": "Orange juice, 64 oz", "sizeValue": 64, "sizeUom": "oz", "baseUom": "L", "baseFactor": 0.0295735, "categorySlug": "beverages" },
+    { "name": "Canned tuna, 5 oz", "sizeValue": 5, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "pantry" },
+    { "name": "Greek yogurt, 32 oz", "sizeValue": 32, "sizeUom": "oz", "baseUom": "kg", "baseFactor": 0.0283495, "categorySlug": "dairy" }
+  ]
+}
