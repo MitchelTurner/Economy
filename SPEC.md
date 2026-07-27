@@ -475,6 +475,9 @@ Zoomable receipt image on review, header edits + suspect-line highlighting + add
 **Phase 6 — core-loop finish**
 Store picker/create on review, manual receipt entry UI, FAILED extractions store binding, same-as-last reason copy, alerts product search + target $, receipt store filter/delete/empty CTAs, Prices→Alerts deep link, placeholder eval fixture image.
 
+**Phase 7 — v1 shell finish**
+Safe receipt delete (clear linked observations), auto-rematch on store change, budgets/delivered discoverability, dashboard insight dismiss + deep links, seed index rollups + demo insights, public index/login polish, type-to-confirm household wipe, a11y pass on shell/nav.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -507,6 +510,12 @@ Phase 6 is done when:
 - Users can create a receipt via `/capture/manual` without a photo and land on review.
 - Same-as-last returns actionable reasons (`no_store` / `no_prior` / `none_matched`).
 - Alerts support product search + optional target price; receipts list supports store filter and delete.
+
+Phase 7 is done when:
+- Deleting a confirmed receipt also removes its linked price observations (no FK failure).
+- Changing store on review auto-rematches and reports matched-count delta.
+- Dashboard can dismiss insights and deep-link by type; budgets and delivered cost are one tap from home.
+- Seed writes index rollups and demo insights so `/prices/index`, `/island`, and Home insights render after `db:seed`.
 
 ## 13. Testing
 

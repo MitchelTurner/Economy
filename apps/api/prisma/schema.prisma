@@ -238,7 +238,7 @@ model PriceObservation {
   pricePerBaseUom Decimal     @db.Decimal(12, 4)
   isPromo         Boolean     @default(false)
   receiptLineId   String?     @unique
-  receiptLine     ReceiptLine? @relation(fields: [receiptLineId], references: [id])
+  receiptLine     ReceiptLine? @relation(fields: [receiptLineId], references: [id], onDelete: SetNull)
   householdId     String
 
   @@index([productId, storeId, observedAt])

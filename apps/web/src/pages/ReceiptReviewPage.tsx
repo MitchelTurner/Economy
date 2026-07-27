@@ -65,7 +65,19 @@ export function ReceiptReviewPage() {
 
   async function saveHeader(patch: Record<string, unknown>) {
     if (!id) return;
+    const beforeMatched = receipt?.lines.filter((l) => l.productId).length ?? 0;
     await api(`/receipts/${id}`, { method: 'PATCH', json: patch });
+    if ('storeId' in patch) {
+      await api(`/receipts/${id}/rematch`, { method: 'POST' });
+      await reload();
+      const after = await api<ReceiptDetail>(`/receipts/${id}`);
+      const afterMatched = after.lines.filter((l) => l.productId).length;
+      setInfo(
+        `Store updated — rematched ${beforeMatched}→${afterMatched} product bindings.`,
+      );
+      setReceipt(after);
+      return;
+    }
     await reload();
   }
 
@@ -297,14 +309,20 @@ export function ReceiptReviewPage() {
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-        <button
-          type="button"
-          disabled={busy || (!reconciled && !override)}
-          onClick={() => void confirm()}
-          className="w-full rounded-md bg-[var(--brand)] px-4 py-3 font-semibold text-white disabled:opacity-50"
-        >
-          {busy ? 'Confirming…' : 'Confirm receipt'}
-        </button>
+          <button
+            type="button"
+            disabled={busy || (!reconciled && !override)}
+            onClick={() => void confirm()}
+            aria-describedby={!reconciled ? 'confirm-override-hint' : undefined}
+            className="w-full rounded-md bg-[var(--brand)] px-4 py-3 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+          >
+            {busy ? 'Confirming…' : 'Confirm receipt'}
+          </button>
+          {!reconciled && (
+            <p id="confirm-override-hint" className="text-xs text-[var(--ink-muted)]">
+              Totals must reconcile, or check override above.
+            </p>
+          )}
       </div>
     </div>
   );

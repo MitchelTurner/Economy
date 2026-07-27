@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, type Product } from '../lib/api';
 import { formatCents } from '../lib/money';
 
@@ -30,32 +31,45 @@ type Comparison = {
 };
 
 export function DeliveredCostPage() {
+  const [params] = useSearchParams();
+  const [q, setQ] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [lanes, setLanes] = useState<Lane[]>([]);
-  const [productId, setProductId] = useState('');
+  const [productId, setProductId] = useState(params.get('productId') ?? '');
   const [laneId, setLaneId] = useState('');
   const [qty, setQty] = useState('6');
   const [result, setResult] = useState<Comparison | null>(null);
 
   useEffect(() => {
-    void api<Product[]>('/catalog/products?q=').then((p) => {
-      setProducts(p);
-      if (p[0]) setProductId(p[0].id);
-    });
     void api<Lane[]>('/prices/shipping-lanes').then((l) => {
       setLanes(l);
       if (l[0]) setLaneId(l[0].id);
     });
   }, []);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void api<Product[]>(`/catalog/products?q=${encodeURIComponent(q)}`).then((p) => {
+        setProducts(p);
+        if (!productId && p[0]) setProductId(p[0].id);
+      });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  useEffect(() => {
+    const pre = params.get('productId');
+    if (pre) setProductId(pre);
+  }, [params]);
+
   async function compare() {
     if (!productId) return;
-    const q = new URLSearchParams({
+    const qs = new URLSearchParams({
       quantity: qty,
       ...(laneId ? { laneId } : {}),
     });
     setResult(
-      await api<Comparison>(`/prices/delivered/${productId}?${q.toString()}`),
+      await api<Comparison>(`/prices/delivered/${productId}?${qs.toString()}`),
     );
   }
 
@@ -71,12 +85,23 @@ export function DeliveredCostPage() {
       </div>
 
       <label className="block text-sm">
+        Search products
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Coffee, butter…"
+          className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+        />
+      </label>
+
+      <label className="block text-sm">
         Product
         <select
           className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
           value={productId}
           onChange={(e) => setProductId(e.target.value)}
         >
+          <option value="">Select a product</option>
           {products.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -84,6 +109,16 @@ export function DeliveredCostPage() {
           ))}
         </select>
       </label>
+
+      {products.length === 0 && (
+        <p className="text-sm text-[var(--ink-muted)]">
+          No products yet. Confirm matched receipt lines first, or browse{' '}
+          <Link to="/prices" className="font-semibold text-[var(--brand-soft)]">
+            Prices
+          </Link>
+          .
+        </p>
+      )}
 
       <label className="block text-sm">
         Shipping lane
@@ -106,13 +141,15 @@ export function DeliveredCostPage() {
           className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
           value={qty}
           onChange={(e) => setQty(e.target.value)}
+          aria-label="Quantity to ship"
         />
       </label>
 
       <button
         type="button"
         onClick={() => void compare()}
-        className="rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white"
+        disabled={!productId}
+        className="rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white disabled:opacity-50"
       >
         Compare
       </button>

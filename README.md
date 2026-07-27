@@ -51,6 +51,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 6:** store picker on review, manual receipt entry, alerts search/target $, receipt store filter/delete, same-as-last reason copy, Prices→Alerts links, eval fixture image placeholder.
 
+**Phase 7:** safe receipt delete, auto-rematch on store change, budgets/delivered discoverability, dashboard insight dismiss + deep links, seed rollups/insights, public index polish, household wipe confirm, shell a11y.
+
 ### Production notes
 
 - Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.

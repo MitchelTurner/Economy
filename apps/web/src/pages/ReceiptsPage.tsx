@@ -46,7 +46,13 @@ export function ReceiptsPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm('Delete this receipt and its image?')) return;
+    if (
+      !confirm(
+        'Delete this receipt and its image? If it was confirmed, its price observations for those lines are removed too.',
+      )
+    ) {
+      return;
+    }
     await api(`/receipts/${id}`, { method: 'DELETE' });
     setItems((prev) => prev.filter((r) => r.id !== id));
   }

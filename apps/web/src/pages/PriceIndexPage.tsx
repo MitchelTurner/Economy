@@ -44,14 +44,14 @@ export function PriceIndexPage() {
         </Link>
         <h1 className="mt-2 text-3xl font-semibold">Cost-of-goods index</h1>
         <p className="mt-1 text-[var(--ink-muted)]">
-          Fixed staples-25 basket. Nightly rollups fill this in Phase 2; endpoint is live now.
+          Fixed staples-25 basket. Nightly rollups (and seed) populate this chart.
         </p>
       </div>
 
       <label className="block text-sm">
         Region
         <select
-          className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          className="mt-1 w-full max-w-xs rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
           value={region}
           onChange={(e) => setRegion(e.target.value)}
         >
@@ -63,7 +63,8 @@ export function PriceIndexPage() {
 
       {points.length === 0 ? (
         <p className="text-[var(--ink-muted)]">
-          No index points yet for {region}. Confirm matched receipts to build observations first.
+          No index points yet for {region}. Confirm matched receipts, then wait for the nightly
+          rollup — or re-run seed which writes demo rollups.
         </p>
       ) : (
         <>

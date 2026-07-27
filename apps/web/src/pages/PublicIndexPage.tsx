@@ -77,9 +77,16 @@ export function PublicIndexPage() {
       {error && <p className="text-[var(--danger)]">{error}</p>}
 
       {data && data.points.length === 0 && (
-        <p className="text-[var(--ink-muted)]">
-          No public points yet for {region}. Need ≥{data.minHouseholds} households
-          contributing observations at the same stores, then a rollup.
+        <p className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-[var(--ink-muted)]">
+          No public points yet for {region}. The gate requires ≥{data.minHouseholds} households
+          contributing observations at the same stores on overlapping dates, then a staples
+          index rollup. After a fresh seed, Ketchikan should populate automatically.
+        </p>
+      )}
+
+      {data && data.contributorStores.length > 0 && (
+        <p className="text-sm text-[var(--ink-muted)]">
+          Contributing stores: {data.contributorStores.map((s) => s.name).join(', ')}
         </p>
       )}
 

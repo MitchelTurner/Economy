@@ -442,6 +442,16 @@ export class ReceiptsService {
 
   async delete(user: AuthUser, id: string) {
     const receipt = await this.requireOwned(user, id);
+    const lines = await this.prisma.receiptLine.findMany({
+      where: { receiptId: id },
+      select: { id: true },
+    });
+    const lineIds = lines.map((l) => l.id);
+    if (lineIds.length) {
+      await this.prisma.priceObservation.deleteMany({
+        where: { receiptLineId: { in: lineIds } },
+      });
+    }
     await this.storage.deleteObject(receipt.imageKey);
     await this.prisma.receipt.delete({ where: { id } });
     return { ok: true };

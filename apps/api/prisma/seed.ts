@@ -468,6 +468,43 @@ async function seedSyntheticHistory(userId: string, householdId: string) {
   }
 }
 
+async function seedIndexRollups() {
+  const { IndexRollupService } = await import('../src/prices/index-rollup.service');
+  const rollup = new IndexRollupService(prisma as never);
+  // Seed observations cluster around mid-month synthetic dates — roll up a few periods.
+  const periods = [
+    new Date(Date.UTC(2026, 4, 15)),
+    new Date(Date.UTC(2026, 5, 15)),
+    new Date(Date.UTC(2026, 6, 15)),
+  ];
+  for (const p of periods) {
+    const res = await rollup.rollupAll(p);
+    console.log(`Index rollup ${p.toISOString().slice(0, 10)}: ${res.points} points`);
+  }
+}
+
+async function seedDemoInsights(householdId: string) {
+  const { InsightsService } = await import('../src/insights/insights.service');
+  const narration = {
+    narrateMany: async <T,>(drafts: T[]) => drafts,
+    narrate: async <T,>(draft: T) => draft,
+  };
+  const notifications = {
+    sendWeeklyDigest: async () => ({ id: 'seed', provider: 'log' as const }),
+    sendEmail: async () => ({ id: 'seed', provider: 'log' as const }),
+    sendPriceAlert: async () => ({ id: 'seed', provider: 'log' as const }),
+    sendInvite: async () => ({ id: 'seed', provider: 'log' as const }),
+    drainSent: () => [],
+  };
+  const insights = new InsightsService(
+    prisma as never,
+    narration as never,
+    notifications as never,
+  );
+  const res = await insights.generateForHousehold(householdId);
+  console.log(`Demo insights upserted: ${res.upserted}`);
+}
+
 async function main() {
   const categoryBySlug = await seedCategories();
   await seedBasketProducts(categoryBySlug);
@@ -478,6 +515,8 @@ async function main() {
   const user = await seedDevHousehold();
   await seedSyntheticHistory(user.id, user.householdId);
   await seedPublicContributors(user.householdId);
+  await seedIndexRollups();
+  await seedDemoInsights(user.householdId);
   console.log('Seed complete.');
   console.log('Demo login: demo@islandledger.local / demo-password-123');
 }

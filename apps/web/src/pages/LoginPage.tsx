@@ -101,6 +101,13 @@ export function LoginPage() {
             {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
+
+        <p className="mt-6 text-center text-sm text-[var(--ink-muted)]">
+          Curious about island prices?{' '}
+          <a href="/island" className="font-semibold text-[var(--brand-soft)]">
+            View the public cost-of-goods index
+          </a>
+        </p>
       </div>
     </div>
   );

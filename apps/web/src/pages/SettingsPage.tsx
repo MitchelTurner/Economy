@@ -16,6 +16,7 @@ export function SettingsPage() {
   const [email, setEmail] = useState('');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
 
   async function load() {
     setHousehold(await api<Household>('/household'));
@@ -65,9 +66,13 @@ export function SettingsPage() {
   }
 
   async function hardDelete() {
+    if (deleteConfirm !== 'DELETE') {
+      setMessage('Type DELETE in the confirm box to wipe this household.');
+      return;
+    }
     if (
       !confirm(
-        'Permanently delete this household, all receipts, images, and members? This cannot be undone.',
+        'Permanently delete this household, all receipts, images, price history, and members? This cannot be undone.',
       )
     ) {
       return;
@@ -185,28 +190,40 @@ export function SettingsPage() {
         </li>
       </ul>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => void exportData()}
-          className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
-        >
-          Export JSON + CSV
-        </button>
-        <button
-          type="button"
-          onClick={logout}
-          className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
-        >
-          Sign out
-        </button>
-        <button
-          type="button"
-          onClick={() => void hardDelete()}
-          className="rounded-md border border-[var(--danger)] px-4 py-2 font-semibold text-[var(--danger)]"
-        >
-          Delete household data
-        </button>
+      <div className="space-y-2">
+        <label className="block text-sm text-[var(--danger)]">
+          Type DELETE to enable household wipe
+          <input
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            className="mt-1 w-full max-w-xs rounded-md border border-[var(--danger)] bg-white/80 px-3 py-2"
+            autoComplete="off"
+          />
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void exportData()}
+            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
+          >
+            Export JSON + CSV
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
+          >
+            Sign out
+          </button>
+          <button
+            type="button"
+            disabled={deleteConfirm !== 'DELETE'}
+            onClick={() => void hardDelete()}
+            className="rounded-md border border-[var(--danger)] px-4 py-2 font-semibold text-[var(--danger)] disabled:opacity-40"
+          >
+            Delete household data
+          </button>
+        </div>
       </div>
 
       {message && <p className="text-sm text-[var(--ok)]">{message}</p>}

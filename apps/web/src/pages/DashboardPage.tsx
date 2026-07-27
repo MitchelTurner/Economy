@@ -118,7 +118,10 @@ export function DashboardPage() {
           {groceryBudget && pacePct != null && (
             <p className="mt-2 text-white/85">
               {pacePct}% of {formatCents(groceryBudget.amountCents)}{' '}
-              {groceryBudget.category?.name ?? 'overall'} budget
+              {groceryBudget.category?.name ?? 'overall'} budget ·{' '}
+              <Link to="/budgets" className="underline decoration-white/40 underline-offset-2">
+                Manage budgets
+              </Link>
             </p>
           )}
           <p className="mt-2 max-w-md text-white/85">
@@ -130,6 +133,12 @@ export function DashboardPage() {
               className="inline-flex rounded-md bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white"
             >
               Capture receipt
+            </Link>
+            <Link
+              to="/budgets"
+              className="inline-flex rounded-md border border-white/40 px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              Budgets
             </Link>
             <Link
               to="/insights"
@@ -245,29 +254,46 @@ export function DashboardPage() {
         </div>
         {insights.length === 0 ? (
           <p className="text-[var(--ink-muted)]">
-            Run generate from Insights after seeding history, or confirm a few more receipts.
+            No active tips yet.{' '}
+            <Link to="/insights" className="font-semibold text-[var(--brand-soft)]">
+              Generate insights
+            </Link>{' '}
+            after confirming receipts.
           </p>
         ) : (
           <ul className="space-y-3">
             {insights.map((i) => (
-              <li key={i.id}>
-                <Link
-                  to="/insights"
-                  className="block border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
-                >
-                  <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                    {i.type.replace(/_/g, ' ')}
-                  </p>
-                  <p className="font-semibold">{i.title}</p>
-                  <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
-                </Link>
+              <li
+                key={i.id}
+                className="border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <Link to={insightHref(i)} className="min-w-0 flex-1">
+                    <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                      {i.type.replace(/_/g, ' ')}
+                    </p>
+                    <p className="font-semibold">{i.title}</p>
+                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+                  </Link>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs font-semibold text-[var(--ink-muted)]"
+                    onClick={() =>
+                      void api(`/insights/${i.id}/dismiss`, { method: 'POST' }).then(() =>
+                        setInsights((prev) => prev.filter((x) => x.id !== i.id)),
+                      )
+                    }
+                  >
+                    Dismiss
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section>
+      <section className="grid gap-2 sm:grid-cols-2">
         <Link
           to="/prices/index"
           className="block border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3"
@@ -283,11 +309,35 @@ export function DashboardPage() {
             </p>
           ) : (
             <p className="text-sm text-[var(--ink-muted)]">
-              Staples-25 basket rollups by store and region
+              No rollup yet — confirm matched receipts, then check again after seed/cron.
             </p>
           )}
+        </Link>
+        <Link
+          to="/delivered"
+          className="block border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3"
+        >
+          <p className="font-semibold">Mainland delivered cost</p>
+          <p className="mt-1 text-sm text-[var(--ink-muted)]">
+            Compare island shelf price to barge/air freight for bulk orders.
+          </p>
         </Link>
       </section>
     </div>
   );
+}
+
+function insightHref(i: Insight): string {
+  switch (i.type) {
+    case 'budget_pace':
+      return '/budgets';
+    case 'island_premium':
+      return '/delivered';
+    case 'store_switch':
+    case 'price_spike':
+    case 'stock_up':
+      return '/prices';
+    default:
+      return '/insights';
+  }
 }
