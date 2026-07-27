@@ -37,6 +37,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 ## Phase status
 
-**Phase 0** (this branch): auth, household scoping, presigned upload, extraction job (mock/real), review UI, confirm, receipt list, spend-by-category.
+**Phase 0:** auth, household scoping, presigned upload, extraction job (mock/real), review UI, confirm, receipt list, spend-by-category.
 
-Phase 1+ (catalog matching, price intelligence, insight rules beyond budget pace) is scaffolded with schema and endpoints; deepen per `SPEC.md` §11.
+**Phase 1:** product/alias matching pipeline (`receipt.match`), review-screen product chips + alias learning, price history charts (per base UOM), store comparison matrix.
+
+Phase 2 (budgets/index rollups/insight rules) is partially scaffolded; deepen per `SPEC.md` §11.

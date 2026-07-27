@@ -7,6 +7,7 @@ import { CapturePage } from './pages/CapturePage';
 import { ReceiptsPage } from './pages/ReceiptsPage';
 import { ReceiptReviewPage } from './pages/ReceiptReviewPage';
 import { PricesPage } from './pages/PricesPage';
+import { PriceIndexPage } from './pages/PriceIndexPage';
 import { InsightsPage } from './pages/InsightsPage';
 import { BudgetsPage } from './pages/BudgetsPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="receipts" element={<ReceiptsPage />} />
           <Route path="receipts/:id" element={<ReceiptReviewPage />} />
           <Route path="prices" element={<PricesPage />} />
+          <Route path="prices/index" element={<PriceIndexPage />} />
           <Route path="insights" element={<InsightsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />
           <Route path="settings" element={<SettingsPage />} />

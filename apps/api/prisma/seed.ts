@@ -3,6 +3,27 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as argon2 from 'argon2';
 
+/** Keep in sync with apps/api/src/common/normalize.ts for seed-time aliases. */
+function normalizeRawText(raw: string): string {
+  const dict = JSON.parse(
+    readFileSync(join(__dirname, '../../../data/abbreviations.json'), 'utf8'),
+  ) as Record<string, string>;
+  return raw
+    .toUpperCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .flatMap((t) => {
+      const glued = t.match(/^(\d+(?:\.\d+)?)([A-Z]+)$/);
+      if (glued) return [glued[1], glued[2]];
+      return [t];
+    })
+    .map((t) => dict[t] ?? t)
+    .join(' ');
+}
+
 const prisma = new PrismaClient();
 
 const CATEGORIES = [
@@ -72,6 +93,50 @@ async function seedBasketProducts(categoryBySlug: Map<string, string>) {
       },
     });
   }
+
+  // Alternate package size for per-unit normalization demos (Phase 1 acceptance)
+  const pantryId = categoryBySlug.get('pantry')!;
+  const pb18 = await prisma.product.findFirst({ where: { name: 'Peanut butter, 18 oz' } });
+  if (!pb18) {
+    await prisma.product.create({
+      data: {
+        name: 'Peanut butter, 18 oz',
+        sizeValue: 18,
+        sizeUom: 'oz',
+        baseUom: 'kg',
+        baseFactor: 0.0283495,
+        categoryId: pantryId,
+      },
+    });
+  }
+}
+
+async function seedProductAliases() {
+  const pairs: Array<{ raw: string; productName: string }> = [
+    { raw: 'GV MLK WHL 1GA', productName: 'Whole milk, 1 gal' },
+    { raw: 'BANANAS', productName: 'Bananas, per lb' },
+    { raw: 'EGGS LG 12CT', productName: 'Eggs, large dozen' },
+    { raw: 'PNUT BTR 16OZ', productName: 'Peanut butter, 16 oz' },
+    { raw: 'PNUT BTR 18OZ', productName: 'Peanut butter, 18 oz' },
+  ];
+
+  for (const pair of pairs) {
+    const product = await prisma.product.findFirst({ where: { name: pair.productName } });
+    if (!product) continue;
+    const normalized = normalizeRawText(pair.raw);
+    const existing = await prisma.productAlias.findFirst({
+      where: { normalized, storeId: null },
+    });
+    if (existing) continue;
+    await prisma.productAlias.create({
+      data: {
+        normalized,
+        storeId: null,
+        productId: product.id,
+        source: 'seed',
+      },
+    });
+  }
 }
 
 async function seedDevHousehold() {
@@ -113,6 +178,7 @@ async function seedStores() {
 async function main() {
   const categoryBySlug = await seedCategories();
   await seedBasketProducts(categoryBySlug);
+  await seedProductAliases();
   await seedStores();
   await seedDevHousehold();
   console.log('Seed complete.');

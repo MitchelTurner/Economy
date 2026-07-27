@@ -15,3 +15,5 @@ apps/web/dev-dist/
 uploads/
 .idea/
 .vscode/
+dump.rdb
+dump.rdb

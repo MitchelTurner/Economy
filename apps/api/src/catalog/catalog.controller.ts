@@ -18,6 +18,11 @@ export class CatalogController {
     return this.catalog.searchProducts(q);
   }
 
+  @Get('match')
+  match(@Query('rawText') rawText: string, @Query('storeId') storeId?: string) {
+    return this.catalog.matchRawText(rawText ?? '', storeId);
+  }
+
   @Post('products')
   createProduct(@Body() dto: CreateProductDto) {
     return this.catalog.createProduct(dto);

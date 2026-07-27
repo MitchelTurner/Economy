@@ -1,11 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import { ReceiptStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { ExtractionProvider } from './extraction.provider';
 import { ExtractionResultSchema } from './extraction.schema';
 import { receiptArithmeticOk, rankImplausibleLines } from '../common/money';
+import { QUEUE_RECEIPT_MATCH } from '../jobs/queues';
 
 @Injectable()
 export class ExtractionService {
@@ -16,6 +19,7 @@ export class ExtractionService {
     private readonly storage: StorageService,
     private readonly provider: ExtractionProvider,
     private readonly config: ConfigService,
+    @InjectQueue(QUEUE_RECEIPT_MATCH) private readonly matchQueue: Queue,
   ) {}
 
   async processReceipt(receiptId: string) {
@@ -126,8 +130,13 @@ export class ExtractionService {
           purchasedAt: parsed.data.purchasedAt ? new Date(parsed.data.purchasedAt) : null,
         },
       });
-      // Still persist lines so user can manually fix
+      // Still persist lines so user can manually fix, then attempt matches
       await this.replaceLines(receiptId, parsed.data);
+      await this.matchQueue.add(
+        'match',
+        { receiptId },
+        { attempts: 2, removeOnComplete: 100, removeOnFail: 50 },
+      );
       return;
     }
 
@@ -156,6 +165,11 @@ export class ExtractionService {
     });
 
     await this.replaceLines(receiptId, parsed.data);
+    await this.matchQueue.add(
+      'match',
+      { receiptId },
+      { attempts: 2, removeOnComplete: 100, removeOnFail: 50 },
+    );
   }
 
   private async replaceLines(

@@ -2,6 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeRawText } from '../common/normalize';
 import { CreateAliasDto, CreateProductDto } from './catalog.dto';
+import {
+  extractGtin,
+  MatchCandidate,
+  MatchResult,
+  pickFuzzyMatch,
+} from './matching';
 
 @Injectable()
 export class CatalogService {
@@ -23,12 +29,14 @@ export class CatalogService {
         orderBy: { name: 'asc' },
       });
     }
+    const normalized = normalizeRawText(q);
     return this.prisma.product.findMany({
       where: {
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
           { brand: { contains: q, mode: 'insensitive' } },
-          { aliases: { some: { normalized: { contains: normalizeRawText(q) } } } },
+          { aliases: { some: { normalized: { contains: normalized } } } },
+          { gtin: q.replace(/\D/g, '') || undefined },
         ],
       },
       take: 40,
@@ -55,32 +63,32 @@ export class CatalogService {
   async createAlias(dto: CreateAliasDto) {
     const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
     if (!product) throw new NotFoundException('Product not found');
+    return this.upsertAlias(dto.rawText, dto.productId, dto.storeId ?? null, 'manual');
+  }
 
-    const normalized = normalizeRawText(dto.rawText);
-    const storeId = dto.storeId ?? null;
-
+  async upsertAlias(
+    rawText: string,
+    productId: string,
+    storeId: string | null,
+    source: string,
+  ) {
+    const normalized = normalizeRawText(rawText);
     const existing = await this.prisma.productAlias.findFirst({
       where: { normalized, storeId },
     });
     if (existing) {
       return this.prisma.productAlias.update({
         where: { id: existing.id },
-        data: { productId: dto.productId, hitCount: { increment: 1 }, source: 'manual' },
+        data: { productId, hitCount: { increment: 1 }, source },
       });
     }
-
     return this.prisma.productAlias.create({
-      data: {
-        normalized,
-        storeId,
-        productId: dto.productId,
-        source: 'manual',
-      },
+      data: { normalized, storeId, productId, source },
     });
   }
 
-  /** Resolution order from SPEC §7 (Phase 1). */
-  async matchRawText(rawText: string, storeId?: string | null) {
+  /** Resolution order from SPEC §7. */
+  async matchRawText(rawText: string, storeId?: string | null): Promise<MatchResult> {
     const normalized = normalizeRawText(rawText);
 
     if (storeId) {
@@ -89,11 +97,16 @@ export class CatalogService {
         include: { product: true },
       });
       if (storeHit) {
+        await this.prisma.productAlias.update({
+          where: { id: storeHit.id },
+          data: { hitCount: { increment: 1 } },
+        });
         return {
           productId: storeHit.productId,
           confidence: 1,
-          method: 'alias' as const,
+          method: 'alias',
           suggestions: [],
+          normalized,
         };
       }
     }
@@ -103,29 +116,201 @@ export class CatalogService {
       include: { product: true },
     });
     if (globalHit) {
+      await this.prisma.productAlias.update({
+        where: { id: globalHit.id },
+        data: { hitCount: { increment: 1 } },
+      });
       return {
         productId: globalHit.productId,
         confidence: 0.9,
-        method: 'alias' as const,
+        method: 'alias',
         suggestions: [],
+        normalized,
       };
     }
 
-    const suggestions = await this.prisma.product.findMany({
-      where: {
-        OR: [
-          { name: { contains: normalized.split(' ')[0] ?? normalized, mode: 'insensitive' } },
-          { aliases: { some: { normalized: { contains: normalized.split(' ')[0] ?? '' } } } },
-        ],
-      },
-      take: 5,
+    const gtin = extractGtin(rawText);
+    if (gtin) {
+      const byGtin = await this.prisma.product.findUnique({ where: { gtin } });
+      if (byGtin) {
+        return {
+          productId: byGtin.id,
+          confidence: 1,
+          method: 'gtin',
+          suggestions: [],
+          normalized,
+        };
+      }
+    }
+
+    const tokens = normalized.split(' ').filter((t) => t.length > 2).slice(0, 4);
+    const products = await this.prisma.product.findMany({
+      where:
+        tokens.length > 0
+          ? {
+              OR: tokens.flatMap((t) => [
+                { name: { contains: t, mode: 'insensitive' as const } },
+                { aliases: { some: { normalized: { contains: t } } } },
+              ]),
+            }
+          : undefined,
+      take: 80,
+      include: { aliases: { take: 5 } },
     });
 
-    return {
-      productId: null,
-      confidence: 0,
-      method: null,
-      suggestions,
-    };
+    const pool =
+      products.length > 0
+        ? products
+        : await this.prisma.product.findMany({ take: 80, include: { aliases: { take: 5 } } });
+
+    const candidates = pool.flatMap((p) => {
+      const base = {
+        productId: p.id,
+        name: p.name,
+        brand: p.brand,
+        sizeValue: p.sizeValue ? Number(p.sizeValue) : null,
+        sizeUom: p.sizeUom,
+      };
+      if (p.aliases.length === 0) return [base];
+      return p.aliases.map((a) => ({ ...base, aliasNormalized: a.normalized }));
+    });
+
+    return pickFuzzyMatch(normalized, candidates);
+  }
+
+  async matchReceipt(receiptId: string) {
+    const receipt = await this.prisma.receipt.findUnique({
+      where: { id: receiptId },
+      include: { lines: true },
+    });
+    if (!receipt) return { matched: 0, unmatched: 0 };
+
+    let matched = 0;
+    let unmatched = 0;
+
+    for (const line of receipt.lines) {
+      if (line.productId && line.matchMethod === 'manual') {
+        matched += 1;
+        continue;
+      }
+
+      const result = await this.matchRawText(line.rawText, receipt.storeId);
+      if (result.productId) {
+        const product = await this.prisma.product.findUnique({
+          where: { id: result.productId },
+        });
+        await this.prisma.receiptLine.update({
+          where: { id: line.id },
+          data: {
+            productId: result.productId,
+            matchConfidence: result.confidence,
+            matchMethod: result.method,
+            categoryId: line.categoryId ?? product?.categoryId ?? null,
+          },
+        });
+        matched += 1;
+      } else {
+        unmatched += 1;
+      }
+    }
+
+    return { matched, unmatched };
+  }
+
+  async suggestionsForLine(rawText: string, storeId?: string | null): Promise<MatchCandidate[]> {
+    const result = await this.matchRawText(rawText, storeId);
+    if (result.productId && result.suggestions.length === 0) {
+      const product = await this.prisma.product.findUnique({
+        where: { id: result.productId },
+      });
+      if (product) {
+        return [
+          {
+            productId: product.id,
+            name: product.name,
+            score: result.confidence,
+            brand: product.brand,
+            sizeLabel:
+              product.sizeValue != null && product.sizeUom
+                ? `${product.sizeValue} ${product.sizeUom}`
+                : null,
+          },
+        ];
+      }
+    }
+    return result.suggestions;
+  }
+
+  /** Re-apply product bindings from the household's last confirmed trip at this store. */
+  async applySameAsLastTime(householdId: string, receiptId: string) {
+    const receipt = await this.prisma.receipt.findFirst({
+      where: { id: receiptId, householdId },
+      include: { lines: true },
+    });
+    if (!receipt?.storeId) return { applied: 0 };
+
+    const prior = await this.prisma.receipt.findFirst({
+      where: {
+        householdId,
+        storeId: receipt.storeId,
+        status: 'CONFIRMED',
+        id: { not: receiptId },
+      },
+      orderBy: { purchasedAt: 'desc' },
+      include: { lines: { where: { productId: { not: null } } } },
+    });
+    if (!prior) return { applied: 0 };
+
+    const byNorm = new Map(
+      prior.lines.map((l) => [normalizeRawText(l.rawText), l] as const),
+    );
+
+    let applied = 0;
+    for (const line of receipt.lines) {
+      if (line.productId) continue;
+      const prev = byNorm.get(normalizeRawText(line.rawText));
+      if (!prev?.productId) continue;
+      await this.prisma.receiptLine.update({
+        where: { id: line.id },
+        data: {
+          productId: prev.productId,
+          categoryId: line.categoryId ?? prev.categoryId,
+          matchMethod: 'alias',
+          matchConfidence: 1,
+        },
+      });
+      await this.upsertAlias(line.rawText, prev.productId, receipt.storeId, 'manual');
+      applied += 1;
+    }
+    return { applied };
+  }
+
+  async applyCategoryToSimilar(
+    householdId: string,
+    receiptId: string,
+    lineId: string,
+    categoryId: string,
+  ) {
+    const receipt = await this.prisma.receipt.findFirst({
+      where: { id: receiptId, householdId },
+      include: { lines: true },
+    });
+    if (!receipt) throw new NotFoundException('Receipt not found');
+    const source = receipt.lines.find((l) => l.id === lineId);
+    if (!source) throw new NotFoundException('Line not found');
+
+    const token = normalizeRawText(source.rawText).split(' ')[0] ?? '';
+    let updated = 0;
+    for (const line of receipt.lines) {
+      const norm = normalizeRawText(line.rawText);
+      if (token && norm.includes(token)) {
+        await this.prisma.receiptLine.update({
+          where: { id: line.id },
+          data: { categoryId },
+        });
+        updated += 1;
+      }
+    }
+    return { updated };
   }
 }

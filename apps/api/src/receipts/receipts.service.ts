@@ -8,10 +8,14 @@ import { Queue } from 'bullmq';
 import { Prisma, ReceiptStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { CatalogService } from '../catalog/catalog.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { receiptArithmeticOk } from '../common/money';
-import { normalizeRawText } from '../common/normalize';
-import { QUEUE_RECEIPT_EXTRACT, QUEUE_PRICE_OBSERVE } from '../jobs/queues';
+import {
+  QUEUE_RECEIPT_EXTRACT,
+  QUEUE_RECEIPT_MATCH,
+  QUEUE_PRICE_OBSERVE,
+} from '../jobs/queues';
 import {
   ConfirmReceiptDto,
   ManualReceiptDto,
@@ -26,7 +30,9 @@ export class ReceiptsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly catalog: CatalogService,
     @InjectQueue(QUEUE_RECEIPT_EXTRACT) private readonly extractQueue: Queue,
+    @InjectQueue(QUEUE_RECEIPT_MATCH) private readonly matchQueue: Queue,
     @InjectQueue(QUEUE_PRICE_OBSERVE) private readonly observeQueue: Queue,
   ) {}
 
@@ -124,6 +130,12 @@ export class ReceiptsService {
       },
     });
 
+    await this.matchQueue.add(
+      'match',
+      { receiptId: receipt.id },
+      { attempts: 2, removeOnComplete: 100 },
+    );
+
     return { receiptId: receipt.id };
   }
 
@@ -190,8 +202,21 @@ export class ReceiptsService {
       totalCents: receipt.totalCents,
     });
 
+    const lines = await Promise.all(
+      receipt.lines.map(async (line) => {
+        const suggestions = line.productId
+          ? []
+          : await this.catalog.suggestionsForLine(line.rawText, receipt.storeId);
+        return { ...line, suggestions };
+      }),
+    );
+
+    const unmatchedCount = lines.filter((l) => !l.productId).length;
+
     return {
       ...receipt,
+      lines,
+      unmatchedCount,
       runningTotalCents: arith.computedTotalCents,
       totalDeltaCents: arith.deltaCents,
       canConfirm: arith.ok || receipt.status === ReceiptStatus.FAILED,
@@ -225,6 +250,14 @@ export class ReceiptsService {
     });
     if (!line) throw new NotFoundException('Line not found');
 
+    let categoryId = dto.categoryId;
+    if (dto.productId && categoryId === undefined) {
+      const product = await this.prisma.product.findUnique({
+        where: { id: dto.productId },
+      });
+      if (product) categoryId = product.categoryId;
+    }
+
     const updated = await this.prisma.receiptLine.update({
       where: { id: lineId },
       data: {
@@ -233,42 +266,51 @@ export class ReceiptsService {
         unitPriceCents: dto.unitPriceCents,
         extendedCents: dto.extendedCents,
         discountCents: dto.discountCents,
-        categoryId: dto.categoryId,
+        categoryId,
         productId: dto.productId,
         ...(dto.productId
           ? { matchMethod: 'manual', matchConfidence: 1 }
           : {}),
       },
+      include: { product: true, category: true },
     });
 
-    // Alias learning on manual product bind (Phase 1 path; safe in Phase 0)
+    // Alias learning — every manual bind teaches the next receipt
     if (dto.productId) {
-      const normalized = normalizeRawText(updated.rawText);
-      const existing = await this.prisma.productAlias.findFirst({
-        where: { normalized, storeId: receipt.storeId },
-      });
-      if (existing) {
-        await this.prisma.productAlias.update({
-          where: { id: existing.id },
-          data: {
-            productId: dto.productId,
-            hitCount: { increment: 1 },
-            source: 'manual',
-          },
-        });
-      } else {
-        await this.prisma.productAlias.create({
-          data: {
-            normalized,
-            storeId: receipt.storeId,
-            productId: dto.productId,
-            source: 'manual',
-          },
-        });
-      }
+      await this.catalog.upsertAlias(
+        updated.rawText,
+        dto.productId,
+        receipt.storeId,
+        'manual',
+      );
     }
 
     return updated;
+  }
+
+  async sameAsLastTime(user: AuthUser, receiptId: string) {
+    await this.requireOwned(user, receiptId);
+    return this.catalog.applySameAsLastTime(user.householdId, receiptId);
+  }
+
+  async applyCategoryToSimilar(
+    user: AuthUser,
+    receiptId: string,
+    lineId: string,
+    categoryId: string,
+  ) {
+    await this.requireOwned(user, receiptId);
+    return this.catalog.applyCategoryToSimilar(
+      user.householdId,
+      receiptId,
+      lineId,
+      categoryId,
+    );
+  }
+
+  async rematch(user: AuthUser, receiptId: string) {
+    await this.requireOwned(user, receiptId);
+    return this.catalog.matchReceipt(receiptId);
   }
 
   async confirm(user: AuthUser, id: string, dto: ConfirmReceiptDto) {
@@ -305,6 +347,11 @@ export class ReceiptsService {
 
     await this.observeQueue.add(
       'observe',
+      { receiptId: id },
+      { attempts: 2, removeOnComplete: 100 },
+    );
+    await this.matchQueue.add(
+      'match',
       { receiptId: id },
       { attempts: 2, removeOnComplete: 100 },
     );

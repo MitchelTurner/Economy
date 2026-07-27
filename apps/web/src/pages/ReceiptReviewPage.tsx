@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, type ReceiptDetail, type ReceiptLine } from '../lib/api';
+import {
+  api,
+  type MatchSuggestion,
+  type Product,
+  type ReceiptDetail,
+  type ReceiptLine,
+} from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
 
 type Category = { id: string; name: string; slug: string; children?: Category[] };
@@ -30,10 +36,10 @@ export function ReceiptReviewPage() {
 
   const sortedLines = useMemo(() => {
     if (!receipt) return [];
-    // Unmatched (no category) float to top; else keep print order
+    // Unmatched products float to the top; else keep print order
     return [...receipt.lines].sort((a, b) => {
-      const aMiss = a.categoryId ? 1 : 0;
-      const bMiss = b.categoryId ? 1 : 0;
+      const aMiss = a.productId ? 1 : 0;
+      const bMiss = b.productId ? 1 : 0;
       if (aMiss !== bMiss) return aMiss - bMiss;
       return a.lineNumber - b.lineNumber;
     });
@@ -63,12 +69,22 @@ export function ReceiptReviewPage() {
     }
   }
 
+  async function sameAsLast() {
+    if (!id) return;
+    const res = await api<{ applied: number }>(`/receipts/${id}/same-as-last`, {
+      method: 'POST',
+    });
+    await reload();
+    if (res.applied === 0) setError('No prior confirmed trip at this store to copy from.');
+  }
+
   if (!receipt) {
     return <p className="text-[var(--ink-muted)]">{error ?? 'Loading receipt…'}</p>;
   }
 
   const delta = receipt.totalDeltaCents;
   const reconciled = delta == null ? false : Math.abs(delta) <= 2;
+  const unmatched = receipt.unmatchedCount ?? receipt.lines.filter((l) => !l.productId).length;
 
   return (
     <div className="space-y-5">
@@ -82,9 +98,31 @@ export function ReceiptReviewPage() {
           </h1>
           <p className="text-sm text-[var(--ink-muted)]">
             {receipt.status}
-            {receipt.confidence != null ? ` · confidence ${(receipt.confidence * 100).toFixed(0)}%` : ''}
+            {receipt.confidence != null
+              ? ` · confidence ${(receipt.confidence * 100).toFixed(0)}%`
+              : ''}
+            {unmatched > 0 ? ` · ${unmatched} unmatched` : ' · all matched'}
           </p>
         </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void sameAsLast()}
+          className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold"
+        >
+          Same as last time at this store
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void api(`/receipts/${id}/rematch`, { method: 'POST' }).then(() => reload())
+          }
+          className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold"
+        >
+          Re-run matching
+        </button>
       </div>
 
       {receipt.failureReason && (
@@ -101,7 +139,7 @@ export function ReceiptReviewPage() {
               <p className="mt-2 text-sm">
                 Key: {receipt.imageKey}
                 <br />
-                (zoomable image viewer wires to object storage URL in deploy)
+                Lines stay in print order; unmatched float to the top of the list.
               </p>
             </div>
           </div>
@@ -113,7 +151,15 @@ export function ReceiptReviewPage() {
               key={line.id}
               line={line}
               categories={categories}
+              storeId={receipt.store?.id}
               onSave={(patch) => void saveLine(line, patch)}
+              onApplyCategorySimilar={async (categoryId) => {
+                await api(`/receipts/${id}/lines/${line.id}/apply-category-similar`, {
+                  method: 'POST',
+                  json: { categoryId },
+                });
+                await reload();
+              }}
             />
           ))}
         </div>
@@ -171,23 +217,65 @@ export function ReceiptReviewPage() {
 function LineEditor({
   line,
   categories,
+  storeId,
   onSave,
+  onApplyCategorySimilar,
 }: {
   line: ReceiptLine;
   categories: Category[];
+  storeId?: string;
   onSave: (patch: Record<string, unknown>) => void;
+  onApplyCategorySimilar: (categoryId: string) => Promise<void>;
 }) {
   const [qty, setQty] = useState(String(line.quantity));
   const [price, setPrice] = useState(
     line.unitPriceCents != null ? (line.unitPriceCents / 100).toFixed(2) : '',
   );
   const [extended, setExtended] = useState((line.extendedCents / 100).toFixed(2));
+  const [search, setSearch] = useState('');
+  const [results, setResults] = useState<Product[]>([]);
+
+  useEffect(() => {
+    if (!search.trim()) {
+      setResults([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      void api<Product[]>(`/catalog/products?q=${encodeURIComponent(search)}`).then(setResults);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  async function bindProduct(productId: string) {
+    onSave({ productId });
+    setSearch('');
+    setResults([]);
+  }
+
+  async function createAndBind() {
+    if (!search.trim() || !categories[0]) return;
+    const dairy =
+      categories.find((c) => c.slug === 'dairy') ??
+      categories.find((c) => c.slug === 'other') ??
+      categories[0];
+    const created = await api<Product>('/catalog/products', {
+      method: 'POST',
+      json: { name: search.trim(), categoryId: dairy.id },
+    });
+    if (storeId) {
+      await api('/catalog/aliases', {
+        method: 'POST',
+        json: { rawText: line.rawText, productId: created.id, storeId },
+      });
+    }
+    await bindProduct(created.id);
+  }
 
   return (
     <div
       className={[
         'rounded-xl border px-3 py-3',
-        line.categoryId
+        line.productId
           ? 'border-[var(--line)] bg-[var(--surface)]'
           : 'border-[var(--accent)] bg-[#fff8f2]',
       ].join(' ')}
@@ -195,10 +283,73 @@ function LineEditor({
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold">{line.rawText}</p>
-          <p className="text-xs text-[var(--ink-muted)]">Line {line.lineNumber}</p>
+          <p className="text-xs text-[var(--ink-muted)]">
+            Line {line.lineNumber}
+            {line.matchMethod
+              ? ` · ${line.matchMethod}${
+                  line.matchConfidence != null
+                    ? ` (${Math.round(line.matchConfidence * 100)}%)`
+                    : ''
+                }`
+              : ' · unmatched'}
+          </p>
+          {line.product && (
+            <p className="mt-1 text-sm text-[var(--brand)]">{line.product.name}</p>
+          )}
         </div>
         <p className="font-semibold tabular-nums">{formatCents(line.extendedCents)}</p>
       </div>
+
+      {!line.productId && (line.suggestions?.length ?? 0) > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {line.suggestions!.map((s: MatchSuggestion) => (
+            <button
+              key={s.productId}
+              type="button"
+              onClick={() => void bindProduct(s.productId)}
+              className="rounded-md bg-[var(--brand)]/10 px-2 py-1 text-xs font-semibold text-[var(--brand)]"
+            >
+              {s.name}
+              {s.sizeLabel ? ` · ${s.sizeLabel}` : ''}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!line.productId && (
+        <div className="mt-2">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search or create product…"
+            className="w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5 text-sm"
+          />
+          {results.length > 0 && (
+            <ul className="mt-1 max-h-36 overflow-auto border border-[var(--line)] bg-white text-sm">
+              {results.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="block w-full px-2 py-1.5 text-left hover:bg-[var(--bg)]"
+                    onClick={() => void bindProduct(p.id)}
+                  >
+                    {p.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {search.trim() && (
+            <button
+              type="button"
+              className="mt-1 text-xs font-semibold text-[var(--brand-soft)]"
+              onClick={() => void createAndBind()}
+            >
+              Create “{search.trim()}” and bind
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="mt-3 grid grid-cols-3 gap-2">
         <label className="text-xs">
@@ -254,6 +405,16 @@ function LineEditor({
           ))}
         </select>
       </label>
+
+      {line.categoryId && (
+        <button
+          type="button"
+          className="mt-2 text-xs font-semibold text-[var(--brand-soft)]"
+          onClick={() => void onApplyCategorySimilar(line.categoryId!)}
+        >
+          Apply category to all similar
+        </button>
+      )}
     </div>
   );
 }

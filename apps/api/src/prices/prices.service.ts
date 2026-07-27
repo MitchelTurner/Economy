@@ -57,7 +57,8 @@ export class PricesService {
     productId: string,
     opts: { storeId?: string; from?: string; to?: string },
   ) {
-    return this.prisma.priceObservation.findMany({
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    const observations = await this.prisma.priceObservation.findMany({
       where: {
         productId,
         householdId: user.householdId,
@@ -74,25 +75,67 @@ export class PricesService {
       orderBy: { observedAt: 'asc' },
       include: { store: { select: { id: true, name: true } } },
     });
+
+    return {
+      product,
+      baseUom: product?.baseUom ?? null,
+      observations: observations.map((o) => ({
+        ...o,
+        pricePerBaseUom: Number(o.pricePerBaseUom),
+      })),
+    };
   }
 
   async compare(user: AuthUser, productIds: string[]) {
+    const ids = productIds.filter(Boolean);
+    if (ids.length === 0) {
+      return { products: [], stores: [], cells: [] };
+    }
+
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids } },
+    });
+
     const rows = await this.prisma.priceObservation.findMany({
       where: {
         householdId: user.householdId,
-        productId: { in: productIds },
+        productId: { in: ids },
       },
       orderBy: { observedAt: 'desc' },
       include: { store: { select: { id: true, name: true } }, product: true },
     });
 
-    // latest per (product, store)
     const latest = new Map<string, (typeof rows)[number]>();
     for (const row of rows) {
       const key = `${row.productId}:${row.storeId}`;
       if (!latest.has(key)) latest.set(key, row);
     }
-    return [...latest.values()];
+
+    const storeMap = new Map<string, { id: string; name: string }>();
+    for (const row of latest.values()) {
+      storeMap.set(row.storeId, row.store);
+    }
+
+    const cells = [...latest.values()].map((row) => ({
+      productId: row.productId,
+      storeId: row.storeId,
+      unitPriceCents: row.unitPriceCents,
+      pricePerBaseUom: Number(row.pricePerBaseUom),
+      observedAt: row.observedAt,
+      baseUom: row.product.baseUom,
+    }));
+
+    return {
+      products: products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        baseUom: p.baseUom,
+        sizeValue: p.sizeValue ? Number(p.sizeValue) : null,
+        sizeUom: p.sizeUom,
+      })),
+      stores: [...storeMap.values()],
+      cells,
+    };
   }
 
   async index(basket: string, region: string) {

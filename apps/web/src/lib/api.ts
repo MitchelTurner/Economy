@@ -45,7 +45,7 @@ export async function api<T>(
     headers.set('Content-Type', 'application/json');
   }
   const auth = init.auth !== false;
-  let tokens = getTokens();
+  const tokens = getTokens();
   if (auth && tokens?.accessToken) {
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
   }
@@ -91,6 +91,14 @@ export type ReceiptSummary = {
   _count: { lines: number };
 };
 
+export type MatchSuggestion = {
+  productId: string;
+  name: string;
+  score: number;
+  brand?: string | null;
+  sizeLabel?: string | null;
+};
+
 export type ReceiptLine = {
   id: string;
   lineNumber: number;
@@ -101,8 +109,11 @@ export type ReceiptLine = {
   discountCents: number;
   categoryId: string | null;
   productId: string | null;
+  matchMethod: string | null;
+  matchConfidence: number | null;
   category: { id: string; name: string; slug: string } | null;
   product: { id: string; name: string } | null;
+  suggestions?: MatchSuggestion[];
 };
 
 export type ReceiptDetail = {
@@ -118,7 +129,48 @@ export type ReceiptDetail = {
   confidence: number | null;
   store: { id: string; name: string; address: string | null } | null;
   lines: ReceiptLine[];
+  unmatchedCount?: number;
   runningTotalCents: number;
   totalDeltaCents: number | null;
   canConfirm: boolean;
+};
+
+export type Product = {
+  id: string;
+  name: string;
+  brand?: string | null;
+  sizeValue: string | number | null;
+  sizeUom: string | null;
+  baseUom: string | null;
+  category: { id: string; name: string };
+};
+
+export type PriceHistoryResponse = {
+  product: Product | null;
+  baseUom: string | null;
+  observations: Array<{
+    observedAt: string;
+    unitPriceCents: number;
+    pricePerBaseUom: number;
+    store: { id: string; name: string };
+  }>;
+};
+
+export type PriceCompareResponse = {
+  products: Array<{
+    id: string;
+    name: string;
+    baseUom: string | null;
+    sizeValue: number | null;
+    sizeUom: string | null;
+  }>;
+  stores: Array<{ id: string; name: string }>;
+  cells: Array<{
+    productId: string;
+    storeId: string;
+    unitPriceCents: number;
+    pricePerBaseUom: number;
+    observedAt: string;
+    baseUom: string | null;
+  }>;
 };
