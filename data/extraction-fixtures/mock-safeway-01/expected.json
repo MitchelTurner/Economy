@@ -1,0 +1,45 @@
+{
+  "store": { "name": "Safeway", "address": "2417 Tongass Ave" },
+  "purchasedAt": null,
+  "paymentMethod": "VISA",
+  "currency": "USD",
+  "subtotalCents": 1147,
+  "taxCents": 0,
+  "totalCents": 1147,
+  "confidence": 0.92,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "GV MLK WHL 1GA",
+      "quantity": 1,
+      "unitPriceCents": 549,
+      "extendedCents": 549,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "dairy"
+    },
+    {
+      "lineNumber": 2,
+      "rawText": "BANANAS",
+      "quantity": 2.14,
+      "unitPriceCents": 79,
+      "extendedCents": 169,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "produce"
+    },
+    {
+      "lineNumber": 3,
+      "rawText": "EGGS LG 12CT",
+      "quantity": 1,
+      "unitPriceCents": 429,
+      "extendedCents": 429,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "dairy"
+    }
+  ]
+}

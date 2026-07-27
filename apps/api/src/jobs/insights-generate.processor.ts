@@ -13,12 +13,23 @@ export class InsightsGenerateProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ householdId?: string; allHouseholds?: boolean }>) {
+  async process(
+    job: Job<{
+      householdId?: string;
+      allHouseholds?: boolean;
+      sendDigest?: boolean;
+    }>,
+  ) {
     if (job.data.allHouseholds) {
-      await this.schedulers.enqueueAllHouseholdInsights();
+      await this.schedulers.enqueueAllHouseholdInsights({ sendDigest: true });
       return { fannedOut: true };
     }
     if (!job.data.householdId) return { skipped: true };
-    return this.insights.generateForHousehold(job.data.householdId);
+    const result = await this.insights.generateForHousehold(job.data.householdId);
+    if (job.data.sendDigest) {
+      const digest = await this.insights.emailWeeklyDigest(job.data.householdId);
+      return { ...result, digest };
+    }
+    return result;
   }
 }

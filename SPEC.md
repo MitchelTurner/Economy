@@ -466,6 +466,9 @@ Budgets, index rollups, baseline prices, rule engine, insight feed, weekly diges
 **Phase 3 — reach**
 Public/anonymized island index page, price-drop alerts, delivered-cost comparison for bulk mainland ordering, multi-user household sharing.
 
+**Phase 4 — production hardening**
+Anthropic extraction as the non-dev path (mock still default locally), extraction eval harness + fixtures, upload→confirm integration test, optional LLM insight narration (numbers locked), email delivery for digests/alerts/invites, real IndexedDB capture outbox with online replay, budgets UI parity (category/period/edit/delete).
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -477,6 +480,14 @@ Phase 0 is done when:
 Phase 3 is done when:
 - Every insight's stated dollar figure can be reproduced from a SQL query against the stored data.
 - No insight repeats within its dedupe window.
+
+Phase 4 is done when:
+- Mock extraction still scores ≥0.9 line P/R on the committed synthetic fixture via `npm run eval:extraction`.
+- Upload → mock extract → confirm integration test passes against a real DB.
+- Narration (when enabled) never drops dollar/percent tokens from rule-generated copy.
+- Digests, price alerts, and invites go through `NotificationsService` (Resend or structured log).
+- Capture queues images in IndexedDB and flushes when online; multi-shot does not abandon remaining files.
+- Budgets UI can create category/weekly budgets and edit/delete amounts.
 
 ## 13. Testing
 

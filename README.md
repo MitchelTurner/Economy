@@ -44,3 +44,12 @@ data/        abbreviation dictionary + staple basket seed data
 **Phase 2:** insight rule engine (8 rules + fixture tests), nightly staples index rollup, baseline prices, weekly digest, behavior-vs-inflation split, 6-month synthetic seed.
 
 **Phase 3:** public anonymized island index (≥3 household gate), price-drop alerts, mainland delivered-cost comparison, household invites, JSON/CSV export + hard delete.
+
+**Phase 4:** extraction eval harness (`data/extraction-fixtures`), upload→confirm integration test, optional insight LLM narration, Resend/log email for digests/alerts/invites, real IndexedDB capture outbox, budgets UI (category/period/edit/delete).
+
+### Production notes
+
+- Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.
+- Production refuses silent mock unless `ALLOW_MOCK_EXTRACTION=true`.
+- Optional: `RESEND_API_KEY` + `MAIL_FROM` for real email; otherwise mail is logged.
+- Optional: `INSIGHT_NARRATION=on|auto|off` (default `auto` — uses Anthropic when a key is present).

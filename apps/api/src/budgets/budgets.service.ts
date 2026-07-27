@@ -19,12 +19,13 @@ export class BudgetsService {
     return this.prisma.budget.create({
       data: {
         householdId: user.householdId,
-        categoryId: dto.categoryId,
+        categoryId: dto.categoryId ?? null,
         period: dto.period,
         amountCents: dto.amountCents,
         startsOn: new Date(dto.startsOn),
         endsOn: dto.endsOn ? new Date(dto.endsOn) : null,
       },
+      include: { category: true },
     });
   }
 
@@ -48,6 +49,16 @@ export class BudgetsService {
               ? new Date(dto.endsOn)
               : null,
       },
+      include: { category: true },
     });
+  }
+
+  async remove(user: AuthUser, id: string) {
+    const existing = await this.prisma.budget.findFirst({
+      where: { id, householdId: user.householdId },
+    });
+    if (!existing) throw new NotFoundException('Budget not found');
+    await this.prisma.budget.delete({ where: { id } });
+    return { ok: true };
   }
 }

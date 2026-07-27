@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { AcceptInviteDto, InviteDto } from './household.dto';
 
@@ -16,6 +18,8 @@ export class HouseholdService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationsService,
+    private readonly config: ConfigService,
   ) {}
 
   async members(user: AuthUser) {
@@ -65,7 +69,7 @@ export class HouseholdService {
     const expiresAt = new Date();
     expiresAt.setUTCDate(expiresAt.getUTCDate() + 7);
 
-    return this.prisma.householdInvite.create({
+    const invite = await this.prisma.householdInvite.create({
       data: {
         householdId: user.householdId,
         email: dto.email.toLowerCase(),
@@ -73,7 +77,21 @@ export class HouseholdService {
         invitedById: user.userId,
         expiresAt,
       },
+      include: { household: { select: { name: true } } },
     });
+
+    const webOrigin =
+      this.config.get('CORS_ORIGIN')?.split(',')[0]?.trim() ??
+      'http://localhost:5173';
+    const inviteUrl = `${webOrigin}/invite?token=${token}`;
+    await this.notifications.sendInvite({
+      to: invite.email,
+      householdName: invite.household.name,
+      inviteUrl,
+      invitedBy: me.displayName ?? me.email,
+    });
+
+    return { ...invite, inviteUrl };
   }
 
   async acceptInvite(dto: AcceptInviteDto) {

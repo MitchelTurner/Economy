@@ -15,6 +15,7 @@ import { StorageModule } from './storage/storage.module';
 import { PublicModule } from './public/public.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { HouseholdModule } from './household/household.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -29,6 +30,7 @@ import { HealthController } from './health.controller';
       },
     }),
     PrismaModule,
+    NotificationsModule,
     StorageModule,
     AuthModule,
     ReceiptsModule,

@@ -69,3 +69,7 @@ Consult `SPEC.md` §4 before changing the Prisma schema. Schema changes require 
 - Human-in-the-loop review is a feature: corrections write `ProductAlias` rows.
 - Tests first for money math, unit/alias normalization, and insight rule thresholds.
 - Prefer mocked extraction provider in tests and local default; wire Anthropic via env.
+- Production extraction: `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`; set `ALLOW_MOCK_EXTRACTION=false` to refuse silent mock fallback.
+- Insight narration may rewrite copy only; never invent numbers (see `NarrationService`).
+- Outbound email goes through `NotificationsService` (Resend or log).
+- Extraction eval fixtures live under `data/extraction-fixtures/`; score with `npm run eval:extraction`.

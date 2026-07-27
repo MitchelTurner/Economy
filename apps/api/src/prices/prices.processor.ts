@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { PricesService } from './prices.service';
 import { AlertsService } from '../alerts/alerts.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { QUEUE_PRICE_OBSERVE } from '../jobs/queues';
 
 @Processor(QUEUE_PRICE_OBSERVE)
@@ -14,6 +15,7 @@ export class PricesProcessor extends WorkerHost {
     private readonly prices: PricesService,
     private readonly alerts: AlertsService,
     private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
   ) {
     super();
   }
@@ -30,6 +32,19 @@ export class PricesProcessor extends WorkerHost {
       this.logger.log(
         `Triggered ${triggered.length} price alerts for household ${receipt.householdId}`,
       );
+      for (const t of triggered) {
+        const alert = await this.prisma.priceAlert.findUnique({
+          where: { id: t.alertId },
+          include: { user: { select: { email: true } } },
+        });
+        if (!alert?.user?.email) continue;
+        await this.notifications.sendPriceAlert({
+          to: alert.user.email,
+          productName: t.productName,
+          currentCents: t.currentCents,
+          reason: t.reason,
+        });
+      }
     }
     return { triggered };
   }

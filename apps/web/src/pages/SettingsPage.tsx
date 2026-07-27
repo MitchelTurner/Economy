@@ -27,11 +27,17 @@ export function SettingsPage() {
 
   async function invite(e: FormEvent) {
     e.preventDefault();
-    const inv = await api<{ token: string }>('/household/invites', {
-      method: 'POST',
-      json: { email },
-    });
-    setInviteLink(`${window.location.origin}/invite?token=${inv.token}`);
+    const inv = await api<{ token: string; inviteUrl?: string }>(
+      '/household/invites',
+      {
+        method: 'POST',
+        json: { email },
+      },
+    );
+    setInviteLink(
+      inv.inviteUrl ?? `${window.location.origin}/invite?token=${inv.token}`,
+    );
+    setMessage('Invite email queued (or logged in API if no RESEND_API_KEY).');
     setEmail('');
     await load();
   }

@@ -3,6 +3,8 @@ import { Prisma, ReceiptStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { normalizeRawText } from '../common/normalize';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NarrationService } from './narration.service';
 import { InsightDraft } from './rules/types';
 import { evaluateBudgetPace } from './rules/budget-pace.rule';
 import { evaluatePriceSpike } from './rules/price-spike.rule';
@@ -18,7 +20,11 @@ import { analyzeBehaviorChange } from './behavior';
 export class InsightsService {
   private readonly logger = new Logger(InsightsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly narration: NarrationService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async list(user: AuthUser, active = true) {
     return this.prisma.insight.findMany({
@@ -302,8 +308,10 @@ export class InsightsService {
       ),
     );
 
+    const narrated = await this.narration.narrateMany(drafts);
+
     let upserted = 0;
-    for (const draft of drafts) {
+    for (const draft of narrated) {
       // Normalize to UTC midnight so repeatable jobs don't mint new rows each run
       const periodStart = startOfUtcDay(draft.periodStart);
       const periodEnd = draft.periodEnd;
@@ -342,6 +350,44 @@ export class InsightsService {
 
     this.logger.log(`Generated/upserted ${upserted} insights for ${householdId}`);
     return { upserted };
+  }
+
+  /** After weekly generation: email each household member a digest. */
+  async emailWeeklyDigest(householdId: string) {
+    const household = await this.prisma.household.findUnique({
+      where: { id: householdId },
+      include: { users: { select: { email: true, displayName: true } } },
+    });
+    if (!household?.users.length) return { sent: 0 };
+
+    const weekAgo = new Date();
+    weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
+    const insights = await this.prisma.insight.findMany({
+      where: {
+        householdId,
+        dismissedAt: null,
+        createdAt: { gte: weekAgo },
+      },
+      orderBy: [{ severity: 'desc' }, { estimatedSavingsCents: 'desc' }],
+      take: 20,
+    });
+    const savings = insights.reduce(
+      (s, i) => s + (i.estimatedSavingsCents ?? 0),
+      0,
+    );
+
+    let sent = 0;
+    for (const user of household.users) {
+      await this.notifications.sendWeeklyDigest({
+        to: user.email,
+        householdName: household.name,
+        insightCount: insights.length,
+        estimatedSavingsCents: savings,
+        highlights: insights.map((i) => ({ title: i.title, body: i.body })),
+      });
+      sent += 1;
+    }
+    return { sent };
   }
 
   private async loadBasketLines(householdId: string, from: Date, to: Date) {

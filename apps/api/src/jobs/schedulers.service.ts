@@ -69,12 +69,12 @@ export class SchedulersService implements OnModuleInit {
     );
   }
 
-  async enqueueAllHouseholdInsights() {
+  async enqueueAllHouseholdInsights(opts?: { sendDigest?: boolean }) {
     const households = await this.prisma.household.findMany({ select: { id: true } });
     for (const h of households) {
       await this.insightsQueue.add(
         'household',
-        { householdId: h.id },
+        { householdId: h.id, sendDigest: opts?.sendDigest === true },
         { removeOnComplete: 50 },
       );
     }
