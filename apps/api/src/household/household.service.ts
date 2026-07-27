@@ -42,7 +42,7 @@ export class HouseholdService {
             email: true,
             expiresAt: true,
             createdAt: true,
-            token: true,
+            // token intentionally omitted from members listing
           },
         },
       },
@@ -58,9 +58,8 @@ export class HouseholdService {
       throw new ForbiddenException();
     }
 
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
-    });
+    const email = dto.email.toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser?.householdId === user.householdId) {
       throw new BadRequestException('User already in this household');
     }
@@ -69,21 +68,36 @@ export class HouseholdService {
     const expiresAt = new Date();
     expiresAt.setUTCDate(expiresAt.getUTCDate() + 7);
 
-    const invite = await this.prisma.householdInvite.create({
-      data: {
+    const pending = await this.prisma.householdInvite.findFirst({
+      where: {
         householdId: user.householdId,
-        email: dto.email.toLowerCase(),
-        token,
-        invitedById: user.userId,
-        expiresAt,
+        email,
+        acceptedAt: null,
+        expiresAt: { gt: new Date() },
       },
-      include: { household: { select: { name: true } } },
     });
+
+    const invite = pending
+      ? await this.prisma.householdInvite.update({
+          where: { id: pending.id },
+          data: { token, expiresAt, invitedById: user.userId },
+          include: { household: { select: { name: true } } },
+        })
+      : await this.prisma.householdInvite.create({
+          data: {
+            householdId: user.householdId,
+            email,
+            token,
+            invitedById: user.userId,
+            expiresAt,
+          },
+          include: { household: { select: { name: true } } },
+        });
 
     const webOrigin =
       this.config.get('CORS_ORIGIN')?.split(',')[0]?.trim() ??
       'http://localhost:5173';
-    const inviteUrl = `${webOrigin}/invite?token=${token}`;
+    const inviteUrl = `${webOrigin}/invite?token=${invite.token}`;
     await this.notifications.sendInvite({
       to: invite.email,
       householdName: invite.household.name,
@@ -91,7 +105,41 @@ export class HouseholdService {
       invitedBy: me.displayName ?? me.email,
     });
 
-    return { ...invite, inviteUrl };
+    return {
+      id: invite.id,
+      email: invite.email,
+      expiresAt: invite.expiresAt,
+      createdAt: invite.createdAt,
+      inviteUrl,
+      token: invite.token,
+    };
+  }
+
+  async peekInvite(token: string) {
+    if (!token || token.length < 10) {
+      throw new BadRequestException('Invalid invite token');
+    }
+    const invite = await this.prisma.householdInvite.findUnique({
+      where: { token },
+      include: { household: { select: { id: true, name: true } } },
+    });
+    if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
+      throw new BadRequestException('Invite invalid or expired');
+    }
+    return {
+      email: invite.email,
+      expiresAt: invite.expiresAt,
+      household: invite.household,
+    };
+  }
+
+  async revokeInvite(user: AuthUser, id: string) {
+    const invite = await this.prisma.householdInvite.findFirst({
+      where: { id, householdId: user.householdId },
+    });
+    if (!invite) throw new NotFoundException('Invite not found');
+    await this.prisma.householdInvite.delete({ where: { id } });
+    return { ok: true };
   }
 
   async acceptInvite(dto: AcceptInviteDto) {
@@ -104,8 +152,28 @@ export class HouseholdService {
     }
 
     const email = invite.email;
-    let user = await this.prisma.user.findUnique({ where: { email } });
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { household: { select: { id: true, name: true } } },
+    });
     const passwordHash = await argon2.hash(dto.password);
+
+    if (user && user.householdId !== invite.householdId) {
+      const [memberCount, receiptCount] = await Promise.all([
+        this.prisma.user.count({ where: { householdId: user.householdId } }),
+        this.prisma.receipt.count({ where: { householdId: user.householdId } }),
+      ]);
+      const hasOtherLife = memberCount > 1 || receiptCount > 0;
+      if (hasOtherLife && !dto.moveHousehold) {
+        throw new BadRequestException({
+          code: 'ALREADY_IN_HOUSEHOLD',
+          message:
+            'You already belong to another household. Confirm moveHousehold to leave it.',
+          currentHouseholdName: user.household.name,
+          inviteHouseholdName: invite.household.name,
+        });
+      }
+    }
 
     if (user) {
       user = await this.prisma.user.update({
@@ -116,6 +184,7 @@ export class HouseholdService {
           displayName: dto.displayName ?? user.displayName,
           role: 'member',
         },
+        include: { household: { select: { id: true, name: true } } },
       });
     } else {
       user = await this.prisma.user.create({
@@ -126,6 +195,7 @@ export class HouseholdService {
           householdId: invite.householdId,
           role: 'member',
         },
+        include: { household: { select: { id: true, name: true } } },
       });
     }
 

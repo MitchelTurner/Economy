@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { CatalogService } from '../catalog/catalog.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
-import { receiptArithmeticOk } from '../common/money';
+import { receiptArithmeticOk, rankImplausibleLines } from '../common/money';
 import {
   QUEUE_INSIGHTS_GENERATE,
   QUEUE_RECEIPT_EXTRACT,
@@ -18,6 +18,7 @@ import {
   QUEUE_PRICE_OBSERVE,
 } from '../jobs/queues';
 import {
+  AddLineDto,
   ConfirmReceiptDto,
   ManualReceiptDto,
   PatchLineDto,
@@ -215,14 +216,50 @@ export class ReceiptsService {
 
     const unmatchedCount = lines.filter((l) => !l.productId).length;
 
+    const suspectLineNumbers = rankImplausibleLines(
+      receipt.lines.map((l) => ({
+        lineNumber: l.lineNumber,
+        quantity: Number(l.quantity),
+        unitPriceCents: l.unitPriceCents,
+        extendedCents: l.extendedCents,
+      })),
+    ).slice(0, 5);
+
+    // Prefer authenticated API image route so memory:// fallback still works
+    const imageUrl = `/receipts/${receipt.id}/image`;
+    const signedImageUrl = receipt.imageKey.startsWith('manual/')
+      ? null
+      : await this.storage.createDownloadUrl(receipt.imageKey);
+
     return {
       ...receipt,
       lines,
       unmatchedCount,
+      suspectLineNumbers,
+      imageUrl,
+      signedImageUrl,
       runningTotalCents: arith.computedTotalCents,
       totalDeltaCents: arith.deltaCents,
       canConfirm: arith.ok || receipt.status === ReceiptStatus.FAILED,
     };
+  }
+
+  async getImage(user: AuthUser, id: string) {
+    const receipt = await this.requireOwned(user, id);
+    if (receipt.imageKey.startsWith('manual/')) {
+      throw new NotFoundException('No image for manual receipt');
+    }
+    const buffer = await this.storage.getObjectBuffer(receipt.imageKey);
+    const ext = receipt.imageKey.split('.').pop()?.toLowerCase();
+    const contentType =
+      ext === 'png'
+        ? 'image/png'
+        : ext === 'webp'
+          ? 'image/webp'
+          : ext === 'gif'
+            ? 'image/gif'
+            : 'image/jpeg';
+    return { buffer, contentType };
   }
 
   async patch(user: AuthUser, id: string, dto: PatchReceiptDto) {
@@ -288,6 +325,38 @@ export class ReceiptsService {
     }
 
     return updated;
+  }
+
+  async addLine(user: AuthUser, receiptId: string, dto: AddLineDto) {
+    await this.requireOwned(user, receiptId);
+    const max = await this.prisma.receiptLine.aggregate({
+      where: { receiptId },
+      _max: { lineNumber: true },
+    });
+    const lineNumber = (max._max.lineNumber ?? 0) + 1;
+    return this.prisma.receiptLine.create({
+      data: {
+        receiptId,
+        lineNumber,
+        rawText: dto.rawText,
+        quantity: dto.quantity,
+        unitPriceCents: dto.unitPriceCents ?? null,
+        extendedCents: dto.extendedCents,
+        discountCents: dto.discountCents ?? 0,
+        categoryId: dto.categoryId ?? null,
+      },
+      include: { product: true, category: true },
+    });
+  }
+
+  async deleteLine(user: AuthUser, receiptId: string, lineId: string) {
+    await this.requireOwned(user, receiptId);
+    const line = await this.prisma.receiptLine.findFirst({
+      where: { id: lineId, receiptId },
+    });
+    if (!line) throw new NotFoundException('Line not found');
+    await this.prisma.receiptLine.delete({ where: { id: lineId } });
+    return { ok: true };
   }
 
   async sameAsLastTime(user: AuthUser, receiptId: string) {

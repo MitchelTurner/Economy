@@ -82,6 +82,26 @@ export async function api<T>(
   return res.json() as Promise<T>;
 }
 
+/** Fetch a binary path with auth and return an object URL (caller must revoke). */
+export async function fetchAuthedBlobUrl(path: string): Promise<string> {
+  const headers = new Headers();
+  const tokens = getTokens();
+  if (tokens?.accessToken) {
+    headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+  }
+  let res = await fetch(`${API_URL}${path}`, { headers });
+  if (res.status === 401) {
+    const next = await refreshAccess();
+    if (next) {
+      headers.set('Authorization', `Bearer ${next}`);
+      res = await fetch(`${API_URL}${path}`, { headers });
+    }
+  }
+  if (!res.ok) throw new Error(`Image ${res.status}`);
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
 export type ReceiptSummary = {
   id: string;
   status: string;
@@ -120,6 +140,8 @@ export type ReceiptDetail = {
   id: string;
   status: string;
   imageKey: string;
+  imageUrl?: string | null;
+  signedImageUrl?: string | null;
   purchasedAt: string | null;
   subtotalCents: number | null;
   taxCents: number | null;
@@ -130,6 +152,7 @@ export type ReceiptDetail = {
   store: { id: string; name: string; address: string | null } | null;
   lines: ReceiptLine[];
   unmatchedCount?: number;
+  suspectLineNumbers?: number[];
   runningTotalCents: number;
   totalDeltaCents: number | null;
   canConfirm: boolean;

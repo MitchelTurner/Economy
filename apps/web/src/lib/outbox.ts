@@ -12,21 +12,18 @@ export type OutboxMeta = {
   status: OutboxStatus;
   error?: string;
   receiptId?: string;
-  previewUrl?: string;
 };
 
 export async function enqueueOutbox(item: {
   id: string;
   hash: string;
   blob: Blob;
-  previewUrl?: string;
 }): Promise<OutboxMeta> {
   const meta: OutboxMeta = {
     id: item.id,
     hash: item.hash,
     createdAt: new Date().toISOString(),
     status: 'queued',
-    previewUrl: item.previewUrl,
   };
   await set(`${BLOB_PREFIX}${item.id}`, item.blob);
   await set(`${META_PREFIX}${item.id}`, meta);

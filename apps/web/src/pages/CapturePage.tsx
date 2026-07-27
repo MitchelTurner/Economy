@@ -20,20 +20,22 @@ export function CapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [flushing, setFlushing] = useState(false);
   const navigate = useNavigate();
-  const lastReceiptRef = useRef<string | null>(null);
+  const previewUrlsRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     void (async () => {
       const existing = await listOutbox();
-      setQueue(
-        existing
-          .filter((m) => m.status !== 'done')
-          .map((m) => ({
-            id: m.id,
-            previewUrl: m.previewUrl ?? '',
-            status: labelFor(m),
-          })),
-      );
+      const items: QueueItem[] = [];
+      for (const m of existing.filter((x) => x.status !== 'done')) {
+        const blob = await getOutboxBlob(m.id);
+        let previewUrl = '';
+        if (blob) {
+          previewUrl = URL.createObjectURL(blob);
+          previewUrlsRef.current.set(m.id, previewUrl);
+        }
+        items.push({ id: m.id, previewUrl, status: labelFor(m) });
+      }
+      setQueue(items);
       if (navigator.onLine) {
         await flushOutbox();
       }
@@ -43,7 +45,11 @@ export function CapturePage() {
       void flushOutbox();
     };
     window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      for (const url of previewUrlsRef.current.values()) URL.revokeObjectURL(url);
+      previewUrlsRef.current.clear();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -51,6 +57,7 @@ export function CapturePage() {
     if (flushing) return;
     setFlushing(true);
     setError(null);
+    const reviewIds: string[] = [];
     try {
       const pending = await pendingOutbox();
       for (const meta of pending) {
@@ -61,7 +68,7 @@ export function CapturePage() {
         );
         try {
           const receiptId = await uploadFromOutbox(meta);
-          lastReceiptRef.current = receiptId;
+          reviewIds.push(receiptId);
           setQueue((q) =>
             q.map((item) =>
               item.id === meta.id ? { ...item, status: 'Extracting…' } : item,
@@ -69,6 +76,11 @@ export function CapturePage() {
           );
           await waitForReview(receiptId);
           await removeOutbox(meta.id);
+          const preview = previewUrlsRef.current.get(meta.id);
+          if (preview) {
+            URL.revokeObjectURL(preview);
+            previewUrlsRef.current.delete(meta.id);
+          }
           setQueue((q) =>
             q.map((item) =>
               item.id === meta.id ? { ...item, status: 'Done' } : item,
@@ -87,8 +99,10 @@ export function CapturePage() {
           setError((err as Error).message || 'Upload failed — saved to outbox');
         }
       }
-      if (lastReceiptRef.current && pending.length) {
-        navigate(`/receipts/${lastReceiptRef.current}`);
+      if (reviewIds.length === 1) {
+        navigate(`/receipts/${reviewIds[0]}`);
+      } else if (reviewIds.length > 1) {
+        navigate('/receipts?status=NEEDS_REVIEW');
       }
     } finally {
       setFlushing(false);
@@ -102,14 +116,21 @@ export function CapturePage() {
     for (const file of Array.from(files)) {
       const id = crypto.randomUUID();
       const previewUrl = URL.createObjectURL(file);
+      previewUrlsRef.current.set(id, previewUrl);
       setQueue((q) => [...q, { id, previewUrl, status: 'Processing…' }]);
 
       try {
         const { blob, hash } = await preprocessReceiptImage(file);
-        await enqueueOutbox({ id, hash, blob, previewUrl });
+        await enqueueOutbox({ id, hash, blob });
+        // Prefer processed JPEG preview
+        URL.revokeObjectURL(previewUrl);
+        const processedPreview = URL.createObjectURL(blob);
+        previewUrlsRef.current.set(id, processedPreview);
         setQueue((q) =>
           q.map((item) =>
-            item.id === id ? { ...item, status: 'Queued' } : item,
+            item.id === id
+              ? { ...item, previewUrl: processedPreview, status: 'Queued' }
+              : item,
           ),
         );
       } catch (err) {
@@ -134,8 +155,8 @@ export function CapturePage() {
       <section>
         <h1 className="text-3xl font-semibold">Capture</h1>
         <p className="mt-1 text-[var(--ink-muted)]">
-          One tap from home. Images are resized to 1600px, hashed for dedupe, and
-          queued in IndexedDB until upload succeeds.
+          One tap from home. HEIC is converted when needed; images resize to 1600px and queue in
+          IndexedDB until upload succeeds.
         </p>
       </section>
 
@@ -152,7 +173,7 @@ export function CapturePage() {
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif"
         capture="environment"
         multiple
         className="hidden"

@@ -93,6 +93,24 @@ export class StorageService {
     }
   }
 
+  /** Presigned GET when S3 works; null when object is only in memory fallback. */
+  async createDownloadUrl(imageKey: string, expiresIn = 900): Promise<string | null> {
+    if (this.localFallback.has(imageKey)) return null;
+    try {
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: imageKey,
+      });
+      return await getSignedUrl(this.client, command, { expiresIn });
+    } catch {
+      return null;
+    }
+  }
+
+  hasLocal(imageKey: string) {
+    return this.localFallback.has(imageKey);
+  }
+
   hashBytes(buf: Buffer) {
     return createHash('sha256').update(buf).digest('hex');
   }

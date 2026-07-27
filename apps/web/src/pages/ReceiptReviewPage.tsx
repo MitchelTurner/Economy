@@ -8,6 +8,7 @@ import {
   type ReceiptLine,
 } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
+import { ReceiptImageViewer } from '../components/ReceiptImageViewer';
 
 type Category = { id: string; name: string; slug: string; children?: Category[] };
 
@@ -19,6 +20,9 @@ export function ReceiptReviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newRaw, setNewRaw] = useState('');
+  const [newExt, setNewExt] = useState('');
 
   async function reload() {
     if (!id) return;
@@ -34,20 +38,62 @@ export function ReceiptReviewPage() {
     void reload().catch((e) => setError((e as Error).message));
   }, [id]);
 
+  const suspect = useMemo(
+    () => new Set(receipt?.suspectLineNumbers ?? []),
+    [receipt?.suspectLineNumbers],
+  );
+
   const sortedLines = useMemo(() => {
     if (!receipt) return [];
-    // Unmatched products float to the top; else keep print order
     return [...receipt.lines].sort((a, b) => {
+      const aSus = suspect.has(a.lineNumber) ? 0 : 1;
+      const bSus = suspect.has(b.lineNumber) ? 0 : 1;
+      if (aSus !== bSus) return aSus - bSus;
       const aMiss = a.productId ? 1 : 0;
       const bMiss = b.productId ? 1 : 0;
       if (aMiss !== bMiss) return aMiss - bMiss;
       return a.lineNumber - b.lineNumber;
     });
-  }, [receipt]);
+  }, [receipt, suspect]);
 
   async function saveLine(line: ReceiptLine, patch: Record<string, unknown>) {
     if (!id) return;
     await api(`/receipts/${id}/lines/${line.id}`, { method: 'PATCH', json: patch });
+    await reload();
+  }
+
+  async function saveHeader(patch: Record<string, unknown>) {
+    if (!id) return;
+    await api(`/receipts/${id}`, { method: 'PATCH', json: patch });
+    await reload();
+  }
+
+  async function addLine() {
+    if (!id || !newRaw.trim()) return;
+    const cents = parseDollarsToCents(newExt);
+    if (cents == null) return;
+    setAdding(true);
+    try {
+      await api(`/receipts/${id}/lines`, {
+        method: 'POST',
+        json: {
+          rawText: newRaw.trim(),
+          quantity: 1,
+          extendedCents: cents,
+          discountCents: 0,
+        },
+      });
+      setNewRaw('');
+      setNewExt('');
+      await reload();
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function deleteLine(lineId: string) {
+    if (!id) return;
+    await api(`/receipts/${id}/lines/${lineId}`, { method: 'DELETE' });
     await reload();
   }
 
@@ -102,9 +148,12 @@ export function ReceiptReviewPage() {
               ? ` · confidence ${(receipt.confidence * 100).toFixed(0)}%`
               : ''}
             {unmatched > 0 ? ` · ${unmatched} unmatched` : ' · all matched'}
+            {suspect.size > 0 ? ` · ${suspect.size} suspect lines` : ''}
           </p>
         </div>
       </div>
+
+      <HeaderEditor receipt={receipt} onSave={(p) => void saveHeader(p)} />
 
       <div className="flex flex-wrap gap-2">
         <button
@@ -132,27 +181,21 @@ export function ReceiptReviewPage() {
       )}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <div className="overflow-hidden rounded-2xl border border-[var(--line)] bg-black/5">
-          <div className="flex h-64 items-center justify-center bg-[linear-gradient(160deg,#1a6b59,#0c4a3e)] text-center text-white/80 lg:h-full lg:min-h-[420px]">
-            <div className="px-6">
-              <p className="brand text-2xl">Receipt image</p>
-              <p className="mt-2 text-sm">
-                Key: {receipt.imageKey}
-                <br />
-                Lines stay in print order; unmatched float to the top of the list.
-              </p>
-            </div>
-          </div>
-        </div>
+        <ReceiptImageViewer
+          imageUrl={receipt.imageUrl}
+          signedImageUrl={receipt.signedImageUrl}
+        />
 
         <div className="space-y-3">
           {sortedLines.map((line) => (
             <LineEditor
               key={line.id}
               line={line}
+              suspect={suspect.has(line.lineNumber)}
               categories={categories}
               storeId={receipt.store?.id}
               onSave={(patch) => void saveLine(line, patch)}
+              onDelete={() => void deleteLine(line.id)}
               onApplyCategorySimilar={async (categoryId) => {
                 await api(`/receipts/${id}/lines/${line.id}/apply-category-similar`, {
                   method: 'POST',
@@ -162,6 +205,32 @@ export function ReceiptReviewPage() {
               }}
             />
           ))}
+
+          <div className="rounded-xl border border-dashed border-[var(--line)] px-3 py-3">
+            <p className="text-sm font-semibold">Add line</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <input
+                value={newRaw}
+                onChange={(e) => setNewRaw(e.target.value)}
+                placeholder="Item text"
+                className="min-w-[140px] flex-1 rounded border border-[var(--line)] bg-white/90 px-2 py-1.5 text-sm"
+              />
+              <input
+                value={newExt}
+                onChange={(e) => setNewExt(e.target.value)}
+                placeholder="Ext $"
+                className="w-24 rounded border border-[var(--line)] bg-white/90 px-2 py-1.5 text-sm"
+              />
+              <button
+                type="button"
+                disabled={adding || !newRaw.trim()}
+                onClick={() => void addLine()}
+                className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Add
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -214,17 +283,98 @@ export function ReceiptReviewPage() {
   );
 }
 
+function HeaderEditor({
+  receipt,
+  onSave,
+}: {
+  receipt: ReceiptDetail;
+  onSave: (patch: Record<string, unknown>) => void;
+}) {
+  const [tax, setTax] = useState(
+    receipt.taxCents != null ? (receipt.taxCents / 100).toFixed(2) : '',
+  );
+  const [total, setTotal] = useState(
+    receipt.totalCents != null ? (receipt.totalCents / 100).toFixed(2) : '',
+  );
+  const [payment, setPayment] = useState(receipt.paymentMethod ?? '');
+  const [date, setDate] = useState(
+    receipt.purchasedAt ? receipt.purchasedAt.slice(0, 10) : '',
+  );
+
+  useEffect(() => {
+    setTax(receipt.taxCents != null ? (receipt.taxCents / 100).toFixed(2) : '');
+    setTotal(receipt.totalCents != null ? (receipt.totalCents / 100).toFixed(2) : '');
+    setPayment(receipt.paymentMethod ?? '');
+    setDate(receipt.purchasedAt ? receipt.purchasedAt.slice(0, 10) : '');
+  }, [receipt.id, receipt.taxCents, receipt.totalCents, receipt.paymentMethod, receipt.purchasedAt]);
+
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <label className="text-xs">
+        Date
+        <input
+          type="date"
+          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          onBlur={() => {
+            if (!date) return;
+            onSave({ purchasedAt: new Date(`${date}T12:00:00.000Z`).toISOString() });
+          }}
+        />
+      </label>
+      <label className="text-xs">
+        Tax $
+        <input
+          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+          value={tax}
+          onChange={(e) => setTax(e.target.value)}
+          onBlur={() => {
+            const cents = parseDollarsToCents(tax);
+            if (cents != null) onSave({ taxCents: cents });
+          }}
+        />
+      </label>
+      <label className="text-xs">
+        Printed total $
+        <input
+          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+          value={total}
+          onChange={(e) => setTotal(e.target.value)}
+          onBlur={() => {
+            const cents = parseDollarsToCents(total);
+            if (cents != null) onSave({ totalCents: cents });
+          }}
+        />
+      </label>
+      <label className="text-xs">
+        Payment
+        <input
+          className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+          value={payment}
+          onChange={(e) => setPayment(e.target.value)}
+          onBlur={() => onSave({ paymentMethod: payment || null })}
+        />
+      </label>
+    </div>
+  );
+}
+
 function LineEditor({
   line,
+  suspect,
   categories,
   storeId,
   onSave,
+  onDelete,
   onApplyCategorySimilar,
 }: {
   line: ReceiptLine;
+  suspect: boolean;
   categories: Category[];
   storeId?: string;
   onSave: (patch: Record<string, unknown>) => void;
+  onDelete: () => void;
   onApplyCategorySimilar: (categoryId: string) => Promise<void>;
 }) {
   const [qty, setQty] = useState(String(line.quantity));
@@ -275,14 +425,23 @@ function LineEditor({
     <div
       className={[
         'rounded-xl border px-3 py-3',
-        line.productId
-          ? 'border-[var(--line)] bg-[var(--surface)]'
-          : 'border-[var(--accent)] bg-[#fff8f2]',
+        suspect
+          ? 'border-[var(--warn)] bg-[#fff8e8]'
+          : line.productId
+            ? 'border-[var(--line)] bg-[var(--surface)]'
+            : 'border-[var(--accent)] bg-[#fff8f2]',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="font-semibold">{line.rawText}</p>
+          <p className="font-semibold">
+            {line.rawText}
+            {suspect && (
+              <span className="ml-2 text-xs font-semibold uppercase text-[var(--warn)]">
+                Suspect
+              </span>
+            )}
+          </p>
           <p className="text-xs text-[var(--ink-muted)]">
             Line {line.lineNumber}
             {line.matchMethod
@@ -297,7 +456,16 @@ function LineEditor({
             <p className="mt-1 text-sm text-[var(--brand)]">{line.product.name}</p>
           )}
         </div>
-        <p className="font-semibold tabular-nums">{formatCents(line.extendedCents)}</p>
+        <div className="text-right">
+          <p className="font-semibold tabular-nums">{formatCents(line.extendedCents)}</p>
+          <button
+            type="button"
+            className="mt-1 text-xs font-semibold text-[var(--danger)]"
+            onClick={onDelete}
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {!line.productId && (line.suggestions?.length ?? 0) > 0 && (

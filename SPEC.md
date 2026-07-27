@@ -469,6 +469,9 @@ Public/anonymized island index page, price-drop alerts, delivered-cost compariso
 **Phase 4 — production hardening**
 Anthropic extraction as the non-dev path (mock still default locally), extraction eval harness + fixtures, upload→confirm integration test, optional LLM insight narration (numbers locked), email delivery for digests/alerts/invites, real IndexedDB capture outbox with online replay, budgets UI parity (category/period/edit/delete).
 
+**Phase 5 — review & household polish**
+Zoomable receipt image on review, header edits + suspect-line highlighting + add/delete lines, HEIC→JPEG capture, dashboard (index Δ, habits, review queue), receipt status/date filters, PWA app-shell caching, invite peek/revoke and move-household confirmation.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -488,6 +491,13 @@ Phase 4 is done when:
 - Digests, price alerts, and invites go through `NotificationsService` (Resend or structured log).
 - Capture queues images in IndexedDB and flushes when online; multi-shot does not abandon remaining files.
 - Budgets UI can create category/weekly budgets and edit/delete amounts.
+
+Phase 5 is done when:
+- Review shows the receipt image with zoom; header fields (date/tax/total/payment) are editable.
+- Suspect lines from arithmetic ranking are visually flagged; lines can be added or deleted before confirm.
+- HEIC uploads convert (or fail with a clear message) before preprocess.
+- Dashboard surfaces live index Δ, habits summary, and a needs-review queue link.
+- Pending invites can be revoked; accepting while already in another household requires explicit confirmation.
 
 ## 13. Testing
 

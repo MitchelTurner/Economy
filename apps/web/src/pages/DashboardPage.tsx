@@ -28,6 +28,7 @@ type Insight = {
 type Budget = {
   id: string;
   amountCents: number;
+  period: string;
   category: { name: string } | null;
 };
 
@@ -39,24 +40,66 @@ type Behavior = {
   currentSpendCents: number;
 };
 
+type Habits = {
+  tripCount: number;
+  avgBasketCents: number;
+  avgLinesPerTrip: number;
+  storeMix: Array<{ name: string; count: number }>;
+};
+
+type IndexPoint = {
+  periodStart: string;
+  indexValue: string | number;
+  basketCostCents: number;
+  storeId: string | null;
+};
+
+type ReceiptSummary = { id: string; status: string };
+
 export function DashboardPage() {
   const [spend, setSpend] = useState<SpendResponse | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [behavior, setBehavior] = useState<Behavior | null>(null);
+  const [habits, setHabits] = useState<Habits | null>(null);
+  const [indexPoints, setIndexPoints] = useState<IndexPoint[]>([]);
+  const [needsReview, setNeedsReview] = useState(0);
 
   useEffect(() => {
     void api<SpendResponse>('/analytics/spend?groupBy=category').then(setSpend);
     void api<Insight[]>('/insights?active=true').then((rows) => setInsights(rows.slice(0, 3)));
     void api<Budget[]>('/budgets').then(setBudgets);
     void api<Behavior>('/insights/behavior').then(setBehavior).catch(() => undefined);
+    void api<Habits>('/analytics/habits').then(setHabits).catch(() => undefined);
+    void api<IndexPoint[]>('/prices/index?basket=staples-25&region=ketchikan')
+      .then(setIndexPoints)
+      .catch(() => undefined);
+    void api<{ items: ReceiptSummary[] }>('/receipts?status=NEEDS_REVIEW&limit=50')
+      .then((r) => setNeedsReview(r.items.length))
+      .catch(() => undefined);
+    void api<{ items: ReceiptSummary[] }>('/receipts?status=FAILED&limit=50')
+      .then((r) => setNeedsReview((n) => n + r.items.length))
+      .catch(() => undefined);
   }, []);
 
-  const groceryBudget = budgets[0];
+  const groceryBudget =
+    budgets.find((b) => !b.category && b.period === 'MONTHLY') ??
+    budgets.find((b) => b.period === 'MONTHLY') ??
+    budgets[0];
   const pacePct =
     groceryBudget && spend
       ? Math.min(150, Math.round((spend.totalCents / groceryBudget.amountCents) * 100))
       : null;
+
+  const regionPoints = indexPoints.filter((p) => !p.storeId);
+  const latest = regionPoints[regionPoints.length - 1];
+  const prior = regionPoints[regionPoints.length - 2];
+  const indexDelta =
+    latest && prior
+      ? Number(latest.indexValue) - Number(prior.indexValue)
+      : null;
+
+  const topStore = habits?.storeMix[0];
 
   return (
     <div className="space-y-8">
@@ -96,6 +139,30 @@ export function DashboardPage() {
           </div>
         </div>
       </section>
+
+      {needsReview > 0 && (
+        <Link
+          to="/receipts?status=NEEDS_REVIEW"
+          className="block border-l-4 border-[var(--warn)] bg-[var(--surface)] px-4 py-3"
+        >
+          <p className="font-semibold">
+            {needsReview} receipt{needsReview === 1 ? '' : 's'} need review
+          </p>
+          <p className="text-sm text-[var(--ink-muted)]">
+            Finish confirming so prices and insights stay current.
+          </p>
+        </Link>
+      )}
+
+      {habits && habits.tripCount > 0 && (
+        <section>
+          <h2 className="text-2xl font-semibold">Shopping habits</h2>
+          <p className="mt-1 text-sm text-[var(--ink-muted)]">
+            {habits.tripCount} trips · avg basket {formatCents(habits.avgBasketCents)}
+            {topStore ? ` · most often ${topStore.name}` : ''}
+          </p>
+        </section>
+      )}
 
       {behavior && (behavior.priorSpendCents > 0 || behavior.currentSpendCents > 0) && (
         <section>
@@ -165,15 +232,17 @@ export function DashboardPage() {
         ) : (
           <ul className="space-y-3">
             {insights.map((i) => (
-              <li
-                key={i.id}
-                className="border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
-              >
-                <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                  {i.type.replace(/_/g, ' ')}
-                </p>
-                <p className="font-semibold">{i.title}</p>
-                <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+              <li key={i.id}>
+                <Link
+                  to="/insights"
+                  className="block border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
+                >
+                  <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                    {i.type.replace(/_/g, ' ')}
+                  </p>
+                  <p className="font-semibold">{i.title}</p>
+                  <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+                </Link>
               </li>
             ))}
           </ul>
@@ -186,9 +255,19 @@ export function DashboardPage() {
           className="block border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3"
         >
           <p className="font-semibold">Island cost-of-goods index</p>
-          <p className="text-sm text-[var(--ink-muted)]">
-            Staples-25 basket rollups by store and region
-          </p>
+          {latest ? (
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              Latest {Number(latest.indexValue).toFixed(2)}
+              {indexDelta != null
+                ? ` · ${indexDelta >= 0 ? '+' : ''}${indexDelta.toFixed(2)} vs prior period`
+                : ''}{' '}
+              · basket {formatCents(latest.basketCostCents)}
+            </p>
+          ) : (
+            <p className="text-sm text-[var(--ink-muted)]">
+              Staples-25 basket rollups by store and region
+            </p>
+          )}
         </Link>
       </section>
     </div>

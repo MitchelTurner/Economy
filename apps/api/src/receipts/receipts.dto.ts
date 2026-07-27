@@ -104,6 +104,25 @@ export class PatchLineDto {
   productId?: string | null;
 }
 
+export const AddLineSchema = z.object({
+  rawText: z.string().min(1),
+  quantity: z.number().positive().default(1),
+  unitPriceCents: z.number().int().nullable().optional(),
+  extendedCents: z.number().int(),
+  discountCents: z.number().int().default(0),
+  categoryId: z.string().nullable().optional(),
+});
+
+@ZodBody(AddLineSchema)
+export class AddLineDto {
+  rawText!: string;
+  quantity!: number;
+  unitPriceCents?: number | null;
+  extendedCents!: number;
+  discountCents!: number;
+  categoryId?: string | null;
+}
+
 export const ConfirmReceiptSchema = z.object({
   overrideArithmetic: z.boolean().optional().default(false),
 });

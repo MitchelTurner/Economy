@@ -1,13 +1,52 @@
-/** Client-side pre-processing: longest edge 1600px, JPEG q=0.8, strip EXIF via canvas. */
+/** Client-side pre-processing: HEIC→JPEG, longest edge 1600px, JPEG q=0.8, strip EXIF via canvas. */
 
 const MAX_EDGE = 1600;
 const QUALITY = 0.8;
 
-export async function preprocessReceiptImage(file: Blob): Promise<{
+export function isHeicFile(file: Blob & { name?: string; type?: string }): boolean {
+  const type = (file.type ?? '').toLowerCase();
+  const name = (file.name ?? '').toLowerCase();
+  return (
+    type === 'image/heic' ||
+    type === 'image/heif' ||
+    name.endsWith('.heic') ||
+    name.endsWith('.heif')
+  );
+}
+
+/** Convert HEIC/HEIF to a JPEG Blob when the browser cannot decode natively. */
+export async function ensureDecodableImage(
+  file: Blob & { name?: string; type?: string },
+): Promise<Blob> {
+  if (!isHeicFile(file)) return file;
+  try {
+    // Native decode (Safari) — prefer this when available
+    await createImageBitmap(file);
+    return file;
+  } catch {
+    // fall through to heic2any
+  }
+  try {
+    const heic2any = (await import('heic2any')).default;
+    const converted = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: QUALITY,
+    });
+    return Array.isArray(converted) ? converted[0]! : converted;
+  } catch (err) {
+    throw new Error(
+      `Could not decode HEIC image. Try exporting as JPEG. (${(err as Error).message})`,
+    );
+  }
+}
+
+export async function preprocessReceiptImage(file: Blob & { name?: string; type?: string }): Promise<{
   blob: Blob;
   hash: string;
 }> {
-  const bitmap = await createImageBitmap(file);
+  const decodable = await ensureDecodableImage(file);
+  const bitmap = await createImageBitmap(decodable);
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));

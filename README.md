@@ -47,6 +47,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 4:** extraction eval harness (`data/extraction-fixtures`), upload→confirm integration test, optional insight LLM narration, Resend/log email for digests/alerts/invites, real IndexedDB capture outbox, budgets UI (category/period/edit/delete).
 
+**Phase 5:** zoomable receipt image on review, header + line add/delete, suspect-line highlight, HEIC conversion, dashboard index/habits/review queue, receipt filters, PWA shell cache, invite peek/revoke + move confirmation.
+
 ### Production notes
 
 - Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.

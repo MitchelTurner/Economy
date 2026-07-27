@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { HouseholdService } from './household.service';
@@ -20,9 +29,20 @@ export class HouseholdController {
     return this.household.invite(user, dto);
   }
 
+  @Get('invites/peek')
+  peek(@Query('token') token?: string) {
+    return this.household.peekInvite(token ?? '');
+  }
+
   @Post('invites/accept')
   accept(@Body() dto: AcceptInviteDto) {
     return this.household.acceptInvite(dto);
+  }
+
+  @Delete('invites/:id')
+  @UseGuards(JwtAuthGuard)
+  revoke(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.household.revokeInvite(user, id);
   }
 
   @Get('export')

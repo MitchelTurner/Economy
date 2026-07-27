@@ -7,8 +7,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ReceiptStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
@@ -20,6 +22,7 @@ import {
   PatchReceiptDto,
   RegisterReceiptDto,
   UploadUrlDto,
+  AddLineDto,
 } from './receipts.dto';
 
 @Controller('receipts')
@@ -62,6 +65,18 @@ export class ReceiptsController {
     });
   }
 
+  @Get(':id/image')
+  async image(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, contentType } = await this.receipts.getImage(user, id);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(buffer);
+  }
+
   @Get(':id')
   get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.receipts.get(user, id);
@@ -76,6 +91,15 @@ export class ReceiptsController {
     return this.receipts.patch(user, id, dto);
   }
 
+  @Post(':id/lines')
+  addLine(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: AddLineDto,
+  ) {
+    return this.receipts.addLine(user, id, dto);
+  }
+
   @Patch(':id/lines/:lineId')
   patchLine(
     @CurrentUser() user: AuthUser,
@@ -84,6 +108,15 @@ export class ReceiptsController {
     @Body() dto: PatchLineDto,
   ) {
     return this.receipts.patchLine(user, id, lineId, dto);
+  }
+
+  @Delete(':id/lines/:lineId')
+  deleteLine(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('lineId') lineId: string,
+  ) {
+    return this.receipts.deleteLine(user, id, lineId);
   }
 
   @Post(':id/confirm')

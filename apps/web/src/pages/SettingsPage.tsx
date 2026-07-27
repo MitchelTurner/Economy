@@ -7,7 +7,7 @@ type Household = {
   id: string;
   name: string;
   users: Array<{ id: string; email: string; displayName: string | null; role: string }>;
-  invites: Array<{ id: string; email: string; token: string; expiresAt: string }>;
+  invites: Array<{ id: string; email: string; expiresAt: string }>;
 };
 
 export function SettingsPage() {
@@ -133,10 +133,24 @@ export function SettingsPage() {
           </p>
         )}
         {household && household.invites.length > 0 && (
-          <ul className="mt-3 space-y-1 text-sm text-[var(--ink-muted)]">
+          <ul className="mt-3 space-y-2 text-sm">
             {household.invites.map((i) => (
-              <li key={i.id}>
-                Pending {i.email} · expires {new Date(i.expiresAt).toLocaleDateString()}
+              <li
+                key={i.id}
+                className="flex flex-wrap items-center justify-between gap-2 text-[var(--ink-muted)]"
+              >
+                <span>
+                  Pending {i.email} · expires {new Date(i.expiresAt).toLocaleDateString()}
+                </span>
+                <button
+                  type="button"
+                  className="font-semibold text-[var(--danger)]"
+                  onClick={() =>
+                    void api(`/household/invites/${i.id}`, { method: 'DELETE' }).then(load)
+                  }
+                >
+                  Revoke
+                </button>
               </li>
             ))}
           </ul>
