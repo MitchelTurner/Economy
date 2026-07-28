@@ -33,6 +33,10 @@ export function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
+  const [exportBusy, setExportBusy] = useState(false);
+  const [wipeBusy, setWipeBusy] = useState(false);
+  const [passwordBusy, setPasswordBusy] = useState(false);
+
   async function load() {
     const [hh, u] = await Promise.all([
       api<Household>('/household'),
@@ -92,26 +96,33 @@ export function SettingsPage() {
   }
 
   async function exportData() {
-    const data = await api<{ json: unknown; csv: string }>('/household/export');
-    const blob = new Blob([JSON.stringify(data.json, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'island-ledger-export.json';
-    a.click();
-    URL.revokeObjectURL(url);
+    setExportBusy(true);
+    try {
+      const data = await api<{ json: unknown; csv: string }>('/household/export');
+      const blob = new Blob([JSON.stringify(data.json, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'island-ledger-export.json';
+      a.click();
+      URL.revokeObjectURL(url);
 
-    const csvBlob = new Blob([data.csv], { type: 'text/csv' });
-    const csvUrl = URL.createObjectURL(csvBlob);
-    const a2 = document.createElement('a');
-    a2.href = csvUrl;
-    a2.download = 'island-ledger-lines.csv';
-    a2.click();
-    URL.revokeObjectURL(csvUrl);
-    setMessage('Export downloaded (JSON + CSV).');
-    toast('Export downloaded', 'ok');
+      const csvBlob = new Blob([data.csv], { type: 'text/csv' });
+      const csvUrl = URL.createObjectURL(csvBlob);
+      const a2 = document.createElement('a');
+      a2.href = csvUrl;
+      a2.download = 'island-ledger-lines.csv';
+      a2.click();
+      URL.revokeObjectURL(csvUrl);
+      setMessage('Export downloaded (JSON + CSV).');
+      toast('Export downloaded', 'ok');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Export failed'), 'danger');
+    } finally {
+      setExportBusy(false);
+    }
   }
 
   async function hardDelete() {
@@ -126,12 +137,15 @@ export function SettingsPage() {
     ) {
       return;
     }
+    setWipeBusy(true);
     try {
       await api('/household', { method: 'DELETE' });
       toast('Household deleted', 'ok');
       await logout();
-    } catch {
-      toast('Delete failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Delete failed'), 'danger');
+    } finally {
+      setWipeBusy(false);
     }
   }
 
@@ -237,12 +251,15 @@ export function SettingsPage() {
         </label>
         <button
           type="button"
-          className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
+          className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          disabled={passwordBusy}
+          aria-busy={passwordBusy}
           onClick={() => {
             if (newPassword.length < 8) {
               toast('New password must be at least 8 characters', 'danger');
               return;
             }
+            setPasswordBusy(true);
             void api('/auth/change-password', {
               method: 'POST',
               json: { currentPassword, newPassword },
@@ -253,7 +270,10 @@ export function SettingsPage() {
                 toast('Password updated — sign in again', 'ok');
                 await logout();
               })
-              .catch(() => toast('Password change failed', 'danger'));
+              .catch((err) =>
+                toast(apiErrorMessage(err, 'Password change failed'), 'danger'),
+              )
+              .finally(() => setPasswordBusy(false));
           }}
         >
           Update password
@@ -520,7 +540,9 @@ export function SettingsPage() {
           <button
             type="button"
             onClick={() => void exportData()}
-            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
+            disabled={exportBusy}
+            aria-busy={exportBusy}
+            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold disabled:opacity-50"
           >
             Export JSON + CSV
           </button>
@@ -559,7 +581,8 @@ export function SettingsPage() {
           {user?.role === 'owner' ? (
             <button
               type="button"
-              disabled={deleteConfirm !== 'DELETE'}
+              disabled={deleteConfirm !== 'DELETE' || wipeBusy}
+              aria-busy={wipeBusy}
               onClick={() => void hardDelete()}
               className="rounded-md border border-[var(--danger)] px-4 py-2 font-semibold text-[var(--danger)] disabled:opacity-40"
             >

@@ -463,6 +463,14 @@ export class HouseholdService {
     }
 
     const householdId = user.householdId;
+    const members = await this.prisma.user.findMany({
+      where: { householdId },
+      select: { id: true },
+    });
+    for (const m of members) {
+      await this.auth.revokeAllSessions(m.id);
+    }
+
     const receipts = await this.prisma.receipt.findMany({
       where: { householdId },
       select: { imageKey: true },

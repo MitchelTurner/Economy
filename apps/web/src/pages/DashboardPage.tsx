@@ -242,7 +242,7 @@ export function DashboardPage() {
                   {failedCount} failed extraction{failedCount === 1 ? '' : 's'}
                 </p>
                 <p className="text-sm text-[var(--ink-muted)]">
-                  Fix totals on review, or enter the receipt manually.
+                  Open a receipt to retry extraction, fix totals on review, or enter manually.
                 </p>
               </Link>
               <p className="mt-2 text-sm">

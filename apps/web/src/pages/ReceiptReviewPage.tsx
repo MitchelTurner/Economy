@@ -187,6 +187,24 @@ export function ReceiptReviewPage() {
     }
   }
 
+  async function reextract() {
+    if (!id) return;
+    setError(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      await api(`/receipts/${id}/reextract`, { method: 'POST' });
+      const msg = 'Extraction queued — refresh in a moment.';
+      setInfo(msg);
+      toast(msg, 'ok');
+      await reload();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not retry extraction'), 'danger');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!receipt) {
     return <p className="text-[var(--ink-muted)]">{error ?? 'Loading receipt…'}</p>;
   }
@@ -237,6 +255,17 @@ export function ReceiptReviewPage() {
         >
           Re-run matching
         </button>
+        {(receipt.status === 'FAILED' || receipt.status === 'UPLOADED') && (
+          <button
+            type="button"
+            disabled={busy}
+            aria-busy={busy}
+            onClick={() => void reextract()}
+            className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:opacity-50"
+          >
+            Retry extraction
+          </button>
+        )}
         {(receipt.status === 'FAILED' || receipt.lines.length === 0) && (
           <Link
             to="/capture/manual"

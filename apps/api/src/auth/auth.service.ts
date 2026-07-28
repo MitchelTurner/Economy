@@ -88,8 +88,17 @@ export class AuthService {
     const stored = await this.redis.get(key).catch(() => null);
     if (!stored) throw new UnauthorizedException('Refresh session expired');
 
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, householdId: true, email: true },
+    });
+    if (!user) {
+      await this.redis.del(key).catch(() => undefined);
+      throw new UnauthorizedException('Refresh session expired');
+    }
+
     await this.redis.del(key).catch(() => undefined);
-    return this.issueTokens(payload.sub, payload.householdId, payload.email);
+    return this.issueTokens(user.id, user.householdId, user.email);
   }
 
   async logout(dto: RefreshDto) {

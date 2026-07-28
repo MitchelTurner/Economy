@@ -514,6 +514,9 @@ Owner household rename, member leave + owner remove, invite create/peek/accept r
 **Phase 19 — ownership transfer + change-password rate limit**
 Owner can transfer ownership to a member (`POST /household/transfer`); Settings “Make owner”; `POST /auth/change-password` rate-limited per user; client surfaces 429 `retryAfter`.
 
+**Phase 20 — privacy wipe/export harden + FAILED re-extract**
+Rate-limit export/wipe/transfer (`RATE_LIMIT_HOUSEHOLD`); wipe revokes all member sessions; refresh rejects deleted users; `POST /receipts/:id/reextract` for FAILED/UPLOADED; Settings 429 messaging + busy states; Review retry CTA.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -627,6 +630,11 @@ Phase 18 is done when:
 Phase 19 is done when:
 - Owner can `POST /household/transfer` to promote a member and demote self; rejects self/non-member/non-owner; Settings shows “Make owner” with confirm.
 - `POST /auth/change-password` enforces `RATE_LIMIT_AUTH` keyed by user id; `apiErrorMessage` includes `retryAfter` on 429.
+
+Phase 20 is done when:
+- `GET /household/export`, `DELETE /household`, and `POST /household/transfer` enforce `RATE_LIMIT_HOUSEHOLD`; wipe revokes Redis sessions for every household member before delete.
+- `POST /auth/refresh` rejects tokens for deleted users (clears the Redis key).
+- `POST /receipts/:id/reextract` requeues FAILED/UPLOADED photo receipts (not manual/confirmed); Review shows Retry extraction; Settings change-password/export/wipe use `apiErrorMessage` + busy/`aria-busy`.
 
 ## 13. Testing
 

@@ -77,6 +77,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 19:** ownership transfer (`POST /household/transfer` + Settings Make owner), change-password rate limit, 429 retryAfter in client errors.
 
+**Phase 20:** household export/wipe/transfer rate limits, wipe session revoke, refresh deleted-user guard, FAILED re-extract + Review retry CTA, Settings busy/error polish.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

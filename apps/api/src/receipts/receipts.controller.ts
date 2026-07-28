@@ -152,6 +152,11 @@ export class ReceiptsController {
     return this.receipts.rematch(user, id);
   }
 
+  @Post(':id/reextract')
+  reextract(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.receipts.reextract(user, id);
+  }
+
   @Post(':id/lines/:lineId/apply-category-similar')
   applyCategorySimilar(
     @CurrentUser() user: AuthUser,

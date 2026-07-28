@@ -388,6 +388,38 @@ export class ReceiptsService {
     return this.catalog.matchReceipt(receiptId);
   }
 
+  /** Re-queue vision extraction for FAILED or stuck UPLOADED photo receipts. */
+  async reextract(user: AuthUser, receiptId: string) {
+    const receipt = await this.requireOwned(user, receiptId);
+    if (receipt.imageKey.startsWith('manual/')) {
+      throw new BadRequestException('Manual receipts cannot be re-extracted');
+    }
+    const retryable =
+      receipt.status === ReceiptStatus.FAILED ||
+      receipt.status === ReceiptStatus.UPLOADED;
+    if (!retryable) {
+      throw new BadRequestException(
+        `Only FAILED or UPLOADED receipts can be re-extracted (got ${receipt.status})`,
+      );
+    }
+
+    await this.prisma.receipt.update({
+      where: { id: receiptId },
+      data: {
+        status: ReceiptStatus.UPLOADED,
+        failureReason: null,
+      },
+    });
+
+    await this.extractQueue.add(
+      'extract',
+      { receiptId },
+      { attempts: 2, removeOnComplete: 100, removeOnFail: 50 },
+    );
+
+    return { ok: true as const, receiptId, status: ReceiptStatus.UPLOADED };
+  }
+
   async confirm(user: AuthUser, id: string, dto: ConfirmReceiptDto) {
     const receipt = await this.prisma.receipt.findFirst({
       where: { id, householdId: user.householdId },

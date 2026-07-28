@@ -30,6 +30,14 @@ function inviteLimit() {
   };
 }
 
+function householdLimit() {
+  return {
+    name: 'household',
+    limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+    windowMs: 60_000,
+  };
+}
+
 @Controller('household')
 export class HouseholdController {
   constructor(private readonly household: HouseholdService) {}
@@ -60,7 +68,15 @@ export class HouseholdController {
 
   @Post('transfer')
   @UseGuards(JwtAuthGuard)
-  transfer(@CurrentUser() user: AuthUser, @Body() dto: TransferOwnershipDto) {
+  async transfer(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: TransferOwnershipDto,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'household:transfer',
+    });
     return this.household.transferOwnership(user, dto);
   }
 
@@ -104,7 +120,11 @@ export class HouseholdController {
 
   @Get('export')
   @UseGuards(JwtAuthGuard)
-  export(@CurrentUser() user: AuthUser) {
+  async export(@Req() req: Request, @CurrentUser() user: AuthUser) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'household:export',
+    });
     return this.household.exportData(user);
   }
 
@@ -116,7 +136,11 @@ export class HouseholdController {
 
   @Delete()
   @UseGuards(JwtAuthGuard)
-  hardDelete(@CurrentUser() user: AuthUser) {
+  async hardDelete(@Req() req: Request, @CurrentUser() user: AuthUser) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'household:wipe',
+    });
     return this.household.hardDelete(user);
   }
 }
