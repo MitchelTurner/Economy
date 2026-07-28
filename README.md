@@ -55,6 +55,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 8:** Docker/Railway deploy pack (`DEPLOY.md`, `docker-compose.prod.yml`), env validation + health ready probe, GitHub CI, logout session revoke, toast/loading polish, public staples/prices on `/island`, eval fixture template.
 
+**Phase 9:** multi-store mock eval corpus, extraction usage in Settings, rate limits, request-id logs, outbox offline/error polish + shell flush, broader insight evidence charts.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy and health probes.

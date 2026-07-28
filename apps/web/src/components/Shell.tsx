@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { OutboxSync } from './OutboxSync';
 
 const links = [
   { to: '/', label: 'Home', end: true },
@@ -11,6 +12,7 @@ const links = [
 export function Shell() {
   return (
     <div className="app-shell">
+      <OutboxSync />
       <a href="#main" className="skip-link">
         Skip to content
       </a>

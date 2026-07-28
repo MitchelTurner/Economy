@@ -145,19 +145,12 @@ export function InsightsPage() {
 }
 
 function EvidenceChart({ data, type }: { data: Record<string, unknown>; type: string }) {
-  const history = data.history;
-  if (!Array.isArray(history) || history.length < 2) return null;
-  if (type !== 'price_spike' && type !== 'stock_up' && type !== 'recurring_change') {
-    return null;
-  }
-  const chartData = history.map((v, i) => ({
-    i: String(i + 1),
-    value: typeof v === 'number' ? v / 100 : 0,
-  }));
+  const series = buildEvidenceSeries(data, type);
+  if (!series || series.length < 2) return null;
   return (
     <div className="mt-3 h-28 w-full">
       <ResponsiveContainer>
-        <LineChart data={chartData}>
+        <LineChart data={series}>
           <XAxis dataKey="i" hide />
           <YAxis width={36} tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
           <Tooltip formatter={(v: number) => `$${v.toFixed(2)}`} />
@@ -166,4 +159,67 @@ function EvidenceChart({ data, type }: { data: Record<string, unknown>; type: st
       </ResponsiveContainer>
     </div>
   );
+}
+
+function buildEvidenceSeries(
+  data: Record<string, unknown>,
+  type: string,
+): Array<{ i: string; value: number }> | null {
+  if (
+    type === 'price_spike' ||
+    type === 'stock_up' ||
+    type === 'recurring_change'
+  ) {
+    const history = data.history;
+    if (!Array.isArray(history) || history.length < 2) return null;
+    return history.map((v, i) => ({
+      i: String(i + 1),
+      value: typeof v === 'number' ? v / 100 : 0,
+    }));
+  }
+
+  if (type === 'store_switch' && data.storeTotals && typeof data.storeTotals === 'object') {
+    return Object.entries(data.storeTotals as Record<string, number>).map(([k, v], i) => ({
+      i: k.slice(0, 8) || String(i + 1),
+      value: v / 100,
+    }));
+  }
+
+  if (type === 'budget_pace') {
+    const spent = Number(data.spentCents ?? 0);
+    const budget = Number(data.budgetAmountCents ?? 0);
+    const projected = Number(data.projectedCents ?? 0);
+    if (!budget) return null;
+    return [
+      { i: 'spent', value: spent / 100 },
+      { i: 'budget', value: budget / 100 },
+      { i: 'pace', value: projected / 100 },
+    ];
+  }
+
+  if (type === 'category_creep' && Array.isArray(data.months)) {
+    return (data.months as Array<{ spendCents?: number; key?: string }>).map((m, i) => ({
+      i: m.key ?? String(i + 1),
+      value: Number(m.spendCents ?? 0) / 100,
+    }));
+  }
+
+  if (type === 'island_premium') {
+    const local = Number(data.local ?? 0);
+    const baseline = Number(data.baseline ?? 0);
+    if (!local && !baseline) return null;
+    return [
+      { i: 'baseline', value: baseline },
+      { i: 'local', value: local },
+    ];
+  }
+
+  if (type === 'impulse_pattern') {
+    return [
+      { i: 'day', value: Number(data.dayAvgCents ?? 0) / 100 },
+      { i: 'evening', value: Number(data.eveningAvgCents ?? 0) / 100 },
+    ];
+  }
+
+  return null;
 }

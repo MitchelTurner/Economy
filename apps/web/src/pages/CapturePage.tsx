@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
-import { blobToBase64, preprocessReceiptImage } from '../lib/image';
+import { preprocessReceiptImage } from '../lib/image';
 import {
   enqueueOutbox,
   getOutboxBlob,
   listOutbox,
-  OutboxMeta,
-  patchOutbox,
-  pendingOutbox,
-  removeOutbox,
+  type OutboxMeta,
 } from '../lib/outbox';
+import { flushPendingOutbox } from '../lib/outbox-sync';
 
 type QueueItem = { id: string; previewUrl: string; status: string };
 
@@ -37,68 +34,43 @@ export function CapturePage() {
       }
       setQueue(items);
       if (navigator.onLine) {
-        await flushOutbox();
+        await runFlush();
       }
     })();
 
-    const onOnline = () => {
-      void flushOutbox();
-    };
-    window.addEventListener('online', onOnline);
     return () => {
-      window.removeEventListener('online', onOnline);
       for (const url of previewUrlsRef.current.values()) URL.revokeObjectURL(url);
       previewUrlsRef.current.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function flushOutbox() {
-    if (flushing) return;
+  async function runFlush() {
     setFlushing(true);
     setError(null);
-    const reviewIds: string[] = [];
     try {
-      const pending = await pendingOutbox();
-      for (const meta of pending) {
+      const { reviewIds, failures } = await flushPendingOutbox((id, status) => {
         setQueue((q) =>
-          q.map((item) =>
-            item.id === meta.id ? { ...item, status: 'Uploading…' } : item,
-          ),
+          q.map((item) => (item.id === id ? { ...item, status } : item)),
         );
-        try {
-          const receiptId = await uploadFromOutbox(meta);
-          reviewIds.push(receiptId);
-          setQueue((q) =>
-            q.map((item) =>
-              item.id === meta.id ? { ...item, status: 'Extracting…' } : item,
-            ),
-          );
-          await waitForReview(receiptId);
-          await removeOutbox(meta.id);
-          const preview = previewUrlsRef.current.get(meta.id);
+        if (status === 'Done') {
+          const preview = previewUrlsRef.current.get(id);
           if (preview) {
             URL.revokeObjectURL(preview);
-            previewUrlsRef.current.delete(meta.id);
+            previewUrlsRef.current.delete(id);
           }
-          setQueue((q) =>
-            q.map((item) =>
-              item.id === meta.id ? { ...item, status: 'Done' } : item,
-            ),
-          );
-        } catch (err) {
-          await patchOutbox(meta.id, {
-            status: 'failed',
-            error: (err as Error).message,
-          });
-          setQueue((q) =>
-            q.map((item) =>
-              item.id === meta.id ? { ...item, status: 'Queued (offline)' } : item,
-            ),
-          );
-          setError((err as Error).message || 'Upload failed — saved to outbox');
         }
+      });
+
+      if (failures.length) {
+        const first = failures[0]!;
+        setError(
+          first.offlineLikely
+            ? 'Offline — receipts saved locally and will upload when you reconnect.'
+            : first.message,
+        );
       }
+
       if (reviewIds.length === 1) {
         navigate(`/receipts/${reviewIds[0]}`);
       } else if (reviewIds.length > 1) {
@@ -122,7 +94,6 @@ export function CapturePage() {
       try {
         const { blob, hash } = await preprocessReceiptImage(file);
         await enqueueOutbox({ id, hash, blob });
-        // Prefer processed JPEG preview
         URL.revokeObjectURL(previewUrl);
         const processedPreview = URL.createObjectURL(blob);
         previewUrlsRef.current.set(id, processedPreview);
@@ -144,7 +115,7 @@ export function CapturePage() {
     }
 
     if (navigator.onLine) {
-      await flushOutbox();
+      await runFlush();
     } else {
       setError('Offline — receipts saved locally and will upload when you reconnect.');
     }
@@ -190,11 +161,16 @@ export function CapturePage() {
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-      {queue.some((q) => q.status.includes('Queued') || q.status.includes('offline')) && (
+      {queue.some(
+        (q) =>
+          q.status.includes('Queued') ||
+          q.status.includes('offline') ||
+          q.status.startsWith('Failed'),
+      ) && (
         <button
           type="button"
           disabled={flushing || !navigator.onLine}
-          onClick={() => void flushOutbox()}
+          onClick={() => void runFlush()}
           className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
           {flushing ? 'Syncing…' : 'Retry outbox sync'}
@@ -224,60 +200,13 @@ export function CapturePage() {
 }
 
 function labelFor(m: OutboxMeta) {
-  if (m.status === 'failed') return 'Queued (offline)';
+  if (m.status === 'failed') {
+    if (m.error && !/offline|Failed to fetch|NetworkError/i.test(m.error)) {
+      return `Failed: ${m.error}`;
+    }
+    return 'Queued (offline)';
+  }
   if (m.status === 'uploading') return 'Uploading…';
   if (m.status === 'done') return 'Done';
   return 'Queued';
-}
-
-async function uploadFromOutbox(meta: OutboxMeta): Promise<string> {
-  const blob = await getOutboxBlob(meta.id);
-  if (!blob) throw new Error('Outbox image missing');
-  await patchOutbox(meta.id, { status: 'uploading' });
-
-  const { uploadUrl, imageKey } = await api<{ uploadUrl: string; imageKey: string }>(
-    '/receipts/upload-url',
-    { method: 'POST', json: { contentType: 'image/jpeg', extension: 'jpg' } },
-  );
-
-  let imageBase64: string | undefined;
-  if (uploadUrl.startsWith('memory://')) {
-    imageBase64 = await blobToBase64(blob);
-  } else {
-    const put = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'image/jpeg' },
-      body: blob,
-    });
-    if (!put.ok) {
-      imageBase64 = await blobToBase64(blob);
-    }
-  }
-
-  const registered = await api<{ receiptId: string; deduped: boolean }>(
-    '/receipts',
-    {
-      method: 'POST',
-      json: { imageKey, imageHash: meta.hash, imageBase64 },
-    },
-  );
-  await patchOutbox(meta.id, {
-    status: 'done',
-    receiptId: registered.receiptId,
-  });
-  return registered.receiptId;
-}
-
-async function waitForReview(receiptId: string) {
-  for (let i = 0; i < 20; i++) {
-    const receipt = await api<{ status: string }>(`/receipts/${receiptId}`);
-    if (
-      receipt.status === 'NEEDS_REVIEW' ||
-      receipt.status === 'FAILED' ||
-      receipt.status === 'CONFIRMED'
-    ) {
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 750));
-  }
 }

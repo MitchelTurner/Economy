@@ -1,0 +1,37 @@
+{
+  "store": {
+    "name": "Super Bear",
+    "address": "2415 Tongass Ave"
+  },
+  "purchasedAt": null,
+  "paymentMethod": "DEBIT",
+  "currency": "USD",
+  "subtotalCents": 512,
+  "taxCents": 0,
+  "totalCents": 512,
+  "confidence": 0.9,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "BANANAS",
+      "quantity": 1.85,
+      "unitPriceCents": 89,
+      "extendedCents": 165,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "produce"
+    },
+    {
+      "lineNumber": 2,
+      "rawText": "ONIONS YLW 3LB",
+      "quantity": 1,
+      "unitPriceCents": 347,
+      "extendedCents": 347,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "produce"
+    }
+  ]
+}

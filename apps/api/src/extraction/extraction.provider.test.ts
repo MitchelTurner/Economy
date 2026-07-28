@@ -38,4 +38,11 @@ describe('ExtractionProvider mock', () => {
     });
     expect(good.ok).toBe(true);
   });
+
+  it('returns scenario keyed by fixture:<id> buffer', () => {
+    const { result } = provider.mockExtract(Buffer.from('fixture:mock-short-01'));
+    expect(result.store.name).toBe('Three Bears');
+    expect(result.lines).toHaveLength(1);
+    expect(result.totalCents).toBe(299);
+  });
 });

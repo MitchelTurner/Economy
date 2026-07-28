@@ -64,6 +64,22 @@ docker compose -f docker-compose.prod.yml up --build
 # Web http://localhost:8080  API http://localhost:3000/health/ready
 ```
 
+## Observability
+
+- Liveness: `GET /health`
+- Readiness: `GET /health/ready` (Postgres + Redis) — use this as the Railway health check
+- Every response includes `x-request-id` (echoes inbound header when present). API logs: `METHOD path status duration requestId=…` (health probes omitted)
+- Extraction success/failure and daily-cap hits are logged at info/warn with receipt + household ids
+- Railway/compose: scrape container stdout; no separate metrics sidecar in v1
+
+## Rate limits (single-instance, in-memory)
+
+| Env | Default | Applies to |
+|---|---|---|
+| `RATE_LIMIT_AUTH` | 30 / min / IP | `POST /auth/login\|register\|refresh` |
+| `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | `POST /receipts/upload-url` |
+| `RATE_LIMIT_PUBLIC` | 120 / min / IP | `GET /public/*` |
+
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs generate → test → build → extraction eval smoke on every PR.
+GitHub Actions (`.github/workflows/ci.yml`) runs generate → test → build → extraction eval smoke, then validates Dockerfiles via `docker build`.

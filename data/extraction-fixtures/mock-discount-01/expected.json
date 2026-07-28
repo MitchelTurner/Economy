@@ -1,0 +1,26 @@
+{
+  "store": {
+    "name": "Safeway",
+    "address": "2417 Tongass Ave"
+  },
+  "purchasedAt": null,
+  "paymentMethod": "VISA",
+  "currency": "USD",
+  "subtotalCents": 650,
+  "taxCents": 0,
+  "totalCents": 650,
+  "confidence": 0.89,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "COFFEE 12OZ",
+      "quantity": 1,
+      "unitPriceCents": 899,
+      "extendedCents": 899,
+      "discountCents": 249,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "beverages"
+    }
+  ]
+}

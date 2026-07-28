@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { PrismaModule } from './prisma/prisma.module';
@@ -17,6 +17,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { HouseholdModule } from './household/household.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { HealthController } from './health.controller';
+import { RequestIdMiddleware } from './common/request-id.middleware';
 
 @Module({
   imports: [
@@ -47,4 +48,8 @@ import { HealthController } from './health.controller';
   ],
   controllers: [HealthController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}

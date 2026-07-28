@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { ExtractionResult, ExtractionResultSchema } from './extraction.schema';
+import { MOCK_SCENARIOS } from './mock-scenarios';
 
 export type ExtractionCallResult = {
   result: ExtractionResult;
@@ -114,63 +115,26 @@ export class ExtractionProvider {
     };
   }
 
-  /** Deterministic mock for local/dev and tests. Hash-influenced totals stay arithmetic-valid. */
+  /** Deterministic mock for local/dev and tests. Scenario via `fixture:<id>` buffer. */
   mockExtract(imageBytes: Buffer, retryHint?: string): ExtractionCallResult {
-    const corrupt = imageBytes.toString('utf8').includes('CORRUPT_EXTRACTION');
-    const lines = [
-      {
-        lineNumber: 1,
-        rawText: 'GV MLK WHL 1GA',
-        quantity: 1,
-        unitPriceCents: 549,
-        extendedCents: 549,
-        discountCents: 0,
-        isTaxable: false,
-        isRefund: false,
-        guessedCategory: 'dairy',
-      },
-      {
-        lineNumber: 2,
-        rawText: 'BANANAS',
-        quantity: 2.14,
-        unitPriceCents: 79,
-        extendedCents: 169,
-        discountCents: 0,
-        isTaxable: false,
-        isRefund: false,
-        guessedCategory: 'produce',
-      },
-      {
-        lineNumber: 3,
-        rawText: 'EGGS LG 12CT',
-        quantity: 1,
-        unitPriceCents: 429,
-        extendedCents: 429,
-        discountCents: 0,
-        isTaxable: false,
-        isRefund: false,
-        guessedCategory: 'dairy',
-      },
-    ];
+    const asText = imageBytes.toString('utf8');
+    const corrupt = asText.includes('CORRUPT_EXTRACTION');
+    const fixtureMatch = asText.match(/^fixture:([a-z0-9-]+)/i);
+    const scenarioKey = fixtureMatch?.[1];
+    const base =
+      (scenarioKey && MOCK_SCENARIOS[scenarioKey]) ||
+      MOCK_SCENARIOS['mock-safeway-01'];
 
-    const subtotal = lines.reduce((s, l) => s + l.extendedCents - l.discountCents, 0);
-    const taxCents = 0;
-    let totalCents = subtotal + taxCents;
-
+    let totalCents = base.totalCents ?? 0;
     if (corrupt && !retryHint) {
-      totalCents = subtotal + 999; // intentional fail for acceptance criterion
+      totalCents = (base.subtotalCents ?? 0) + 999;
     }
 
     const result = ExtractionResultSchema.parse({
-      store: { name: 'Safeway', address: '2417 Tongass Ave' },
-      purchasedAt: new Date().toISOString(),
-      paymentMethod: 'VISA',
-      currency: 'USD',
-      subtotalCents: subtotal,
-      taxCents,
+      ...base,
+      purchasedAt: base.purchasedAt ?? null,
       totalCents,
-      lines,
-      confidence: corrupt && !retryHint ? 0.4 : 0.92,
+      confidence: corrupt && !retryHint ? 0.4 : base.confidence,
     });
 
     return {

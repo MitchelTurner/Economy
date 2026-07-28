@@ -11,16 +11,29 @@ type Household = {
   invites: Array<{ id: string; email: string; expiresAt: string }>;
 };
 
+type Usage = {
+  maxExtractionsPerDay: number;
+  extractionsToday: number;
+  remainingToday: number;
+  week: { extractions: number; inputTokens: number; outputTokens: number };
+};
+
 export function SettingsPage() {
   const { user, logout } = useAuth();
   const [household, setHousehold] = useState<Household | null>(null);
+  const [usage, setUsage] = useState<Usage | null>(null);
   const [email, setEmail] = useState('');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState('');
 
   async function load() {
-    setHousehold(await api<Household>('/household'));
+    const [hh, u] = await Promise.all([
+      api<Household>('/household'),
+      api<Usage>('/household/usage'),
+    ]);
+    setHousehold(hh);
+    setUsage(u);
   }
 
   useEffect(() => {
@@ -100,6 +113,20 @@ export function SettingsPage() {
           {household ? ` · ${household.users.length} members` : ''}
         </p>
       </section>
+
+      {usage && (
+        <section className="space-y-1 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+          <h2 className="text-lg font-semibold">Extraction usage</h2>
+          <p className="text-sm text-[var(--ink-muted)]">
+            Today: {usage.extractionsToday} / {usage.maxExtractionsPerDay} (
+            {usage.remainingToday} left)
+          </p>
+          <p className="text-sm text-[var(--ink-muted)]">
+            Last 7 days: {usage.week.extractions} runs ·{' '}
+            {usage.week.inputTokens + usage.week.outputTokens} tokens
+          </p>
+        </section>
+      )}
 
       <section>
         <h2 className="text-xl font-semibold">Members</h2>

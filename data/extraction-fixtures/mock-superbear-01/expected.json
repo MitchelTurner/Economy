@@ -1,0 +1,37 @@
+{
+  "store": {
+    "name": "Super Bear",
+    "address": "2415 Tongass Ave"
+  },
+  "purchasedAt": null,
+  "paymentMethod": "CASH",
+  "currency": "USD",
+  "subtotalCents": 892,
+  "taxCents": 0,
+  "totalCents": 892,
+  "confidence": 0.9,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "BREAD WHT",
+      "quantity": 1,
+      "unitPriceCents": 349,
+      "extendedCents": 349,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "bakery"
+    },
+    {
+      "lineNumber": 2,
+      "rawText": "PB 16OZ",
+      "quantity": 1,
+      "unitPriceCents": 543,
+      "extendedCents": 543,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "pantry"
+    }
+  ]
+}

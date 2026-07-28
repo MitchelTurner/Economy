@@ -36,6 +36,9 @@ export class ExtractionService {
       where: { householdId: receipt.householdId, createdAt: { gte: dayStart } },
     });
     if (usageCount >= maxPerDay) {
+      this.logger.warn(
+        `Daily extraction cap (${maxPerDay}) reached for household ${receipt.householdId} receipt=${receiptId}`,
+      );
       await this.prisma.receipt.update({
         where: { id: receiptId },
         data: {
@@ -173,6 +176,9 @@ export class ExtractionService {
       'match',
       { receiptId },
       { attempts: 2, removeOnComplete: 100, removeOnFail: 50 },
+    );
+    this.logger.log(
+      `Extraction ok receipt=${receiptId} model=${call.model} tokens=${call.inputTokens}+${call.outputTokens}`,
     );
   }
 

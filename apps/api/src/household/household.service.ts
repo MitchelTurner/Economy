@@ -265,6 +265,39 @@ export class HouseholdService {
     return { json, csv: csvLines.join('\n') };
   }
 
+  async usage(user: AuthUser) {
+    const maxPerDay = Number(this.config.get('MAX_EXTRACTIONS_PER_DAY') ?? 50);
+    const dayStart = new Date();
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const weekStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [todayCount, weekRows] = await Promise.all([
+      this.prisma.extractionUsage.count({
+        where: { householdId: user.householdId, createdAt: { gte: dayStart } },
+      }),
+      this.prisma.extractionUsage.findMany({
+        where: { householdId: user.householdId, createdAt: { gte: weekStart } },
+        select: { inputTokens: true, outputTokens: true, model: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+        take: 200,
+      }),
+    ]);
+
+    const weekInputTokens = weekRows.reduce((s, r) => s + r.inputTokens, 0);
+    const weekOutputTokens = weekRows.reduce((s, r) => s + r.outputTokens, 0);
+
+    return {
+      maxExtractionsPerDay: maxPerDay,
+      extractionsToday: todayCount,
+      remainingToday: Math.max(0, maxPerDay - todayCount),
+      week: {
+        extractions: weekRows.length,
+        inputTokens: weekInputTokens,
+        outputTokens: weekOutputTokens,
+      },
+    };
+  }
+
   async hardDelete(user: AuthUser) {
     const me = await this.prisma.user.findUnique({ where: { id: user.userId } });
     if (!me || me.role !== 'owner') {

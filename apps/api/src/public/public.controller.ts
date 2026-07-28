@@ -1,5 +1,15 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
+import { clientKeyFromReq, consumeRateLimit } from '../common/rate-limit';
 import { PublicIndexService } from './public-index.service';
+
+function publicLimit(name: string) {
+  return {
+    name,
+    limit: Number(process.env.RATE_LIMIT_PUBLIC ?? 120),
+    windowMs: 60_000,
+  };
+}
 
 /** Unauthenticated community endpoints — privacy gate enforced in the service. */
 @Controller('public')
@@ -8,27 +18,33 @@ export class PublicController {
 
   @Get('index')
   index(
+    @Req() req: Request,
     @Query('region') region = 'ketchikan',
     @Query('basket') basket = 'staples-25',
   ) {
+    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:index'));
     return this.publicIndex.index(region, basket);
   }
 
   @Get('prices/:productId')
   prices(
+    @Req() req: Request,
     @Param('productId') productId: string,
     @Query('region') region?: string,
   ) {
+    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:prices'));
     return this.publicIndex.productPrices(productId, region);
   }
 
   @Get('staples')
-  staples(@Query('basket') basket = 'staples-25') {
+  staples(@Req() req: Request, @Query('basket') basket = 'staples-25') {
+    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:staples'));
     return this.publicIndex.listStaples(basket);
   }
 
   @Get('meta')
-  meta() {
+  meta(@Req() req: Request) {
+    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:meta'));
     return { minHouseholds: this.publicIndex.getMinHouseholds() };
   }
 }

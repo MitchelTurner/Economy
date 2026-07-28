@@ -7,13 +7,16 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
+import type { Request } from 'express';
 import { ReceiptStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
+import { clientKeyFromReq, consumeRateLimit } from '../common/rate-limit';
 import { ReceiptsService } from './receipts.service';
 import {
   ConfirmReceiptDto,
@@ -31,7 +34,16 @@ export class ReceiptsController {
   constructor(private readonly receipts: ReceiptsService) {}
 
   @Post('upload-url')
-  uploadUrl(@CurrentUser() user: AuthUser, @Body() dto: UploadUrlDto) {
+  uploadUrl(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: UploadUrlDto,
+  ) {
+    consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      name: 'receipts:upload-url',
+      limit: Number(process.env.RATE_LIMIT_UPLOAD ?? 60),
+      windowMs: 60_000,
+    });
     return this.receipts.createUploadUrl(user, dto);
   }
 

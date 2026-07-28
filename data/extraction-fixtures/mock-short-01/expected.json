@@ -1,0 +1,26 @@
+{
+  "store": {
+    "name": "Three Bears",
+    "address": "2417 Tongass Ave"
+  },
+  "purchasedAt": null,
+  "paymentMethod": "CASH",
+  "currency": "USD",
+  "subtotalCents": 299,
+  "taxCents": 0,
+  "totalCents": 299,
+  "confidence": 0.95,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "GREEK YOG 32OZ",
+      "quantity": 1,
+      "unitPriceCents": 299,
+      "extendedCents": 299,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "dairy"
+    }
+  ]
+}

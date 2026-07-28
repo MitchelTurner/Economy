@@ -51,6 +51,12 @@ export class HouseholdController {
     return this.household.exportData(user);
   }
 
+  @Get('usage')
+  @UseGuards(JwtAuthGuard)
+  usage(@CurrentUser() user: AuthUser) {
+    return this.household.usage(user);
+  }
+
   @Delete()
   @UseGuards(JwtAuthGuard)
   hardDelete(@CurrentUser() user: AuthUser) {

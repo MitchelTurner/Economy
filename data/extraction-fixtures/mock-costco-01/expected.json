@@ -1,0 +1,59 @@
+{
+  "store": {
+    "name": "Costco",
+    "address": "50 Denali St"
+  },
+  "purchasedAt": null,
+  "paymentMethod": "VISA",
+  "currency": "USD",
+  "subtotalCents": 4598,
+  "taxCents": 0,
+  "totalCents": 4598,
+  "confidence": 0.93,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "KS PAPER TOWEL 6PK",
+      "quantity": 1,
+      "unitPriceCents": 1899,
+      "extendedCents": 1899,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "household"
+    },
+    {
+      "lineNumber": 2,
+      "rawText": "KS TP 12RL",
+      "quantity": 1,
+      "unitPriceCents": 1699,
+      "extendedCents": 1699,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "household"
+    },
+    {
+      "lineNumber": 3,
+      "rawText": "BANANAS",
+      "quantity": 3.2,
+      "unitPriceCents": 69,
+      "extendedCents": 221,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "produce"
+    },
+    {
+      "lineNumber": 4,
+      "rawText": "MILK 1GAL",
+      "quantity": 1,
+      "unitPriceCents": 779,
+      "extendedCents": 779,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "dairy"
+    }
+  ]
+}

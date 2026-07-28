@@ -481,6 +481,9 @@ Safe receipt delete (clear linked observations), auto-rematch on store change, b
 **Phase 8 — ship readiness**
 Dockerfiles + compose/Railway deploy pack, boot-time env validation, `/health` + `/health/ready`, GitHub CI, logout revokes Redis refresh sessions, toast/loading polish, public staples + product prices on `/island`, eval fixture template scaffolding.
 
+**Phase 9 — eval corpus, ops hardening, offline edges**
+Expanded mock eval fixtures across stores/edge cases, household extraction usage visibility, auth/upload/public rate limits, request-id logging, capture outbox single-flight + shell online flush, richer insight evidence charts.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -526,6 +529,13 @@ Phase 8 is done when:
 - CI runs generate → test → build → `eval:extraction` smoke on PRs.
 - Logout calls `POST /auth/logout` and clears the Redis refresh session; `/island` can list staples and gated public product prices.
 - Eval fixture `_template/` exists for expanding the §13 corpus (not the full 30-receipt set yet).
+
+Phase 9 is done when:
+- `npm run eval:extraction` scores ≥8 mock fixtures (multi-store / tax / discount / weighable) via `fixture:<id>` scenarios.
+- Settings shows today’s extraction count vs `MAX_EXTRACTIONS_PER_DAY` and 7-day token totals; daily-cap path is unit-tested.
+- Auth login/register/refresh, upload-url, and public reads enforce configurable rate limits; API logs include `x-request-id`.
+- Capture outbox distinguishes network vs API failures, surfaces FAILED/timeout reasons, and flushes from the shell on `online`.
+- Insight evidence charts cover store_switch, budget_pace, category_creep, island_premium, and impulse_pattern when data allows.
 
 ## 13. Testing
 
