@@ -47,7 +47,11 @@ export class AlertsService {
     if (!alert) throw new NotFoundException('Alert not found');
     return this.prisma.priceAlert.update({
       where: { id },
-      data: { active: dto.active },
+      data: {
+        ...(dto.active !== undefined ? { active: dto.active } : {}),
+        ...(dto.dropPct !== undefined ? { dropPct: dto.dropPct } : {}),
+        ...(dto.targetCents !== undefined ? { targetCents: dto.targetCents } : {}),
+      },
       include: { product: true },
     });
   }

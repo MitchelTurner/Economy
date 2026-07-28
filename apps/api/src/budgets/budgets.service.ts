@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { CreateBudgetDto, PatchBudgetDto } from './budgets.dto';
@@ -15,11 +19,24 @@ export class BudgetsService {
     });
   }
 
-  create(user: AuthUser, dto: CreateBudgetDto) {
+  async create(user: AuthUser, dto: CreateBudgetDto) {
+    const categoryId = dto.categoryId ?? null;
+    const duplicate = await this.prisma.budget.findFirst({
+      where: {
+        householdId: user.householdId,
+        period: dto.period,
+        categoryId,
+      },
+    });
+    if (duplicate) {
+      throw new ConflictException(
+        'A budget already exists for this category and period',
+      );
+    }
     return this.prisma.budget.create({
       data: {
         householdId: user.householdId,
-        categoryId: dto.categoryId ?? null,
+        categoryId,
         period: dto.period,
         amountCents: dto.amountCents,
         startsOn: new Date(dto.startsOn),

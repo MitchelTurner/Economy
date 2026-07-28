@@ -156,7 +156,21 @@ export class AuthService {
       where: { id: userId },
       data: { passwordHash },
     });
-    return { ok: true };
+    const revoked = await this.revokeAllSessions(userId);
+    return { ok: true, sessionsRevoked: revoked };
+  }
+
+  /** Delete all Redis refresh sessions for a user (password change / security). */
+  async revokeAllSessions(userId: string): Promise<number> {
+    const pattern = `session:refresh:${userId}:*`;
+    try {
+      const keys = await this.redis.keys(pattern);
+      if (!keys.length) return 0;
+      await this.redis.del(...keys);
+      return keys.length;
+    } catch {
+      return 0;
+    }
   }
 
   private async issueTokens(userId: string, householdId: string, email: string) {

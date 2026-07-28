@@ -89,6 +89,11 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {mode === 'register' ? (
+              <span className="mt-1 block text-xs text-[var(--ink-muted)]">
+                At least 8 characters
+              </span>
+            ) : null}
           </label>
 
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}

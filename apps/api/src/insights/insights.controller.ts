@@ -32,4 +32,9 @@ export class InsightsController {
   dismiss(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.insights.dismiss(user, id);
   }
+
+  @Post(':id/restore')
+  restore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.insights.restore(user, id);
+  }
 }

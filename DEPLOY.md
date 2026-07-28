@@ -75,7 +75,14 @@ docker compose -f docker-compose.prod.yml up --build
   Restore: `pg_restore --clean --if-exists -d "$DATABASE_URL" island-YYYY-MM-DD.dump`
 - **Receipt images:** back up the S3/R2/MinIO bucket (`S3_BUCKET`) separately from the DB.
 - **Reference vs demo seed:** production should use `db:seed:reference` (`SEED_DEMO=0`) for categories/staples/aliases/stores/baselines/shipping lanes. Full `db:seed` also creates `demo@islandledger.local` and synthetic history — fine for local/dev only.
-- **`SEED_ON_BOOT`:** `off` (default) | `reference` | `demo` — API entrypoint runs migrate, optional seed, then `node dist/main.js`. Prod images install runtime deps only (`npm ci --omit=dev`) plus `tsx` for seed.
+- **`SEED_ON_BOOT`:** `off` (default) | `reference` | `demo` — API entrypoint runs migrate, optional seed, then `node dist/main.js`. Prod compose sets `SEED_ON_BOOT=off`. Prod images install runtime deps only (`npm ci --omit=dev`) plus `tsx` for seed.
+
+## Rollback
+
+1. **App image:** redeploy the previous API/web image tag (Railway previous deploy, or `docker compose … up` with the prior build). Schema-compatible releases should start cleanly.
+2. **Failed migration:** restore Postgres from the latest `pg_dump` (see above), then redeploy the last known-good API image that matches that schema. Do not leave a half-applied migration against production data.
+3. **Accidental seed:** if `SEED_ON_BOOT=demo` ran in prod, restore DB from backup; leave `SEED_ON_BOOT=off` afterward. Reference seed is upsert-only for catalog/baselines and is safer, but still prefer explicit `db:seed:reference` once.
+4. **Web-only rollback:** ship the previous web image; API need not move if contracts are unchanged.
 
 ## Web security headers
 

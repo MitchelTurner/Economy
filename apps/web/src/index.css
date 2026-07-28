@@ -89,7 +89,9 @@ a {
   min-height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
-  padding: 0 1rem 5.5rem;
+  padding: 0 1rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
 }
 
 @media (min-width: 900px) {

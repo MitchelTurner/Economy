@@ -18,11 +18,23 @@ export class CreateAlertDto {
   targetCents?: number | null;
 }
 
-export const PatchAlertSchema = z.object({
-  active: z.boolean(),
-});
+export const PatchAlertSchema = z
+  .object({
+    active: z.boolean().optional(),
+    dropPct: z.number().positive().max(90).nullish(),
+    targetCents: z.number().int().positive().nullish(),
+  })
+  .refine(
+    (v) =>
+      v.active !== undefined ||
+      v.dropPct !== undefined ||
+      v.targetCents !== undefined,
+    { message: 'Provide active, dropPct, and/or targetCents' },
+  );
 
 @ZodBody(PatchAlertSchema)
 export class PatchAlertDto {
-  active!: boolean;
+  active?: boolean;
+  dropPct?: number | null;
+  targetCents?: number | null;
 }

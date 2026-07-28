@@ -60,6 +60,16 @@ export function InsightsPage() {
     }
   }
 
+  async function restore(id: string) {
+    try {
+      await api(`/insights/${id}/restore`, { method: 'POST' });
+      toast('Insight restored', 'ok');
+      await load();
+    } catch {
+      toast('Restore failed', 'danger');
+    }
+  }
+
   async function regenerate() {
     setBusy(true);
     try {
@@ -87,6 +97,7 @@ export function InsightsPage() {
           <div className="flex rounded-md border border-[var(--line)] text-sm" role="group" aria-label="Insight filter">
             <button
               type="button"
+              aria-pressed={showActive}
               onClick={() => setShowActive(true)}
               className={[
                 'px-3 py-1.5 font-semibold',
@@ -97,6 +108,7 @@ export function InsightsPage() {
             </button>
             <button
               type="button"
+              aria-pressed={!showActive}
               onClick={() => setShowActive(false)}
               className={[
                 'px-3 py-1.5 font-semibold',
@@ -152,13 +164,21 @@ export function InsightsPage() {
                   )}
                   <EvidenceChart data={i.data} type={i.type} />
                 </div>
-                {showActive && (
+                {showActive ? (
                   <button
                     type="button"
                     className="text-sm font-semibold text-[var(--ink-muted)]"
                     onClick={() => void dismiss(i.id)}
                   >
                     Dismiss
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-[var(--brand-soft)]"
+                    onClick={() => void restore(i.id)}
+                  >
+                    Restore
                   </button>
                 )}
               </div>

@@ -25,6 +25,32 @@ describe('AlertsService.patch', () => {
       data: { active: false },
       include: { product: true },
     });
-    expect(row.active).toBe(false);
+  });
+
+  it('can update dropPct without touching active', async () => {
+    const update = vi.fn().mockResolvedValue({
+      id: 'a1',
+      active: true,
+      dropPct: 20,
+      product: { id: 'p1', name: 'Milk' },
+    });
+    const prisma = {
+      priceAlert: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'a1', userId: 'u1' }),
+        update,
+      },
+    };
+    const svc = new AlertsService(prisma as never);
+    const row = await svc.patch(
+      { userId: 'u1', householdId: 'h1', email: 'a@b.c', role: 'owner' },
+      'a1',
+      { dropPct: 20 },
+    );
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'a1' },
+      data: { dropPct: 20 },
+      include: { product: true },
+    });
+    expect(row.dropPct).toBe(20);
   });
 });

@@ -185,26 +185,35 @@ export function SettingsPage() {
           <input
             type="password"
             autoComplete="new-password"
+            minLength={8}
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             className="mt-1 w-full max-w-md rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
           />
+          <span className="mt-1 block text-xs text-[var(--ink-muted)]">
+            At least 8 characters. Other sessions will be signed out.
+          </span>
         </label>
         <button
           type="button"
           className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
-          onClick={() =>
+          onClick={() => {
+            if (newPassword.length < 8) {
+              toast('New password must be at least 8 characters', 'danger');
+              return;
+            }
             void api('/auth/change-password', {
               method: 'POST',
               json: { currentPassword, newPassword },
             })
-              .then(() => {
+              .then(async () => {
                 setCurrentPassword('');
                 setNewPassword('');
-                toast('Password updated', 'ok');
+                toast('Password updated — sign in again', 'ok');
+                await logout();
               })
-              .catch(() => toast('Password change failed', 'danger'))
-          }
+              .catch(() => toast('Password change failed', 'danger'));
+          }}
         >
           Update password
         </button>

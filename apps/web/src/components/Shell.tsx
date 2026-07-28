@@ -40,7 +40,7 @@ export function Shell() {
 
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[rgba(238,244,240,0.92)] backdrop-blur md:static md:mt-10 md:border-0 md:bg-transparent md:backdrop-blur-none"
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[rgba(238,244,240,0.92)] pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:mt-10 md:border-0 md:bg-transparent md:pb-0 md:backdrop-blur-none"
       >
         <ul className="mx-auto flex max-w-[480px] items-stretch justify-between gap-1 px-2 py-2 md:max-w-none md:justify-start md:gap-3 md:px-0">
           {links.map((l) => (

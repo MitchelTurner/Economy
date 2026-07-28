@@ -63,6 +63,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 12:** alert pause/resume, HTML emails, Insights dismissed filter, `SEED_ON_BOOT` + lean image, change password, PWA PNGs, lazy routes, §13 fixture scaffold.
 
+**Phase 13:** insight restore, password change revokes all sessions, budget week/month windows + duplicate guard, validated `SEED_ON_BOOT` + rollback docs, alert PATCH + a11y/safe-area polish.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

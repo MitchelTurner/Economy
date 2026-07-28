@@ -37,4 +37,23 @@ describe('validateEnv', () => {
     });
     expect(env.CORS_ORIGIN).toBe('https://app.example.com');
   });
+
+  it('defaults SEED_ON_BOOT to off', () => {
+    const env = validateEnv(base);
+    expect(env.SEED_ON_BOOT).toBe('off');
+  });
+
+  it('accepts SEED_ON_BOOT reference and demo', () => {
+    expect(validateEnv({ ...base, SEED_ON_BOOT: 'reference' }).SEED_ON_BOOT).toBe(
+      'reference',
+    );
+    expect(validateEnv({ ...base, SEED_ON_BOOT: 'demo' }).SEED_ON_BOOT).toBe('demo');
+  });
+
+  it('rejects invalid SEED_ON_BOOT', () => {
+    expect(() => validateEnv({ ...base, SEED_ON_BOOT: 'wipe' })).toThrow(
+      /SEED_ON_BOOT/,
+    );
+  });
 });
+

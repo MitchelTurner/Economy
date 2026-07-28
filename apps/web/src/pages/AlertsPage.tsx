@@ -207,6 +207,8 @@ export function AlertsPage() {
               <div className="flex shrink-0 gap-3">
                 <button
                   type="button"
+                  aria-pressed={!a.active}
+                  aria-label={a.active ? 'Pause alert' : 'Resume alert'}
                   className="text-sm font-semibold text-[var(--brand-soft)]"
                   onClick={() =>
                     void api(`/alerts/${a.id}`, {

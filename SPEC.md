@@ -493,6 +493,9 @@ Per-user email digest/alert prefs, reference-only seed path, nginx CSP headers +
 **Phase 12 — production v1 closeout**
 Alert pause/resume, branded HTML emails + invite URL-only responses, Insights dismissed filter, `SEED_ON_BOOT` + lean API image, change password + display name, PWA PNG icons, lazy routes, review confirm toasts, §13 fixture scaffold script + store checklist.
 
+**Phase 13 — v1.1 harden**
+Insight restore, password change revokes all Redis sessions + re-login, password length hints, budgets week/month spend windows + duplicate guard, validated `SEED_ON_BOOT`, compose seed off by default, DEPLOY rollback, alert PATCH fields + a11y, safe-area shell padding.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -567,6 +570,13 @@ Phase 12 is done when:
 - Insights UI toggles Active vs Dismissed (`active=false` → dismissed only).
 - API Docker entrypoint supports `SEED_ON_BOOT=reference|demo|off` with a lean `omit=dev` image; Settings can change password and display name.
 - PWA ships 192/512 PNG icons; secondary routes are lazy-loaded; receipt confirm shows toasts; `npm run fixture:new` scaffolds §13 fixtures + store checklist (real photos still operator-owned).
+
+Phase 13 is done when:
+- Dismissed insights can be restored (`POST /insights/:id/restore`); UI Restore + toast on the Dismissed tab.
+- Password change revokes all Redis refresh sessions for the user; Settings signs out after success; register/change UI hints 8+ chars.
+- Budgets pace week vs month spend windows correctly; duplicate household+category+period returns 409.
+- `SEED_ON_BOOT` is zod-validated (`off|reference|demo`); prod compose defaults `off`; `DEPLOY.md` documents rollback.
+- Alert PATCH accepts `active` / `dropPct` / `targetCents`; Pause/Resume and insight filters expose `aria-pressed`; shell respects safe-area insets.
 
 ## 13. Testing
 

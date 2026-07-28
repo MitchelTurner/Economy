@@ -12,6 +12,7 @@ const EnvSchema = z.object({
   EXTRACTION_PROVIDER: z.enum(['mock', 'anthropic']).optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   ALLOW_MOCK_EXTRACTION: z.string().optional(),
+  SEED_ON_BOOT: z.enum(['off', 'reference', 'demo']).optional().default('off'),
 });
 
 export type AppEnv = z.infer<typeof EnvSchema>;

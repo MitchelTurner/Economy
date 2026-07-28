@@ -50,6 +50,17 @@ export class InsightsService {
     });
   }
 
+  async restore(user: AuthUser, id: string) {
+    const insight = await this.prisma.insight.findFirst({
+      where: { id, householdId: user.householdId },
+    });
+    if (!insight) throw new NotFoundException('Insight not found');
+    return this.prisma.insight.update({
+      where: { id },
+      data: { dismissedAt: null },
+    });
+  }
+
   async weeklyDigest(user: AuthUser) {
     const weekAgo = new Date();
     weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);

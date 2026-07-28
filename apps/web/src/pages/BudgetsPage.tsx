@@ -15,6 +15,8 @@ type Budget = {
 type Category = { id: string; name: string; slug: string };
 
 type SpendResponse = {
+  from: string;
+  to: string;
   totalCents: number;
   groups: Array<{ key: string; label: string; totalCents: number }>;
 };
@@ -22,7 +24,8 @@ type SpendResponse = {
 export function BudgetsPage() {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [spend, setSpend] = useState<SpendResponse | null>(null);
+  const [weekSpend, setWeekSpend] = useState<SpendResponse | null>(null);
+  const [monthSpend, setMonthSpend] = useState<SpendResponse | null>(null);
   const [amount, setAmount] = useState('250');
   const [period, setPeriod] = useState<'WEEKLY' | 'MONTHLY'>('MONTHLY');
   const [categoryId, setCategoryId] = useState('');
@@ -30,14 +33,24 @@ export function BudgetsPage() {
   const [editAmount, setEditAmount] = useState('');
 
   async function load() {
-    const [b, c, s] = await Promise.all([
+    const weekFrom = startOfWeekIso();
+    const weekTo = endOfPeriodIso(weekFrom, 7);
+    const monthFrom = startOfMonthIso();
+    const monthTo = endOfMonthIso();
+    const [b, c, week, month] = await Promise.all([
       api<Budget[]>('/budgets'),
       api<Category[]>('/catalog/categories'),
-      api<SpendResponse>('/analytics/spend?groupBy=category'),
+      api<SpendResponse>(
+        `/analytics/spend?groupBy=category&from=${encodeURIComponent(weekFrom)}&to=${encodeURIComponent(weekTo)}`,
+      ),
+      api<SpendResponse>(
+        `/analytics/spend?groupBy=category&from=${encodeURIComponent(monthFrom)}&to=${encodeURIComponent(monthTo)}`,
+      ),
     ]);
     setBudgets(b);
     setCategories(c);
-    setSpend(s);
+    setWeekSpend(week);
+    setMonthSpend(month);
   }
 
   useEffect(() => {
@@ -52,9 +65,7 @@ export function BudgetsPage() {
       return;
     }
     const startsOn =
-      period === 'WEEKLY'
-        ? startOfWeekIso()
-        : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      period === 'WEEKLY' ? startOfWeekIso() : startOfMonthIso();
     try {
       await api('/budgets', {
         method: 'POST',
@@ -69,8 +80,9 @@ export function BudgetsPage() {
       setCategoryId('');
       toast('Budget added', 'ok');
       await load();
-    } catch {
-      toast('Could not add budget', 'danger');
+    } catch (err) {
+      const detail = (err as { detail?: { message?: string } }).detail;
+      toast(detail?.message ?? 'Could not add budget', 'danger');
     }
   }
 
@@ -108,40 +120,49 @@ export function BudgetsPage() {
       <div>
         <h1 className="text-3xl font-semibold">Budgets</h1>
         <p className="mt-1 text-[var(--ink-muted)]">
-          Weekly or monthly caps by category. Insights warn when spend projects over pace.
+          Weekly or monthly caps by category. Progress uses the current week or month window.
         </p>
       </div>
 
-      <form onSubmit={onSubmit} className="grid gap-2 sm:grid-cols-4">
-        <input
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="Amount"
-          className="rounded-md border border-[var(--line)] bg-white/80 px-3 py-2 sm:col-span-1"
-        />
-        <select
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as 'WEEKLY' | 'MONTHLY')}
-          className="rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
-        >
-          <option value="MONTHLY">Monthly</option>
-          <option value="WEEKLY">Weekly</option>
-        </select>
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
-        >
-          <option value="">Overall</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+      <form onSubmit={onSubmit} className="grid gap-2 sm:grid-cols-4" aria-label="Add budget">
+        <label className="text-sm sm:col-span-1">
+          Amount ($)
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="250"
+            className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          />
+        </label>
+        <label className="text-sm">
+          Period
+          <select
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as 'WEEKLY' | 'MONTHLY')}
+            className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          >
+            <option value="MONTHLY">Monthly</option>
+            <option value="WEEKLY">Weekly</option>
+          </select>
+        </label>
+        <label className="text-sm">
+          Category
+          <select
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          >
+            <option value="">Overall</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="submit"
-          className="rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white"
+          className="self-end rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white"
         >
           Add budget
         </button>
@@ -159,19 +180,31 @@ export function BudgetsPage() {
 
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
         {budgets.map((b) => {
+          const spend = b.period === 'WEEKLY' ? weekSpend : monthSpend;
           const spent = b.category
             ? (spend?.groups.find((g) => g.label === b.category!.name)?.totalCents ?? 0)
             : (spend?.totalCents ?? 0);
           const pct = b.amountCents ? Math.round((spent / b.amountCents) * 100) : 0;
+          const windowLabel =
+            b.period === 'WEEKLY'
+              ? 'this week'
+              : 'this month';
           return (
             <li key={b.id} className="py-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <span>
                   {b.category?.name ?? 'Overall'} · {b.period.toLowerCase()}
+                  <span className="mt-0.5 block text-xs text-[var(--ink-muted)]">
+                    Pace for {windowLabel}
+                  </span>
                 </span>
                 {editingId === b.id ? (
                   <div className="flex gap-2">
+                    <label className="sr-only" htmlFor={`edit-${b.id}`}>
+                      Edit amount
+                    </label>
                     <input
+                      id={`edit-${b.id}`}
                       value={editAmount}
                       onChange={(e) => setEditAmount(e.target.value)}
                       className="w-24 rounded-md border border-[var(--line)] px-2 py-1"
@@ -204,7 +237,9 @@ export function BudgetsPage() {
                 />
               </div>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <p className="text-xs text-[var(--ink-muted)]">{pct}% of period budget</p>
+                <p className="text-xs text-[var(--ink-muted)]">
+                  {pct}% of {windowLabel} budget
+                </p>
                 <div className="flex gap-3 text-xs">
                   <button
                     type="button"
@@ -239,5 +274,25 @@ function startOfWeekIso() {
   const diff = (day + 6) % 7;
   d.setUTCDate(d.getUTCDate() - diff);
   d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function startOfMonthIso() {
+  return new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1, 0, 0, 0, 0),
+  ).toISOString();
+}
+
+function endOfMonthIso() {
+  const d = new Date();
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+  ).toISOString();
+}
+
+function endOfPeriodIso(startIso: string, days: number) {
+  const d = new Date(startIso);
+  d.setUTCDate(d.getUTCDate() + days - 1);
+  d.setUTCHours(23, 59, 59, 999);
   return d.toISOString();
 }
