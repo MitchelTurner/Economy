@@ -550,7 +550,7 @@ Phase 7 is done when:
 Phase 8 is done when:
 - Production boot fails fast without `CORS_ORIGIN` and strong distinct JWT secrets; `/health/ready` probes DB + Redis.
 - `docker-compose.prod.yml` + `DEPLOY.md` document API/web/Postgres/Redis/S3 deploy (Railway sketch).
-- CI runs generate → test → build → `eval:extraction` smoke on PRs.
+- CI runs generate → lint → test → build → `eval:extraction` smoke on PRs.
 - Logout calls `POST /auth/logout` and clears the Redis refresh session; `/island` can list staples and gated public product prices.
 - Eval fixture `_template/` exists for expanding the §13 corpus (not the full 30-receipt set yet).
 
