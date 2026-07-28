@@ -8,6 +8,7 @@ import {
   type ReceiptLine,
 } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
+import { toast } from '../lib/toast';
 import { ReceiptImageViewer } from '../components/ReceiptImageViewer';
 
 type Category = { id: string; name: string; slug: string; children?: Category[] };
@@ -119,10 +120,12 @@ export function ReceiptReviewPage() {
         method: 'POST',
         json: { overrideArithmetic: override },
       });
+      toast('Receipt confirmed', 'ok');
       navigate('/receipts');
     } catch (err) {
       const detail = (err as { detail?: { message?: string } }).detail;
       setError(detail?.message ?? (err as Error).message);
+      toast('Confirm failed', 'danger');
     } finally {
       setBusy(false);
     }

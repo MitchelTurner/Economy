@@ -62,6 +62,7 @@ services:
       EXTRACTION_PROVIDER: mock
       ALLOW_MOCK_EXTRACTION: "true"
       API_PORT: "3000"
+      SEED_ON_BOOT: reference
     depends_on:
       postgres:
         condition: service_healthy

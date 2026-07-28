@@ -30,7 +30,9 @@ export class InsightsService {
     return this.prisma.insight.findMany({
       where: {
         householdId: user.householdId,
-        ...(active ? { dismissedAt: null } : {}),
+        ...(active
+          ? { dismissedAt: null }
+          : { dismissedAt: { not: null } }),
       },
       orderBy: { createdAt: 'desc' },
       take: 50,

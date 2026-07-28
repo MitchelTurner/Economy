@@ -16,9 +16,12 @@ describe('NotificationsService', () => {
     expect(svc.drainSent()).toHaveLength(1);
   });
 
-  it('formats price alert and digest copy', async () => {
+  it('formats price alert and digest copy with HTML CTAs', async () => {
     const svc = new NotificationsService(
-      new ConfigService({ MAIL_PROVIDER: 'log' }),
+      new ConfigService({
+        MAIL_PROVIDER: 'log',
+        CORS_ORIGIN: 'https://app.example.com',
+      }),
     );
     await svc.sendPriceAlert({
       to: 'a@example.com',
@@ -33,9 +36,20 @@ describe('NotificationsService', () => {
       estimatedSavingsCents: 1200,
       highlights: [{ title: 'Stock up', body: 'Coffee is cheap' }],
     });
+    await svc.sendInvite({
+      to: 'b@example.com',
+      householdName: 'Demo',
+      inviteUrl: 'https://app.example.com/invite?token=abc',
+      invitedBy: 'Pat',
+    });
     const msgs = svc.drainSent();
     expect(msgs[0]!.subject).toContain('Milk');
     expect(msgs[0]!.text).toContain('$4.49');
+    expect(msgs[0]!.html).toContain('Manage alerts');
+    expect(msgs[0]!.html).toContain('https://app.example.com/alerts');
     expect(msgs[1]!.text).toContain('$12.00');
+    expect(msgs[1]!.html).toContain('Open insights');
+    expect(msgs[2]!.html).toContain('Accept invite');
+    expect(msgs[2]!.html).toContain('token=abc');
   });
 });

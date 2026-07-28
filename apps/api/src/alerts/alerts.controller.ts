@@ -1,8 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { AlertsService } from './alerts.service';
-import { CreateAlertDto } from './alerts.dto';
+import { CreateAlertDto, PatchAlertDto } from './alerts.dto';
 
 @Controller('alerts')
 @UseGuards(JwtAuthGuard)
@@ -22,6 +31,15 @@ export class AlertsController {
   @Post('check')
   check(@CurrentUser() user: AuthUser) {
     return this.alerts.checkHousehold(user.householdId);
+  }
+
+  @Patch(':id')
+  patch(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: PatchAlertDto,
+  ) {
+    return this.alerts.patch(user, id, dto);
   }
 
   @Delete(':id')

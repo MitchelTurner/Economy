@@ -28,6 +28,9 @@ export function SettingsPage() {
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [emailDigest, setEmailDigest] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
+  const [displayName, setDisplayName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
   async function load() {
     const [hh, u] = await Promise.all([
@@ -45,6 +48,7 @@ export function SettingsPage() {
   useEffect(() => {
     setEmailDigest(user?.emailDigest !== false);
     setEmailAlerts(user?.emailAlerts !== false);
+    setDisplayName(user?.displayName ?? '');
   }, [user]);
 
   async function saveEmailPrefs(next: { emailDigest?: boolean; emailAlerts?: boolean }) {
@@ -132,13 +136,78 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <section className="space-y-2">
+      <section className="space-y-3">
         <p className="text-sm text-[var(--ink-muted)]">Signed in as</p>
-        <p className="font-semibold">{user?.displayName ?? user?.email}</p>
+        <p className="font-semibold">{user?.email}</p>
         <p className="text-sm text-[var(--ink-muted)]">
           Household: {user?.household.name}
           {household ? ` · ${household.users.length} members` : ''}
         </p>
+        <label className="block text-sm">
+          Display name
+          <input
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            className="mt-1 w-full max-w-md rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          />
+        </label>
+        <button
+          type="button"
+          className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+          onClick={() =>
+            void api('/auth/me', {
+              method: 'PATCH',
+              json: { displayName: displayName.trim() || undefined },
+            })
+              .then(() => refreshUser())
+              .then(() => toast('Display name saved', 'ok'))
+              .catch(() => toast('Could not save name', 'danger'))
+          }
+        >
+          Save name
+        </button>
+      </section>
+
+      <section className="space-y-3" aria-label="Change password">
+        <h2 className="text-xl font-semibold">Change password</h2>
+        <label className="block text-sm">
+          Current password
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            className="mt-1 w-full max-w-md rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          />
+        </label>
+        <label className="block text-sm">
+          New password
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            className="mt-1 w-full max-w-md rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+          />
+        </label>
+        <button
+          type="button"
+          className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
+          onClick={() =>
+            void api('/auth/change-password', {
+              method: 'POST',
+              json: { currentPassword, newPassword },
+            })
+              .then(() => {
+                setCurrentPassword('');
+                setNewPassword('');
+                toast('Password updated', 'ok');
+              })
+              .catch(() => toast('Password change failed', 'danger'))
+          }
+        >
+          Update password
+        </button>
       </section>
 
       {usage && (

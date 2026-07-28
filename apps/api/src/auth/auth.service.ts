@@ -8,7 +8,13 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto, RefreshDto, RegisterDto, UpdateMeDto } from './auth.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDto,
+  UpdateMeDto,
+} from './auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -138,6 +144,19 @@ export class AuthService {
         createdAt: true,
       },
     });
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Not authenticated');
+    const ok = await argon2.verify(user.passwordHash, dto.currentPassword);
+    if (!ok) throw new UnauthorizedException('Current password is incorrect');
+    const passwordHash = await argon2.hash(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+    return { ok: true };
   }
 
   private async issueTokens(userId: string, householdId: string, email: string) {

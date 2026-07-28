@@ -17,3 +17,12 @@ export class CreateAlertDto {
   dropPct?: number | null;
   targetCents?: number | null;
 }
+
+export const PatchAlertSchema = z.object({
+  active: z.boolean(),
+});
+
+@ZodBody(PatchAlertSchema)
+export class PatchAlertDto {
+  active!: boolean;
+}

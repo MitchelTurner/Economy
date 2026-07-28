@@ -32,20 +32,23 @@ export function InsightsPage() {
   const [digest, setDigest] = useState<Digest | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showActive, setShowActive] = useState(true);
 
-  async function load() {
-    setItems(await api<Insight[]>('/insights?active=true'));
+  async function load(active = showActive) {
+    setItems(await api<Insight[]>(`/insights?active=${active ? 'true' : 'false'}`));
     setDigest(await api<Digest>('/insights/digest'));
   }
 
   useEffect(() => {
-    void load()
+    setLoading(true);
+    void load(showActive)
       .catch(() => {
         setItems([]);
         setDigest(null);
       })
       .finally(() => setLoading(false));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showActive]);
 
   async function dismiss(id: string) {
     try {
@@ -80,14 +83,38 @@ export function InsightsPage() {
             digests only send if enabled in Settings.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void regenerate()}
-          className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {busy ? 'Running…' : 'Generate'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-md border border-[var(--line)] text-sm" role="group" aria-label="Insight filter">
+            <button
+              type="button"
+              onClick={() => setShowActive(true)}
+              className={[
+                'px-3 py-1.5 font-semibold',
+                showActive ? 'bg-[var(--brand)] text-white' : 'text-[var(--ink-muted)]',
+              ].join(' ')}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowActive(false)}
+              className={[
+                'px-3 py-1.5 font-semibold',
+                !showActive ? 'bg-[var(--brand)] text-white' : 'text-[var(--ink-muted)]',
+              ].join(' ')}
+            >
+              Dismissed
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void regenerate()}
+            className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {busy ? 'Running…' : 'Generate'}
+          </button>
+        </div>
       </div>
 
       {loading && <p className="text-[var(--ink-muted)]">Loading insights…</p>}
@@ -125,27 +152,35 @@ export function InsightsPage() {
                   )}
                   <EvidenceChart data={i.data} type={i.type} />
                 </div>
-                <button
-                  type="button"
-                  className="text-sm font-semibold text-[var(--ink-muted)]"
-                  onClick={() => void dismiss(i.id)}
-                >
-                  Dismiss
-                </button>
+                {showActive && (
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-[var(--ink-muted)]"
+                    onClick={() => void dismiss(i.id)}
+                  >
+                    Dismiss
+                  </button>
+                )}
               </div>
             </li>
           ))}
           {items.length === 0 && (
             <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
-              No active insights yet. Confirm a few receipts, then hit Generate — or open the{' '}
-              <button
-                type="button"
-                className="font-semibold text-[var(--brand-soft)]"
-                onClick={() => void regenerate()}
-              >
-                weekly digest
-              </button>{' '}
-              after seed data is loaded.
+              {showActive ? (
+                <>
+                  No active insights yet. Confirm a few receipts, then hit Generate — or open the{' '}
+                  <button
+                    type="button"
+                    className="font-semibold text-[var(--brand-soft)]"
+                    onClick={() => void regenerate()}
+                  >
+                    weekly digest
+                  </button>{' '}
+                  after seed data is loaded.
+                </>
+              ) : (
+                'No dismissed insights yet.'
+              )}
             </li>
           )}
         </ul>

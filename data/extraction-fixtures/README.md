@@ -22,10 +22,26 @@ Use this whenever you change the extraction prompt or model.
 
 **Live path:** with `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, fixtures with a real `image.jpg` (≥2KB) are scored against the vision model. `npm run eval:extraction` prints corpus status: real-photo count vs mock toward SPEC §13 (~30). Start from `_template/`, photograph stores you shop, hand-label `expected.json`.
 
-## Template
+## Template + scaffold
 
-Copy `_template/` to a new id (directories starting with `_` are skipped by the harness).
-See `_template/notes.md` for the labeling checklist. Target corpus (SPEC §13): ~30 real receipts. Synthetic mock scenarios seed CI coverage across stores/edge cases.
+```bash
+node scripts/new-eval-fixture.mjs safeway-02   # → data/extraction-fixtures/real-safeway-02/
+```
+
+Directories starting with `_` are skipped. See `_template/notes.md` for the labeling checklist.
+
+### Store coverage checklist (toward ~30 real)
+
+Photograph and label across stores you shop (aim for several per chain):
+
+- [ ] Safeway / Carrs
+- [ ] Super Bear / Three Bears
+- [ ] Al's Alaska Meats (or local butcher)
+- [ ] Costco / warehouse
+- [ ] Walmart / general merchandise
+- [ ] Other island independents
+
+Synthetic `mock-*` fixtures keep CI green; they do **not** count toward the real-photo §13 target.
 
 ## Adding real receipts
 

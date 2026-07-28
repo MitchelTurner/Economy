@@ -188,7 +188,14 @@ export function AlertsPage() {
           {alerts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3 py-3">
               <div>
-                <p className="font-semibold">{a.product.name}</p>
+                <p className="font-semibold">
+                  {a.product.name}
+                  {!a.active && (
+                    <span className="ml-2 text-xs font-semibold text-[var(--ink-muted)]">
+                      paused
+                    </span>
+                  )}
+                </p>
                 <p className="text-sm text-[var(--ink-muted)]">
                   {a.dropPct != null ? `${a.dropPct}% drop` : ''}
                   {a.targetCents != null ? ` · target ${formatCents(a.targetCents)}` : ''}
@@ -197,20 +204,39 @@ export function AlertsPage() {
                     : ''}
                 </p>
               </div>
-              <button
-                type="button"
-                className="text-sm font-semibold text-[var(--danger)]"
-                onClick={() =>
-                  void api(`/alerts/${a.id}`, { method: 'DELETE' })
-                    .then(() => {
-                      toast('Alert removed', 'ok');
-                      return load();
+              <div className="flex shrink-0 gap-3">
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-[var(--brand-soft)]"
+                  onClick={() =>
+                    void api(`/alerts/${a.id}`, {
+                      method: 'PATCH',
+                      json: { active: !a.active },
                     })
-                    .catch(() => toast('Remove failed', 'danger'))
-                }
-              >
-                Remove
-              </button>
+                      .then(() => {
+                        toast(a.active ? 'Alert paused' : 'Alert resumed', 'ok');
+                        return load();
+                      })
+                      .catch(() => toast('Update failed', 'danger'))
+                  }
+                >
+                  {a.active ? 'Pause' : 'Resume'}
+                </button>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-[var(--danger)]"
+                  onClick={() =>
+                    void api(`/alerts/${a.id}`, { method: 'DELETE' })
+                      .then(() => {
+                        toast('Alert removed', 'ok');
+                        return load();
+                      })
+                      .catch(() => toast('Remove failed', 'danger'))
+                  }
+                >
+                  Remove
+                </button>
+              </div>
             </li>
           ))}
         </ul>

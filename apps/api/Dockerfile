@@ -18,12 +18,18 @@ RUN npx prisma generate && npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./
-COPY --from=build /app/apps/api/package.json ./apps/api/
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+RUN npm ci --omit=dev --workspace=@island-ledger/api --include-workspace-root \
+  && npm install prisma tsx --no-save --workspace=@island-ledger/api
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 COPY --from=build /app/apps/api/prisma ./apps/api/prisma
+COPY apps/api/docker-entrypoint.sh ./apps/api/docker-entrypoint.sh
 COPY data ./data
+RUN chmod +x ./apps/api/docker-entrypoint.sh \
+  && npx prisma generate --schema apps/api/prisma/schema.prisma
 WORKDIR /app/apps/api
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+ENV SEED_ON_BOOT=off
+ENTRYPOINT ["./docker-entrypoint.sh"]

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
-import { CreateAlertDto } from './alerts.dto';
+import { CreateAlertDto, PatchAlertDto } from './alerts.dto';
 
 export type TriggeredAlert = {
   alertId: string;
@@ -36,6 +36,18 @@ export class AlertsService {
         dropPct: dto.dropPct ?? null,
         targetCents: dto.targetCents ?? null,
       },
+      include: { product: true },
+    });
+  }
+
+  async patch(user: AuthUser, id: string, dto: PatchAlertDto) {
+    const alert = await this.prisma.priceAlert.findFirst({
+      where: { id, userId: user.userId },
+    });
+    if (!alert) throw new NotFoundException('Alert not found');
+    return this.prisma.priceAlert.update({
+      where: { id },
+      data: { active: dto.active },
       include: { product: true },
     });
   }

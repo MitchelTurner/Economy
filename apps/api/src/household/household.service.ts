@@ -111,7 +111,6 @@ export class HouseholdService {
       expiresAt: invite.expiresAt,
       createdAt: invite.createdAt,
       inviteUrl,
-      token: invite.token,
     };
   }
 

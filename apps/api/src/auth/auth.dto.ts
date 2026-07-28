@@ -56,3 +56,14 @@ export class UpdateMeDto {
   emailDigest?: boolean;
   emailAlerts?: boolean;
 }
+
+export const ChangePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+});
+
+@ZodBody(ChangePasswordSchema)
+export class ChangePasswordDto {
+  currentPassword!: string;
+  newPassword!: string;
+}

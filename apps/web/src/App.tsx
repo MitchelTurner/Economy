@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { Shell } from './components/Shell';
@@ -6,17 +7,40 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CapturePage } from './pages/CapturePage';
 import { ReceiptsPage } from './pages/ReceiptsPage';
-import { ReceiptReviewPage } from './pages/ReceiptReviewPage';
-import { PricesPage } from './pages/PricesPage';
-import { PriceIndexPage } from './pages/PriceIndexPage';
-import { InsightsPage } from './pages/InsightsPage';
-import { BudgetsPage } from './pages/BudgetsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { PublicIndexPage } from './pages/PublicIndexPage';
-import { AlertsPage } from './pages/AlertsPage';
-import { DeliveredCostPage } from './pages/DeliveredCostPage';
-import { ManualEntryPage } from './pages/ManualEntryPage';
-import { InviteAcceptPage } from './pages/InviteAcceptPage';
+
+const ReceiptReviewPage = lazy(() =>
+  import('./pages/ReceiptReviewPage').then((m) => ({ default: m.ReceiptReviewPage })),
+);
+const PricesPage = lazy(() =>
+  import('./pages/PricesPage').then((m) => ({ default: m.PricesPage })),
+);
+const PriceIndexPage = lazy(() =>
+  import('./pages/PriceIndexPage').then((m) => ({ default: m.PriceIndexPage })),
+);
+const InsightsPage = lazy(() =>
+  import('./pages/InsightsPage').then((m) => ({ default: m.InsightsPage })),
+);
+const BudgetsPage = lazy(() =>
+  import('./pages/BudgetsPage').then((m) => ({ default: m.BudgetsPage })),
+);
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
+const PublicIndexPage = lazy(() =>
+  import('./pages/PublicIndexPage').then((m) => ({ default: m.PublicIndexPage })),
+);
+const AlertsPage = lazy(() =>
+  import('./pages/AlertsPage').then((m) => ({ default: m.AlertsPage })),
+);
+const DeliveredCostPage = lazy(() =>
+  import('./pages/DeliveredCostPage').then((m) => ({ default: m.DeliveredCostPage })),
+);
+const ManualEntryPage = lazy(() =>
+  import('./pages/ManualEntryPage').then((m) => ({ default: m.ManualEntryPage })),
+);
+const InviteAcceptPage = lazy(() =>
+  import('./pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
+);
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -31,14 +55,32 @@ function Protected({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function Lazy({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<p className="text-[var(--ink-muted)]">Loading…</p>}>{children}</Suspense>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <ToastHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/island" element={<PublicIndexPage />} />
-        <Route path="/invite" element={<InviteAcceptPage />} />
+        <Route
+          path="/island"
+          element={
+            <Lazy>
+              <PublicIndexPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/invite"
+          element={
+            <Lazy>
+              <InviteAcceptPage />
+            </Lazy>
+          }
+        />
         <Route
           path="/"
           element={
@@ -49,16 +91,79 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="capture" element={<CapturePage />} />
-          <Route path="capture/manual" element={<ManualEntryPage />} />
+          <Route
+            path="capture/manual"
+            element={
+              <Lazy>
+                <ManualEntryPage />
+              </Lazy>
+            }
+          />
           <Route path="receipts" element={<ReceiptsPage />} />
-          <Route path="receipts/:id" element={<ReceiptReviewPage />} />
-          <Route path="prices" element={<PricesPage />} />
-          <Route path="prices/index" element={<PriceIndexPage />} />
-          <Route path="insights" element={<InsightsPage />} />
-          <Route path="budgets" element={<BudgetsPage />} />
-          <Route path="alerts" element={<AlertsPage />} />
-          <Route path="delivered" element={<DeliveredCostPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route
+            path="receipts/:id"
+            element={
+              <Lazy>
+                <ReceiptReviewPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="prices"
+            element={
+              <Lazy>
+                <PricesPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="prices/index"
+            element={
+              <Lazy>
+                <PriceIndexPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="insights"
+            element={
+              <Lazy>
+                <InsightsPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="budgets"
+            element={
+              <Lazy>
+                <BudgetsPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="alerts"
+            element={
+              <Lazy>
+                <AlertsPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="delivered"
+            element={
+              <Lazy>
+                <DeliveredCostPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <Lazy>
+                <SettingsPage />
+              </Lazy>
+            }
+          />
         </Route>
       </Routes>
     </AuthProvider>

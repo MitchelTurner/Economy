@@ -61,6 +61,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 11:** email digest/alert prefs, reference seed (`db:seed:reference`), nginx CSP + backup runbook, Node healthcheck, Prices island premium, toast polish, eval corpus status + refund fixture.
 
+**Phase 12:** alert pause/resume, HTML emails, Insights dismissed filter, `SEED_ON_BOOT` + lean image, change password, PWA PNGs, lazy routes, §13 fixture scaffold.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

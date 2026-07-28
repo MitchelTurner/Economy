@@ -57,7 +57,8 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin
 6. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
-7. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default)
+   Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward).
+7. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default) or `SEED_ON_BOOT=demo`
 
 ## Compose smoke
 
@@ -74,6 +75,7 @@ docker compose -f docker-compose.prod.yml up --build
   Restore: `pg_restore --clean --if-exists -d "$DATABASE_URL" island-YYYY-MM-DD.dump`
 - **Receipt images:** back up the S3/R2/MinIO bucket (`S3_BUCKET`) separately from the DB.
 - **Reference vs demo seed:** production should use `db:seed:reference` (`SEED_DEMO=0`) for categories/staples/aliases/stores/baselines/shipping lanes. Full `db:seed` also creates `demo@islandledger.local` and synthetic history — fine for local/dev only.
+- **`SEED_ON_BOOT`:** `off` (default) | `reference` | `demo` — API entrypoint runs migrate, optional seed, then `node dist/main.js`. Prod images install runtime deps only (`npm ci --omit=dev`) plus `tsx` for seed.
 
 ## Web security headers
 

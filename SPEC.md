@@ -490,6 +490,9 @@ Helmet + JSON body limit, owner-only index rollup, Redis-backed rate limits, orp
 **Phase 11 — ops harden + notification prefs + remaining SPEC polish**
 Per-user email digest/alert prefs, reference-only seed path, nginx CSP headers + backup/migrate runbook, compose health via Node fetch, island premium on Prices, toast polish on mutating flows, eval corpus status (real vs mock) + refund fixture.
 
+**Phase 12 — production v1 closeout**
+Alert pause/resume, branded HTML emails + invite URL-only responses, Insights dismissed filter, `SEED_ON_BOOT` + lean API image, change password + display name, PWA PNG icons, lazy routes, review confirm toasts, §13 fixture scaffold script + store checklist.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -557,6 +560,13 @@ Phase 11 is done when:
 - Web nginx ships CSP / nosniff / referrer / frame headers; compose API healthcheck uses Node `fetch` (no wget).
 - Prices product detail shows island premium vs baseline when data exists; Budgets/Alerts/Insights/Settings emit toasts on mutate success/failure.
 - `eval:extraction` reports real-photo vs mock counts toward §13 (~30); refund synthetic fixture passes CI.
+
+Phase 12 is done when:
+- Alerts support Pause/Resume via `PATCH /alerts/:id` (`active`); check still skips paused alerts.
+- Invite/digest/alert emails include branded HTML CTAs; invite API returns `inviteUrl` without raw `token`.
+- Insights UI toggles Active vs Dismissed (`active=false` → dismissed only).
+- API Docker entrypoint supports `SEED_ON_BOOT=reference|demo|off` with a lean `omit=dev` image; Settings can change password and display name.
+- PWA ships 192/512 PNG icons; secondary routes are lazy-loaded; receipt confirm shows toasts; `npm run fixture:new` scaffolds §13 fixtures + store checklist (real photos still operator-owned).
 
 ## 13. Testing
 
