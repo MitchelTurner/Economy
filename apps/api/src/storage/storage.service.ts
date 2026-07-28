@@ -5,6 +5,7 @@ import {
   PutObjectCommand,
   S3Client,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHash, randomUUID } from 'crypto';
@@ -91,6 +92,38 @@ export class StorageService {
     } catch {
       // ignore missing keys
     }
+  }
+
+  /** List object keys under a prefix (S3). Includes in-memory fallback keys. */
+  async listKeys(prefix = 'receipts/'): Promise<string[]> {
+    const keys = new Set<string>();
+    for (const k of this.localFallback.keys()) {
+      if (k.startsWith(prefix)) keys.add(k);
+    }
+    try {
+      let token: string | undefined;
+      do {
+        const res = await this.client.send(
+          new ListObjectsV2Command({
+            Bucket: this.bucket,
+            Prefix: prefix,
+            ContinuationToken: token,
+          }),
+        );
+        for (const obj of res.Contents ?? []) {
+          if (obj.Key) keys.add(obj.Key);
+        }
+        token = res.IsTruncated ? res.NextContinuationToken : undefined;
+      } while (token);
+    } catch {
+      // MinIO/S3 unavailable — memory keys only
+    }
+    return [...keys];
+  }
+
+  /** Test/dev helper to seed memory fallback without S3. */
+  putLocal(imageKey: string, body: Buffer) {
+    this.localFallback.set(imageKey, body);
   }
 
   /** Presigned GET when S3 works; null when object is only in memory fallback. */

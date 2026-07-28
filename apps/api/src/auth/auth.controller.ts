@@ -19,20 +19,29 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('register')
-  register(@Req() req: Request, @Body() dto: RegisterDto) {
-    consumeRateLimit(clientKeyFromReq(req), { ...authLimit(), name: 'auth:register' });
+  async register(@Req() req: Request, @Body() dto: RegisterDto) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:register',
+    });
     return this.auth.register(dto);
   }
 
   @Post('login')
-  login(@Req() req: Request, @Body() dto: LoginDto) {
-    consumeRateLimit(clientKeyFromReq(req), { ...authLimit(), name: 'auth:login' });
+  async login(@Req() req: Request, @Body() dto: LoginDto) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:login',
+    });
     return this.auth.login(dto);
   }
 
   @Post('refresh')
-  refresh(@Req() req: Request, @Body() dto: RefreshDto) {
-    consumeRateLimit(clientKeyFromReq(req), { ...authLimit(), name: 'auth:refresh' });
+  async refresh(@Req() req: Request, @Body() dto: RefreshDto) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:refresh',
+    });
     return this.auth.refresh(dto);
   }
 

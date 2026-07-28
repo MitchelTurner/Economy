@@ -35,9 +35,16 @@ async function main() {
     const imagePath = ['image.jpg', 'image.jpeg', 'image.png', 'image.webp']
       .map((f) => join(dir, f))
       .find((p) => existsSync(p));
-    const bytes = imagePath
-      ? readFileSync(imagePath)
-      : Buffer.from(`fixture:${id}`);
+    // Mock scoring always uses fixture:<id> scenarios so placeholder JPEGs
+    // still map to canned receipts. Live Anthropic path uses the photo bytes.
+    const providerMode = process.env.EXTRACTION_PROVIDER ?? 'mock';
+    const useMock =
+      providerMode === 'mock' ||
+      (!process.env.ANTHROPIC_API_KEY && providerMode !== 'anthropic');
+    const bytes =
+      useMock || !imagePath
+        ? Buffer.from(`fixture:${id}`)
+        : readFileSync(imagePath);
 
     const { result } = await provider.extract(bytes);
     const score = scoreExtraction(expected, result);

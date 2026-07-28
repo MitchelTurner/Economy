@@ -72,13 +72,28 @@ docker compose -f docker-compose.prod.yml up --build
 - Extraction success/failure and daily-cap hits are logged at info/warn with receipt + household ids
 - Railway/compose: scrape container stdout; no separate metrics sidecar in v1
 
-## Rate limits (single-instance, in-memory)
+## Rate limits (Redis-backed when available)
+
+Counters use Redis (`ratelimit:*` keys) so multi-replica Railway deploys share limits. Falls back to in-process memory if Redis is unreachable.
 
 | Env | Default | Applies to |
 |---|---|---|
 | `RATE_LIMIT_AUTH` | 30 / min / IP | `POST /auth/login\|register\|refresh` |
 | `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | `POST /receipts/upload-url` |
 | `RATE_LIMIT_PUBLIC` | 120 / min / IP | `GET /public/*` |
+| `JSON_BODY_LIMIT` | `6mb` | Express JSON parser (imageBase64 fallback) |
+
+## Scheduled jobs (BullMQ)
+
+Registered at API boot (`SchedulersService`):
+
+| Job | Cron (UTC) | Behavior |
+|---|---|---|
+| `price.index` nightly | `0 8 * * *` | Staples index rollup for all regions |
+| `insights.generate` weekly | `0 14 * * 0` | Fan-out per household with `sendDigest: true` |
+| `receipt.cleanup` daily | `0 3 * * *` | Delete orphan `receipts/*` object keys with no receipt row |
+
+Manual index rollup: `POST /prices/index/rollup` (household **owner** JWT only).
 
 ## CI
 

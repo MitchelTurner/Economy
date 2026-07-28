@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { PricesService } from './prices.service';
@@ -42,9 +50,12 @@ export class PricesController {
     return this.prices.premium(user, productId);
   }
 
-  /** Manual trigger for nightly rollup (also runs on cron). */
+  /** Manual trigger for nightly rollup (also runs on cron). Owner-only. */
   @Post('index/rollup')
-  rollupNow() {
+  rollupNow(@CurrentUser() user: AuthUser) {
+    if (user.role !== 'owner') {
+      throw new ForbiddenException('Only household owners can trigger index rollup');
+    }
     return this.rollup.rollupAll();
   }
 

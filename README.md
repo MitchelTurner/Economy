@@ -57,6 +57,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 9:** multi-store mock eval corpus, extraction usage in Settings, rate limits, request-id logs, outbox offline/error polish + shell flush, broader insight evidence charts.
 
+**Phase 10:** Helmet/body limit, owner-only rollup, Redis rate limits, orphan upload cleanup, job tests + schedule docs, PWA runtime cache + outbox badge, budgets/dashboard CTAs.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy and health probes.

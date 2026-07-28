@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
 
@@ -123,6 +124,16 @@ export function BudgetsPage() {
           Add budget
         </button>
       </form>
+
+      {budgets.length === 0 && (
+        <p className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-sm text-[var(--ink-muted)]">
+          No budgets yet. Add one above — or{' '}
+          <Link to="/capture" className="font-semibold text-[var(--brand-soft)]">
+            confirm a few receipts
+          </Link>{' '}
+          first so category spend has something to pace against.
+        </p>
+      )}
 
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
         {budgets.map((b) => {

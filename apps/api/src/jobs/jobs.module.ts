@@ -9,6 +9,7 @@ import {
   QUEUE_RECEIPT_MATCH,
 } from './queues';
 import { InsightsModule } from '../insights/insights.module';
+import { StorageModule } from '../storage/storage.module';
 import { InsightsGenerateProcessor } from './insights-generate.processor';
 import { ReceiptCleanupProcessor } from './receipt-cleanup.processor';
 import { SchedulersService } from './schedulers.service';
@@ -16,6 +17,7 @@ import { SchedulersService } from './schedulers.service';
 @Module({
   imports: [
     InsightsModule,
+    StorageModule,
     BullModule.registerQueue(
       { name: QUEUE_RECEIPT_EXTRACT },
       { name: QUEUE_RECEIPT_MATCH },

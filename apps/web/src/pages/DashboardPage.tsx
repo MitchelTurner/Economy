@@ -166,17 +166,24 @@ export function DashboardPage() {
             </Link>
           )}
           {failedCount > 0 && (
-            <Link
-              to="/receipts?status=FAILED"
-              className="block border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3"
-            >
-              <p className="font-semibold">
-                {failedCount} failed extraction{failedCount === 1 ? '' : 's'}
+            <div className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3">
+              <Link to="/receipts?status=FAILED" className="block">
+                <p className="font-semibold">
+                  {failedCount} failed extraction{failedCount === 1 ? '' : 's'}
+                </p>
+                <p className="text-sm text-[var(--ink-muted)]">
+                  Fix totals on review, or enter the receipt manually.
+                </p>
+              </Link>
+              <p className="mt-2 text-sm">
+                <Link
+                  to="/capture/manual"
+                  className="font-semibold text-[var(--brand-soft)]"
+                >
+                  Enter manually
+                </Link>
               </p>
-              <p className="text-sm text-[var(--ink-muted)]">
-                Fix totals on review, or enter the receipt manually.
-              </p>
-            </Link>
+            </div>
           )}
         </div>
       )}

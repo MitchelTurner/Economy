@@ -18,9 +18,9 @@ npm run eval:extraction -w @island-ledger/api
 Reports per-fixture **line precision / recall** and **total accuracy** (±2¢).
 Use this whenever you change the extraction prompt or model.
 
-**Mock path (CI default):** fixtures without `image.*` use buffer `fixture:<id>`. The mock provider returns a canned scenario from `apps/api/src/extraction/mock-scenarios.ts` keyed by that id. CI always runs mock smoke.
+**Mock path (CI default):** always scores via buffer `fixture:<id>` (even if a placeholder `image.jpg` exists). The mock provider returns a canned scenario from `apps/api/src/extraction/mock-scenarios.ts`. CI always runs mock smoke (8 fixtures today).
 
-**Live path:** with `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, fixtures that include `image.jpg` are scored against the vision model.
+**Live path:** with `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY`, fixtures that include `image.jpg` are scored against the vision model. Progress toward SPEC §13 (~30 real labeled photos): start from `_template/`, photograph stores you shop, hand-label `expected.json`.
 
 ## Template
 

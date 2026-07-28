@@ -484,6 +484,9 @@ Dockerfiles + compose/Railway deploy pack, boot-time env validation, `/health` +
 **Phase 9 — eval corpus, ops hardening, offline edges**
 Expanded mock eval fixtures across stores/edge cases, household extraction usage visibility, auth/upload/public rate limits, request-id logging, capture outbox single-flight + shell online flush, richer insight evidence charts.
 
+**Phase 10 — production polish / scheduled jobs / remaining SPEC**
+Helmet + JSON body limit, owner-only index rollup, Redis-backed rate limits, orphan upload cleanup per SPEC §5, job processor tests + schedule docs, PWA runtime caching + outbox badge, budgets/dashboard empty CTAs, eval mock harness ignores placeholder JPEGs.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -536,6 +539,14 @@ Phase 9 is done when:
 - Auth login/register/refresh, upload-url, and public reads enforce configurable rate limits; API logs include `x-request-id`.
 - Capture outbox distinguishes network vs API failures, surfaces FAILED/timeout reasons, and flushes from the shell on `online`.
 - Insight evidence charts cover store_switch, budget_pace, category_creep, island_premium, and impulse_pattern when data allows.
+
+Phase 10 is done when:
+- API uses Helmet + explicit JSON body limit; `POST /prices/index/rollup` is owner-only.
+- Rate limits share counters via Redis when available (memory fallback for tests/offline Redis).
+- Daily `receipt.cleanup` deletes S3/memory keys under `receipts/` with no `Receipt.imageKey` row (not aged FAILED receipts).
+- Nightly index + weekly digest fan-out processors are unit-tested; schedules documented in `DEPLOY.md`.
+- PWA caches shell/static with NetworkOnly for `/api`; shell shows pending outbox count with Capture link.
+- Budgets empty state and dashboard FAILED queue deep-link to capture/manual; eval mock path uses `fixture:<id>` even when placeholder `image.jpg` exists.
 
 ## 13. Testing
 

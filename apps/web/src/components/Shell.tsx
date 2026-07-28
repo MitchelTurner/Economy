@@ -12,7 +12,6 @@ const links = [
 export function Shell() {
   return (
     <div className="app-shell">
-      <OutboxSync />
       <a href="#main" className="skip-link">
         Skip to content
       </a>
@@ -32,6 +31,8 @@ export function Shell() {
           Scan receipt
         </NavLink>
       </header>
+
+      <OutboxSync />
 
       <main id="main">
         <Outlet />

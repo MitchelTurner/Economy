@@ -17,34 +17,34 @@ export class PublicController {
   constructor(private readonly publicIndex: PublicIndexService) {}
 
   @Get('index')
-  index(
+  async index(
     @Req() req: Request,
     @Query('region') region = 'ketchikan',
     @Query('basket') basket = 'staples-25',
   ) {
-    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:index'));
+    await consumeRateLimit(clientKeyFromReq(req), publicLimit('public:index'));
     return this.publicIndex.index(region, basket);
   }
 
   @Get('prices/:productId')
-  prices(
+  async prices(
     @Req() req: Request,
     @Param('productId') productId: string,
     @Query('region') region?: string,
   ) {
-    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:prices'));
+    await consumeRateLimit(clientKeyFromReq(req), publicLimit('public:prices'));
     return this.publicIndex.productPrices(productId, region);
   }
 
   @Get('staples')
-  staples(@Req() req: Request, @Query('basket') basket = 'staples-25') {
-    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:staples'));
+  async staples(@Req() req: Request, @Query('basket') basket = 'staples-25') {
+    await consumeRateLimit(clientKeyFromReq(req), publicLimit('public:staples'));
     return this.publicIndex.listStaples(basket);
   }
 
   @Get('meta')
-  meta(@Req() req: Request) {
-    consumeRateLimit(clientKeyFromReq(req), publicLimit('public:meta'));
+  async meta(@Req() req: Request) {
+    await consumeRateLimit(clientKeyFromReq(req), publicLimit('public:meta'));
     return { minHouseholds: this.publicIndex.getMinHouseholds() };
   }
 }

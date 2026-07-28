@@ -34,12 +34,12 @@ export class ReceiptsController {
   constructor(private readonly receipts: ReceiptsService) {}
 
   @Post('upload-url')
-  uploadUrl(
+  async uploadUrl(
     @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Body() dto: UploadUrlDto,
   ) {
-    consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
       name: 'receipts:upload-url',
       limit: Number(process.env.RATE_LIMIT_UPLOAD ?? 60),
       windowMs: 60_000,

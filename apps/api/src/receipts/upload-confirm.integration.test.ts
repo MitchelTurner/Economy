@@ -44,6 +44,7 @@ describe.runIf(runIntegration)('upload → extract → confirm', () => {
       userId: dbUser.id,
       householdId,
       email: dbUser.email,
+      role: dbUser.role,
     };
 
     const config = new ConfigService({
