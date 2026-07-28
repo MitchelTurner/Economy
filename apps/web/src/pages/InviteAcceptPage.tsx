@@ -40,7 +40,11 @@ export function InviteAcceptPage() {
     }
     setBusy(true);
     try {
-      const res = await api<{ user: { email: string } }>('/household/invites/accept', {
+      const res = await api<{
+        user: { email: string };
+        accessToken: string;
+        refreshToken: string;
+      }>('/household/invites/accept', {
         method: 'POST',
         json: {
           token,
@@ -50,15 +54,10 @@ export function InviteAcceptPage() {
         },
         auth: false,
       });
-      const login = await api<{ accessToken: string; refreshToken: string }>(
-        '/auth/login',
-        {
-          method: 'POST',
-          json: { email: res.user.email, password },
-          auth: false,
-        },
-      );
-      setTokens(login);
+      setTokens({
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+      });
       navigate('/');
     } catch (err) {
       const body = (err as { detail?: { message?: unknown; code?: string } }).detail;

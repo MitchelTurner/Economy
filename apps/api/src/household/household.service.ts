@@ -8,11 +8,12 @@ import {
 import { randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
 import { ConfigService } from '@nestjs/config';
+import { AuthService } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
-import { AcceptInviteDto, InviteDto } from './household.dto';
+import { AcceptInviteDto, InviteDto, RenameHouseholdDto } from './household.dto';
 
 @Injectable()
 export class HouseholdService {
@@ -21,7 +22,20 @@ export class HouseholdService {
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
     private readonly config: ConfigService,
+    private readonly auth: AuthService,
   ) {}
+
+  async rename(user: AuthUser, dto: RenameHouseholdDto) {
+    const me = await this.prisma.user.findUnique({ where: { id: user.userId } });
+    if (!me || me.role !== 'owner') {
+      throw new ForbiddenException('Only the household owner can rename it');
+    }
+    return this.prisma.household.update({
+      where: { id: user.householdId },
+      data: { name: dto.name },
+      select: { id: true, name: true },
+    });
+  }
 
   async members(user: AuthUser) {
     const household = await this.prisma.household.findUnique({
@@ -165,6 +179,8 @@ export class HouseholdService {
       where: { email },
       include: { household: { select: { id: true, name: true } } },
     });
+    const previousHouseholdId =
+      user && user.householdId !== invite.householdId ? user.householdId : null;
 
     if (user && user.householdId !== invite.householdId) {
       const [memberCount, receiptCount] = await Promise.all([
@@ -217,10 +233,92 @@ export class HouseholdService {
       data: { acceptedAt: new Date() },
     });
 
+    if (previousHouseholdId) {
+      await this.deleteEmptyHouseholdShell(previousHouseholdId);
+    }
+
+    const tokens = await this.auth.issueSessionTokens(
+      user.id,
+      user.householdId,
+      user.email,
+    );
+
     return {
       household: { id: invite.householdId, name: invite.household.name },
       user: { id: user.id, email: user.email, householdId: user.householdId },
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
     };
+  }
+
+  async leave(user: AuthUser) {
+    const me = await this.prisma.user.findUnique({ where: { id: user.userId } });
+    if (!me) throw new UnauthorizedException('Not authenticated');
+
+    const memberCount = await this.prisma.user.count({
+      where: { householdId: user.householdId },
+    });
+    if (memberCount <= 1) {
+      throw new BadRequestException(
+        'You are the only member — delete the household instead of leaving',
+      );
+    }
+    if (me.role === 'owner') {
+      const owners = await this.prisma.user.count({
+        where: { householdId: user.householdId, role: 'owner' },
+      });
+      if (owners <= 1) {
+        throw new BadRequestException(
+          'Transfer ownership or delete the household before the last owner leaves',
+        );
+      }
+    }
+
+    const previousHouseholdId = user.householdId;
+    const solo = await this.createSoloHousehold(me.email, me.displayName);
+    await this.prisma.user.update({
+      where: { id: me.id },
+      data: { householdId: solo.id, role: 'owner' },
+    });
+    await this.auth.revokeAllSessions(me.id);
+    const tokens = await this.auth.issueSessionTokens(me.id, solo.id, me.email);
+    await this.deleteEmptyHouseholdShell(previousHouseholdId);
+    return {
+      ok: true,
+      household: solo,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+    };
+  }
+
+  async removeMember(user: AuthUser, targetUserId: string) {
+    const me = await this.prisma.user.findUnique({ where: { id: user.userId } });
+    if (!me || me.role !== 'owner') {
+      throw new ForbiddenException('Only the household owner can remove members');
+    }
+    if (targetUserId === user.userId) {
+      throw new BadRequestException('Use leave to remove yourself');
+    }
+    const target = await this.prisma.user.findFirst({
+      where: { id: targetUserId, householdId: user.householdId },
+    });
+    if (!target) throw new NotFoundException('Member not found');
+    if (target.role === 'owner') {
+      const owners = await this.prisma.user.count({
+        where: { householdId: user.householdId, role: 'owner' },
+      });
+      if (owners <= 1) {
+        throw new BadRequestException('Cannot remove the last owner');
+      }
+    }
+
+    const solo = await this.createSoloHousehold(target.email, target.displayName);
+    await this.prisma.user.update({
+      where: { id: target.id },
+      data: { householdId: solo.id, role: 'owner' },
+    });
+    await this.auth.revokeAllSessions(target.id);
+    return { ok: true, removedUserId: target.id };
   }
 
   async exportData(user: AuthUser) {
@@ -345,5 +443,29 @@ export class HouseholdService {
       this.config.get('CORS_ORIGIN')?.split(',')[0]?.trim() ??
       'http://localhost:5173'
     );
+  }
+
+  private async createSoloHousehold(email: string, displayName: string | null) {
+    return this.prisma.household.create({
+      data: {
+        name: `${displayName ?? email}'s household`,
+      },
+      select: { id: true, name: true },
+    });
+  }
+
+  /** Drop vacated households that have no users and no receipts. */
+  private async deleteEmptyHouseholdShell(householdId: string) {
+    const [users, receipts] = await Promise.all([
+      this.prisma.user.count({ where: { householdId } }),
+      this.prisma.receipt.count({ where: { householdId } }),
+    ]);
+    if (users > 0 || receipts > 0) return;
+    await this.prisma.budget.deleteMany({ where: { householdId } });
+    await this.prisma.insight.deleteMany({ where: { householdId } });
+    await this.prisma.priceAlert.deleteMany({ where: { householdId } });
+    await this.prisma.householdInvite.deleteMany({ where: { householdId } });
+    await this.prisma.extractionUsage.deleteMany({ where: { householdId } });
+    await this.prisma.household.delete({ where: { id: householdId } }).catch(() => undefined);
   }
 }

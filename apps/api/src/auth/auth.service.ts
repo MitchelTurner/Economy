@@ -179,6 +179,11 @@ export class AuthService {
     }
   }
 
+  /** Issue a fresh access/refresh pair (invite accept, household leave). */
+  issueSessionTokens(userId: string, householdId: string, email: string) {
+    return this.issueTokens(userId, householdId, email);
+  }
+
   private async issueTokens(userId: string, householdId: string, email: string) {
     const accessToken = await this.jwt.signAsync(
       { sub: userId, householdId, email },

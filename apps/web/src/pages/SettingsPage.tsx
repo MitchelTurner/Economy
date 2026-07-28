@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { api, apiErrorMessage } from '../lib/api';
+import { api, apiErrorMessage, setTokens } from '../lib/api';
 import { toast } from '../lib/toast';
 
 type Household = {
@@ -29,6 +29,7 @@ export function SettingsPage() {
   const [emailDigest, setEmailDigest] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [displayName, setDisplayName] = useState('');
+  const [householdName, setHouseholdName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
@@ -38,6 +39,7 @@ export function SettingsPage() {
       api<Usage>('/household/usage'),
     ]);
     setHousehold(hh);
+    setHouseholdName(hh.name);
     setUsage(u);
   }
 
@@ -146,7 +148,7 @@ export function SettingsPage() {
         <p className="text-sm text-[var(--ink-muted)]">Signed in as</p>
         <p className="font-semibold">{user?.email}</p>
         <p className="text-sm text-[var(--ink-muted)]">
-          Household: {user?.household.name}
+          Role: {user?.role ?? 'member'}
           {household ? ` · ${household.users.length} members` : ''}
         </p>
         <label className="block text-sm">
@@ -167,11 +169,44 @@ export function SettingsPage() {
             })
               .then(() => refreshUser())
               .then(() => toast('Display name saved', 'ok'))
-              .catch(() => toast('Could not save name', 'danger'))
+              .catch((err) => toast(apiErrorMessage(err, 'Could not save name'), 'danger'))
           }
         >
           Save name
         </button>
+        <label className="block text-sm">
+          Household name
+          <input
+            value={householdName}
+            onChange={(e) => setHouseholdName(e.target.value)}
+            disabled={user?.role !== 'owner'}
+            className="mt-1 w-full max-w-md rounded-md border border-[var(--line)] bg-white/80 px-3 py-2 disabled:opacity-60"
+          />
+        </label>
+        {user?.role === 'owner' ? (
+          <button
+            type="button"
+            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+            onClick={() => {
+              const name = householdName.trim();
+              if (!name) {
+                toast('Enter a household name', 'danger');
+                return;
+              }
+              void api('/household', { method: 'PATCH', json: { name } })
+                .then(() => refreshUser())
+                .then(() => load())
+                .then(() => toast('Household renamed', 'ok'))
+                .catch((err) =>
+                  toast(apiErrorMessage(err, 'Could not rename household'), 'danger'),
+                );
+            }}
+          >
+            Save household name
+          </button>
+        ) : (
+          <p className="text-xs text-[var(--ink-muted)]">Only the owner can rename the household.</p>
+        )}
       </section>
 
       <section className="space-y-3" aria-label="Change password">
@@ -275,15 +310,69 @@ export function SettingsPage() {
         <h2 className="text-xl font-semibold">Members</h2>
         <ul className="mt-2 divide-y divide-[var(--line)] border-y border-[var(--line)]">
           {household?.users.map((u) => (
-            <li key={u.id} className="flex justify-between py-2 text-sm">
+            <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
               <span>
                 {u.displayName ?? u.email}
                 <span className="text-[var(--ink-muted)]"> · {u.email}</span>
               </span>
-              <span className="text-[var(--ink-muted)]">{u.role}</span>
+              <span className="flex items-center gap-3">
+                <span className="text-[var(--ink-muted)]">{u.role}</span>
+                {user?.role === 'owner' && u.id !== user?.id ? (
+                  <button
+                    type="button"
+                    className="font-semibold text-[var(--danger)]"
+                    onClick={() => {
+                      if (!confirm(`Remove ${u.email} from this household?`)) return;
+                      void api(`/household/members/${u.id}`, { method: 'DELETE' })
+                        .then(() => {
+                          toast('Member removed', 'ok');
+                          return load();
+                        })
+                        .catch((err) =>
+                          toast(apiErrorMessage(err, 'Could not remove member'), 'danger'),
+                        );
+                    }}
+                  >
+                    Remove
+                  </button>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
+        {household && household.users.length > 1 ? (
+          <button
+            type="button"
+            className="mt-3 text-sm font-semibold text-[var(--brand-soft)]"
+            onClick={() => {
+              if (
+                !confirm(
+                  'Leave this household and start your own empty one? Your receipts stay with the household.',
+                )
+              ) {
+                return;
+              }
+              void api<{
+                accessToken: string;
+                refreshToken: string;
+              }>('/household/leave', { method: 'POST' })
+                .then(async (res) => {
+                  setTokens({
+                    accessToken: res.accessToken,
+                    refreshToken: res.refreshToken,
+                  });
+                  toast('Left household', 'ok');
+                  await refreshUser();
+                  await load();
+                })
+                .catch((err) =>
+                  toast(apiErrorMessage(err, 'Could not leave household'), 'danger'),
+                );
+            }}
+          >
+            Leave household
+          </button>
+        ) : null}
       </section>
 
       <section>
@@ -435,14 +524,20 @@ export function SettingsPage() {
           >
             Sign out everywhere
           </button>
-          <button
-            type="button"
-            disabled={deleteConfirm !== 'DELETE'}
-            onClick={() => void hardDelete()}
-            className="rounded-md border border-[var(--danger)] px-4 py-2 font-semibold text-[var(--danger)] disabled:opacity-40"
-          >
-            Delete household data
-          </button>
+          {user?.role === 'owner' ? (
+            <button
+              type="button"
+              disabled={deleteConfirm !== 'DELETE'}
+              onClick={() => void hardDelete()}
+              className="rounded-md border border-[var(--danger)] px-4 py-2 font-semibold text-[var(--danger)] disabled:opacity-40"
+            >
+              Delete household data
+            </button>
+          ) : (
+            <p className="text-sm text-[var(--ink-muted)]">
+              Only the owner can wipe household data.
+            </p>
+          )}
         </div>
       </div>
 

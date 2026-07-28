@@ -25,3 +25,12 @@ export class AcceptInviteDto {
   displayName?: string;
   moveHousehold?: boolean;
 }
+
+export const RenameHouseholdSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
+@ZodBody(RenameHouseholdSchema)
+export class RenameHouseholdDto {
+  name!: string;
+}

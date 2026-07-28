@@ -508,6 +508,9 @@ Habits cadence (`tripsPerWeek` / window), validated spend `groupBy`, unit-tested
 **Phase 17 — review rematch + a11y + CI lint**
 Rematch clears stale non-manual bindings, review rematch toasts/busy + store-change toast, Login/Capture a11y, Capture file-input reset, ESLint wired with CI `npm run lint`.
 
+**Phase 18 — household settings + invite rate limits**
+Owner household rename, member leave + owner remove, invite create/peek/accept rate limits, accept returns tokens (no second login), empty vacated-household cleanup, owner-gated wipe UI.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -612,6 +615,11 @@ Phase 17 is done when:
 - Review “Re-run matching” reports matched/unmatched with busy/toast; store-change rematch toasts; same-as-last/rematch are `aria-busy` + focus-visible.
 - Login mode toggle uses `aria-pressed`; Capture camera CTA is labeled and resets the file input after pick.
 - ESLint runs via `npm run lint` in CI (generate → lint → test → build → eval → docker).
+
+Phase 18 is done when:
+- Owner can `PATCH /household` rename; members can leave into a solo household; owner can remove non-self members (last owner protected).
+- Invite create/peek/accept enforce `RATE_LIMIT_INVITE`; accept returns access/refresh tokens; vacated empty households (no users/receipts) are deleted.
+- Settings exposes rename/leave/remove and hides wipe for non-owners.
 
 ## 13. Testing
 

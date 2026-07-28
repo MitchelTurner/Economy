@@ -73,6 +73,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 17:** rematch clears stale auto-matches + review toasts, Login/Capture a11y, Capture file reset, ESLint + CI lint step.
 
+**Phase 18:** household rename/leave/remove, invite rate limits, accept returns tokens, empty vacated-household cleanup, owner-gated wipe.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

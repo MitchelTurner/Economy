@@ -4,6 +4,17 @@ import * as argon2 from 'argon2';
 import { describe, expect, it, vi } from 'vitest';
 import { HouseholdService } from './household.service';
 
+function mockAuth() {
+  return {
+    issueSessionTokens: vi.fn().mockResolvedValue({
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      user: { id: 'u1', householdId: 'h-invite', email: 'member@example.com' },
+    }),
+    revokeAllSessions: vi.fn().mockResolvedValue(0),
+  };
+}
+
 describe('HouseholdService.acceptInvite', () => {
   it('verifies password for existing users and does not overwrite the hash', async () => {
     const passwordHash = await argon2.hash('correct-password-1');
@@ -13,6 +24,7 @@ describe('HouseholdService.acceptInvite', () => {
       householdId: 'h-invite',
       passwordHash,
     });
+    const auth = mockAuth();
     const prisma = {
       householdInvite: {
         findUnique: vi.fn().mockResolvedValue({
@@ -24,6 +36,7 @@ describe('HouseholdService.acceptInvite', () => {
           household: { id: 'h-invite', name: 'Invite HH' },
         }),
         update: vi.fn().mockResolvedValue({}),
+        deleteMany: vi.fn(),
       },
       user: {
         findUnique: vi.fn().mockResolvedValue({
@@ -34,20 +47,26 @@ describe('HouseholdService.acceptInvite', () => {
           displayName: 'Pat',
           household: { id: 'h-old', name: 'Old HH' },
         }),
-        count: vi.fn().mockResolvedValue(1),
+        count: vi.fn().mockResolvedValue(0),
         update,
         create: vi.fn(),
       },
       receipt: { count: vi.fn().mockResolvedValue(0) },
+      budget: { deleteMany: vi.fn() },
+      insight: { deleteMany: vi.fn() },
+      priceAlert: { deleteMany: vi.fn() },
+      extractionUsage: { deleteMany: vi.fn() },
+      household: { delete: vi.fn().mockResolvedValue({}) },
     };
     const svc = new HouseholdService(
       prisma as never,
       {} as never,
       { sendInvite: vi.fn() } as never,
       new ConfigService({ CORS_ORIGIN: 'http://localhost:5173' }),
+      auth as never,
     );
 
-    await svc.acceptInvite({
+    const res = await svc.acceptInvite({
       token: 'a'.repeat(24),
       password: 'correct-password-1',
       moveHousehold: true,
@@ -60,10 +79,20 @@ describe('HouseholdService.acceptInvite', () => {
       }),
     );
     expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(auth.issueSessionTokens).toHaveBeenCalledWith(
+      'u1',
+      'h-invite',
+      'member@example.com',
+    );
+    expect(res.accessToken).toBe('access');
+    expect(prisma.household.delete).toHaveBeenCalledWith({
+      where: { id: 'h-old' },
+    });
   });
 
   it('rejects wrong password for existing users', async () => {
     const passwordHash = await argon2.hash('correct-password-1');
+    const auth = mockAuth();
     const prisma = {
       householdInvite: {
         findUnique: vi.fn().mockResolvedValue({
@@ -94,6 +123,7 @@ describe('HouseholdService.acceptInvite', () => {
       {} as never,
       { sendInvite: vi.fn() } as never,
       new ConfigService({}),
+      auth as never,
     );
 
     await expect(
@@ -103,6 +133,7 @@ describe('HouseholdService.acceptInvite', () => {
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(auth.issueSessionTokens).not.toHaveBeenCalled();
   });
 
   it('hashes password only when creating a new user', async () => {
@@ -111,6 +142,7 @@ describe('HouseholdService.acceptInvite', () => {
       email: 'new@example.com',
       householdId: 'h-invite',
     });
+    const auth = mockAuth();
     const prisma = {
       householdInvite: {
         findUnique: vi.fn().mockResolvedValue({
@@ -134,6 +166,7 @@ describe('HouseholdService.acceptInvite', () => {
       {} as never,
       { sendInvite: vi.fn() } as never,
       new ConfigService({}),
+      auth as never,
     );
 
     await svc.acceptInvite({
@@ -150,5 +183,6 @@ describe('HouseholdService.acceptInvite', () => {
         }),
       }),
     );
+    expect(auth.issueSessionTokens).toHaveBeenCalled();
   });
 });
