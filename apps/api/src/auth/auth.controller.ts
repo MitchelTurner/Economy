@@ -76,7 +76,14 @@ export class AuthController {
 
   @Post('change-password')
   @UseGuards(JwtAuthGuard)
-  changePassword(@CurrentUser() user: AuthUser, @Body() dto: ChangePasswordDto) {
+  async changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await consumeRateLimit(user.userId, {
+      ...authLimit(),
+      name: 'auth:change-password',
+    });
     return this.auth.changePassword(user.userId, dto);
   }
 }

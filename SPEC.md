@@ -511,6 +511,9 @@ Rematch clears stale non-manual bindings, review rematch toasts/busy + store-cha
 **Phase 18 — household settings + invite rate limits**
 Owner household rename, member leave + owner remove, invite create/peek/accept rate limits, accept returns tokens (no second login), empty vacated-household cleanup, owner-gated wipe UI.
 
+**Phase 19 — ownership transfer + change-password rate limit**
+Owner can transfer ownership to a member (`POST /household/transfer`); Settings “Make owner”; `POST /auth/change-password` rate-limited per user; client surfaces 429 `retryAfter`.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -620,6 +623,10 @@ Phase 18 is done when:
 - Owner can `PATCH /household` rename; members can leave into a solo household; owner can remove non-self members (last owner protected).
 - Invite create/peek/accept enforce `RATE_LIMIT_INVITE`; accept returns access/refresh tokens; vacated empty households (no users/receipts) are deleted.
 - Settings exposes rename/leave/remove and hides wipe for non-owners.
+
+Phase 19 is done when:
+- Owner can `POST /household/transfer` to promote a member and demote self; rejects self/non-member/non-owner; Settings shows “Make owner” with confirm.
+- `POST /auth/change-password` enforces `RATE_LIMIT_AUTH` keyed by user id; `apiErrorMessage` includes `retryAfter` on 429.
 
 ## 13. Testing
 

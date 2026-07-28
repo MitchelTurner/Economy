@@ -19,4 +19,15 @@ describe('apiErrorMessage', () => {
       apiErrorMessage({ detail: { message: ['amountCents must be positive'] } }),
     ).toBe('amountCents must be positive');
   });
+
+  it('appends retryAfter on 429', () => {
+    expect(
+      apiErrorMessage({
+        status: 429,
+        detail: { message: 'Rate limit exceeded for auth:change-password', retryAfter: 42 },
+      }),
+    ).toBe(
+      'Rate limit exceeded for auth:change-password Try again in 42s.',
+    );
+  });
 });

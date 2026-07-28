@@ -75,6 +75,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 18:** household rename/leave/remove, invite rate limits, accept returns tokens, empty vacated-household cleanup, owner-gated wipe.
 
+**Phase 19:** ownership transfer (`POST /household/transfer` + Settings Make owner), change-password rate limit, 429 retryAfter in client errors.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

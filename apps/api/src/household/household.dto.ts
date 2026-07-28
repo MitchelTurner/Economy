@@ -34,3 +34,12 @@ export const RenameHouseholdSchema = z.object({
 export class RenameHouseholdDto {
   name!: string;
 }
+
+export const TransferOwnershipSchema = z.object({
+  userId: z.string().min(1),
+});
+
+@ZodBody(TransferOwnershipSchema)
+export class TransferOwnershipDto {
+  userId!: string;
+}

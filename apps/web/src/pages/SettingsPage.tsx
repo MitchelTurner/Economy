@@ -317,6 +317,38 @@ export function SettingsPage() {
               </span>
               <span className="flex items-center gap-3">
                 <span className="text-[var(--ink-muted)]">{u.role}</span>
+                {user?.role === 'owner' && u.id !== user?.id && u.role !== 'owner' ? (
+                  <button
+                    type="button"
+                    className="font-semibold text-[var(--brand-soft)]"
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          `Make ${u.email} the household owner? You will become a member.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      void api('/household/transfer', {
+                        method: 'POST',
+                        json: { userId: u.id },
+                      })
+                        .then(async () => {
+                          toast('Ownership transferred', 'ok');
+                          await refreshUser();
+                          await load();
+                        })
+                        .catch((err) =>
+                          toast(
+                            apiErrorMessage(err, 'Could not transfer ownership'),
+                            'danger',
+                          ),
+                        );
+                    }}
+                  >
+                    Make owner
+                  </button>
+                ) : null}
                 {user?.role === 'owner' && u.id !== user?.id ? (
                   <button
                     type="button"

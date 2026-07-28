@@ -48,17 +48,29 @@ async function refreshAccess(): Promise<string | null> {
 /** Prefer Nest/zod `message` from API error bodies over bare `API 401`. */
 export function apiErrorMessage(err: unknown, fallback = 'Request failed'): string {
   const e = err as {
-    detail?: { message?: string | string[]; error?: string };
+    status?: number;
+    detail?: { message?: string | string[]; error?: string; retryAfter?: number };
     message?: string;
   };
   const m = e?.detail?.message;
-  if (typeof m === 'string' && m.trim()) return m;
-  if (Array.isArray(m) && m[0]) return String(m[0]);
-  if (typeof e?.detail?.error === 'string' && e.detail.error.trim()) {
-    return e.detail.error;
+  let base: string | null = null;
+  if (typeof m === 'string' && m.trim()) base = m;
+  else if (Array.isArray(m) && m[0]) base = String(m[0]);
+  else if (typeof e?.detail?.error === 'string' && e.detail.error.trim()) {
+    base = e.detail.error;
+  } else if (e?.message && !/^API \d+/.test(e.message)) {
+    base = e.message;
   }
-  if (e?.message && !/^API \d+/.test(e.message)) return e.message;
-  return fallback;
+  const retryAfter = e?.detail?.retryAfter;
+  if (
+    (e?.status === 429 || typeof retryAfter === 'number') &&
+    typeof retryAfter === 'number' &&
+    retryAfter > 0
+  ) {
+    const msg = base ?? fallback;
+    return `${msg} Try again in ${retryAfter}s.`;
+  }
+  return base ?? fallback;
 }
 
 export async function api<T>(

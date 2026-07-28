@@ -19,6 +19,7 @@ import {
   AcceptInviteDto,
   InviteDto,
   RenameHouseholdDto,
+  TransferOwnershipDto,
 } from './household.dto';
 
 function inviteLimit() {
@@ -55,6 +56,12 @@ export class HouseholdController {
   @UseGuards(JwtAuthGuard)
   removeMember(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
     return this.household.removeMember(user, userId);
+  }
+
+  @Post('transfer')
+  @UseGuards(JwtAuthGuard)
+  transfer(@CurrentUser() user: AuthUser, @Body() dto: TransferOwnershipDto) {
+    return this.household.transferOwnership(user, dto);
   }
 
   @Post('invites')

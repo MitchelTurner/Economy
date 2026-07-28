@@ -13,7 +13,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
-import { AcceptInviteDto, InviteDto, RenameHouseholdDto } from './household.dto';
+import {
+  AcceptInviteDto,
+  InviteDto,
+  RenameHouseholdDto,
+  TransferOwnershipDto,
+} from './household.dto';
 
 @Injectable()
 export class HouseholdService {
@@ -288,6 +293,48 @@ export class HouseholdService {
       household: solo,
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
+    };
+  }
+
+  async transferOwnership(user: AuthUser, dto: TransferOwnershipDto) {
+    if (dto.userId === user.userId) {
+      throw new BadRequestException('Cannot transfer ownership to yourself');
+    }
+
+    const me = await this.prisma.user.findUnique({ where: { id: user.userId } });
+    if (!me || me.role !== 'owner') {
+      throw new ForbiddenException('Only the household owner can transfer ownership');
+    }
+
+    const target = await this.prisma.user.findFirst({
+      where: { id: dto.userId, householdId: user.householdId },
+      select: { id: true, email: true, displayName: true, role: true },
+    });
+    if (!target) throw new NotFoundException('Member not found');
+    if (target.role === 'owner') {
+      throw new BadRequestException('That member is already an owner');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: target.id },
+        data: { role: 'owner' },
+      }),
+      this.prisma.user.update({
+        where: { id: me.id },
+        data: { role: 'member' },
+      }),
+    ]);
+
+    return {
+      ok: true as const,
+      newOwner: {
+        userId: target.id,
+        email: target.email,
+        displayName: target.displayName,
+        role: 'owner' as const,
+      },
+      previousOwnerUserId: me.id,
     };
   }
 

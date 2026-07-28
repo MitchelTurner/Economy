@@ -14,7 +14,7 @@ function authMock() {
   };
 }
 
-describe('HouseholdService.rename / leave / removeMember', () => {
+describe('HouseholdService.rename / leave / removeMember / transfer', () => {
   it('renames when caller is owner', async () => {
     const update = vi.fn().mockResolvedValue({ id: 'h1', name: 'New name' });
     const prisma = {
@@ -117,5 +117,89 @@ describe('HouseholdService.rename / leave / removeMember', () => {
         data: { householdId: 'solo', role: 'owner' },
       }),
     );
+  });
+
+  it('transfers ownership to a member and demotes the caller', async () => {
+    const update = vi.fn().mockResolvedValue({});
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'owner', role: 'owner' }),
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'member',
+          email: 'm@b.c',
+          displayName: 'M',
+          role: 'member',
+        }),
+        update,
+      },
+      $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
+    };
+    const svc = new HouseholdService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      new ConfigService({}),
+      authMock() as never,
+    );
+    const res = await svc.transferOwnership(
+      { userId: 'owner', householdId: 'h1', email: 'o@b.c', role: 'owner' },
+      { userId: 'member' },
+    );
+    expect(res).toEqual({
+      ok: true,
+      newOwner: {
+        userId: 'member',
+        email: 'm@b.c',
+        displayName: 'M',
+        role: 'owner',
+      },
+      previousOwnerUserId: 'owner',
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'member' },
+      data: { role: 'owner' },
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'owner' },
+      data: { role: 'member' },
+    });
+  });
+
+  it('rejects self-transfer and non-owners', async () => {
+    const memberPrisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'u1', role: 'member' }),
+      },
+    };
+    const memberSvc = new HouseholdService(
+      memberPrisma as never,
+      {} as never,
+      {} as never,
+      new ConfigService({}),
+      authMock() as never,
+    );
+    await expect(
+      memberSvc.transferOwnership(
+        { userId: 'u1', householdId: 'h1', email: 'a@b.c', role: 'member' },
+        { userId: 'u2' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const ownerPrisma = {
+      user: { findUnique: vi.fn() },
+    };
+    const ownerSvc = new HouseholdService(
+      ownerPrisma as never,
+      {} as never,
+      {} as never,
+      new ConfigService({}),
+      authMock() as never,
+    );
+    await expect(
+      ownerSvc.transferOwnership(
+        { userId: 'owner', householdId: 'h1', email: 'o@b.c', role: 'owner' },
+        { userId: 'owner' },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
