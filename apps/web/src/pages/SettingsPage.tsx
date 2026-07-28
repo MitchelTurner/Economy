@@ -8,7 +8,7 @@ type Household = {
   id: string;
   name: string;
   users: Array<{ id: string; email: string; displayName: string | null; role: string }>;
-  invites: Array<{ id: string; email: string; expiresAt: string }>;
+  invites: Array<{ id: string; email: string; expiresAt: string; inviteUrl: string }>;
 };
 
 type Usage = {
@@ -61,25 +61,31 @@ export function SettingsPage() {
     }
   }
 
+  async function copyInviteLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Invite link copied', 'ok');
+    } catch {
+      setInviteLink(url);
+      toast('Copy failed — link shown below', 'danger');
+    }
+  }
+
   async function invite(e: FormEvent) {
     e.preventDefault();
     try {
-      const inv = await api<{ token: string; inviteUrl?: string }>(
-        '/household/invites',
-        {
-          method: 'POST',
-          json: { email },
-        },
-      );
-      setInviteLink(
-        inv.inviteUrl ?? `${window.location.origin}/invite?token=${inv.token}`,
-      );
+      const inv = await api<{ inviteUrl: string }>('/household/invites', {
+        method: 'POST',
+        json: { email },
+      });
+      setInviteLink(inv.inviteUrl);
       setMessage('Invite email queued (or logged in API if no RESEND_API_KEY).');
       toast('Invite created', 'ok');
+      await copyInviteLink(inv.inviteUrl);
       setEmail('');
       await load();
-    } catch {
-      toast('Invite failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Invite failed'), 'danger');
     }
   }
 
@@ -300,7 +306,14 @@ export function SettingsPage() {
         </form>
         {inviteLink && (
           <p className="mt-2 break-all text-sm text-[var(--brand)]">
-            Share this link: {inviteLink}
+            Share this link: {inviteLink}{' '}
+            <button
+              type="button"
+              className="font-semibold underline"
+              onClick={() => void copyInviteLink(inviteLink)}
+            >
+              Copy
+            </button>
           </p>
         )}
         {household && household.invites.length > 0 && (
@@ -313,20 +326,31 @@ export function SettingsPage() {
                 <span>
                   Pending {i.email} · expires {new Date(i.expiresAt).toLocaleDateString()}
                 </span>
-                <button
-                  type="button"
-                  className="font-semibold text-[var(--danger)]"
-                  onClick={() =>
-                    void api(`/household/invites/${i.id}`, { method: 'DELETE' })
-                      .then(() => {
-                        toast('Invite revoked', 'ok');
-                        return load();
-                      })
-                      .catch(() => toast('Revoke failed', 'danger'))
-                  }
-                >
-                  Revoke
-                </button>
+                <span className="flex gap-3">
+                  <button
+                    type="button"
+                    className="font-semibold text-[var(--brand-soft)]"
+                    onClick={() => void copyInviteLink(i.inviteUrl)}
+                  >
+                    Copy link
+                  </button>
+                  <button
+                    type="button"
+                    className="font-semibold text-[var(--danger)]"
+                    onClick={() =>
+                      void api(`/household/invites/${i.id}`, { method: 'DELETE' })
+                        .then(() => {
+                          toast('Invite revoked', 'ok');
+                          return load();
+                        })
+                        .catch((err) =>
+                          toast(apiErrorMessage(err, 'Revoke failed'), 'danger'),
+                        )
+                    }
+                  >
+                    Revoke
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

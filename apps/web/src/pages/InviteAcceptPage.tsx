@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, setTokens } from '../lib/api';
+import { api, apiErrorMessage, setTokens } from '../lib/api';
 
 type Peek = {
   email: string;
   expiresAt: string;
   household: { id: string; name: string };
+  accountExists: boolean;
 };
 
 export function InviteAcceptPage() {
@@ -18,6 +19,7 @@ export function InviteAcceptPage() {
   const [needsMoveConfirm, setNeedsMoveConfirm] = useState(false);
   const [currentHouseholdName, setCurrentHouseholdName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,12 +28,17 @@ export function InviteAcceptPage() {
       auth: false,
     })
       .then(setPeek)
-      .catch((err) => setError((err as Error).message || 'Invite invalid'));
+      .catch((err) => setError(apiErrorMessage(err, 'Invite invalid or expired')));
   }, [token]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
+      return;
+    }
+    setBusy(true);
     try {
       const res = await api<{ user: { email: string } }>('/household/invites/accept', {
         method: 'POST',
@@ -74,12 +81,13 @@ export function InviteAcceptPage() {
         );
         return;
       }
-      const fallback =
-        (typeof body?.message === 'string' ? body.message : undefined) ??
-        (err as Error).message;
-      setError(fallback || 'Invite failed');
+      setError(apiErrorMessage(err, 'Invite failed'));
+    } finally {
+      setBusy(false);
     }
   }
+
+  const existing = peek?.accountExists === true;
 
   return (
     <div className="app-shell flex min-h-dvh flex-col justify-center">
@@ -89,6 +97,9 @@ export function InviteAcceptPage() {
         <p className="mt-2 text-[var(--ink-muted)]">
           Invited as <span className="font-semibold text-[var(--ink)]">{peek.email}</span> to{' '}
           <span className="font-semibold text-[var(--ink)]">{peek.household.name}</span>
+          {existing
+            ? ' — sign in with your existing password.'
+            : ' — create a password to join.'}
         </p>
       )}
       <form
@@ -104,18 +115,25 @@ export function InviteAcceptPage() {
             className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
+            autoComplete="name"
           />
         </label>
         <label className="block text-sm">
-          Password
+          {existing ? 'Current password' : 'Password'}
           <input
             type="password"
             required
             minLength={8}
+            autoComplete={existing ? 'current-password' : 'new-password'}
             className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+          <span className="mt-1 block text-xs text-[var(--ink-muted)]">
+            {existing
+              ? 'We verify your password — it will not be changed.'
+              : 'At least 8 characters'}
+          </span>
         </label>
         {needsMoveConfirm && (
           <label className="flex items-start gap-2 text-sm">
@@ -134,10 +152,10 @@ export function InviteAcceptPage() {
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
         <button
           type="submit"
-          disabled={!token || (needsMoveConfirm && !moveHousehold)}
+          disabled={!token || busy || (needsMoveConfirm && !moveHousehold)}
           className="w-full rounded-md bg-[var(--brand)] px-4 py-2.5 font-semibold text-white disabled:opacity-50"
         >
-          Accept invite
+          {busy ? 'Working…' : existing ? 'Join with this account' : 'Accept invite'}
         </button>
       </form>
       <Link to="/login" className="mt-4 text-sm font-semibold text-[var(--brand-soft)]">

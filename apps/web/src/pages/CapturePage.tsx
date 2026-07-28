@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { apiErrorMessage } from '../lib/api';
 import { preprocessReceiptImage } from '../lib/image';
 import {
   enqueueOutbox,
   getOutboxBlob,
   listOutbox,
+  removeOutbox,
   type OutboxMeta,
 } from '../lib/outbox';
 import { flushPendingOutbox } from '../lib/outbox-sync';
+import { toast } from '../lib/toast';
 
 type QueueItem = { id: string; previewUrl: string; status: string };
 
@@ -59,15 +62,23 @@ export function CapturePage() {
             URL.revokeObjectURL(preview);
             previewUrlsRef.current.delete(id);
           }
+          setQueue((q) => q.filter((item) => item.id !== id));
         }
       });
 
       if (failures.length) {
         const first = failures[0]!;
-        setError(
-          first.offlineLikely
-            ? 'Offline — receipts saved locally and will upload when you reconnect.'
-            : first.message,
+        const msg = first.offlineLikely
+          ? 'Offline — receipts saved locally and will upload when you reconnect.'
+          : first.message;
+        setError(msg);
+        if (!first.offlineLikely) toast(msg, 'danger');
+      } else if (reviewIds.length > 0) {
+        toast(
+          reviewIds.length === 1
+            ? 'Receipt uploaded'
+            : `Synced ${reviewIds.length} receipts`,
+          'ok',
         );
       }
 
@@ -79,6 +90,18 @@ export function CapturePage() {
     } finally {
       setFlushing(false);
     }
+  }
+
+  async function discard(id: string) {
+    if (!confirm('Discard this queued receipt photo?')) return;
+    await removeOutbox(id);
+    const preview = previewUrlsRef.current.get(id);
+    if (preview) {
+      URL.revokeObjectURL(preview);
+      previewUrlsRef.current.delete(id);
+    }
+    setQueue((q) => q.filter((item) => item.id !== id));
+    toast('Discarded from outbox', 'ok');
   }
 
   async function handleFiles(files: FileList | null) {
@@ -110,7 +133,9 @@ export function CapturePage() {
             item.id === id ? { ...item, status: 'Failed' } : item,
           ),
         );
-        setError((err as Error).message || 'Could not process image');
+        const msg = apiErrorMessage(err, 'Could not process image');
+        setError(msg);
+        toast(msg, 'danger');
       }
     }
 
@@ -120,6 +145,14 @@ export function CapturePage() {
       setError('Offline — receipts saved locally and will upload when you reconnect.');
     }
   }
+
+  const canRetry = queue.some(
+    (q) =>
+      q.status.includes('Queued') ||
+      q.status.includes('offline') ||
+      q.status.includes('Uploading') ||
+      q.status.startsWith('Failed'),
+  );
 
   return (
     <div className="space-y-6">
@@ -161,12 +194,7 @@ export function CapturePage() {
 
       {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-      {queue.some(
-        (q) =>
-          q.status.includes('Queued') ||
-          q.status.includes('offline') ||
-          q.status.startsWith('Failed'),
-      ) && (
+      {canRetry && (
         <button
           type="button"
           disabled={flushing || !navigator.onLine}
@@ -178,7 +206,7 @@ export function CapturePage() {
       )}
 
       {queue.length > 0 && (
-        <ul className="space-y-3">
+        <ul className="space-y-3" aria-label="Capture outbox">
           {queue.map((item) => (
             <li key={item.id} className="flex items-center gap-3">
               {item.previewUrl ? (
@@ -190,7 +218,14 @@ export function CapturePage() {
               ) : (
                 <div className="h-16 w-16 rounded-md bg-black/10" />
               )}
-              <span className="text-sm font-medium">{item.status}</span>
+              <span className="min-w-0 flex-1 text-sm font-medium">{item.status}</span>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-semibold text-[var(--danger)]"
+                onClick={() => void discard(item.id)}
+              >
+                Discard
+              </button>
             </li>
           ))}
         </ul>
@@ -206,7 +241,7 @@ function labelFor(m: OutboxMeta) {
     }
     return 'Queued (offline)';
   }
-  if (m.status === 'uploading') return 'Uploading…';
+  if (m.status === 'uploading') return 'Uploading… (will retry)';
   if (m.status === 'done') return 'Done';
   return 'Queued';
 }

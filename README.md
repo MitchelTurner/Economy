@@ -67,6 +67,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 14:** receipts search + load more, dashboard pace/loading, review bulk toasts, single-flight refresh + logout-all, clearer API errors, public index region privacy gate.
 
+**Phase 15:** invite accept verifies existing passwords, inviteUrl copy in Settings, outbox retries stuck uploads + Capture discard, shell sync toasts.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

@@ -499,6 +499,9 @@ Insight restore, password change revokes all Redis sessions + re-login, password
 **Phase 14 — core UX + privacy harden**
 Receipts text/total search + cursor load-more, dashboard loading/errors + week/month budget pace, review bulk-action toasts + better similar-category matching, single-flight token refresh, logout-all, `apiErrorMessage`, public index region gate (≥3 households) + rollup skip under threshold.
 
+**Phase 15 — invite security + capture outbox harden**
+Invite accept verifies existing passwords (never overwrites), peek `accountExists`, inviteUrl-only Settings + clipboard copy, outbox retries stuck `uploading`, Capture discard/retry toasts, shell online flush feedback.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -587,6 +590,11 @@ Phase 14 is done when:
 - Same-as-last / apply-category-similar report applied/updated counts via toasts; similar matching uses significant tokens (≥3 chars).
 - Concurrent 401s share one refresh flight; `POST /auth/logout-all` + Settings “Sign out everywhere”; client errors prefer API `message` text.
 - Public region index points require ≥ `PUBLIC_MIN_HOUSEHOLDS` contributors (read + rollup); store points remain contributor-gated.
+
+Phase 15 is done when:
+- Accepting an invite for an existing email verifies the current password and does not change `passwordHash`; new users still set a password (≥8).
+- Peek returns `accountExists`; Invite UI labels current vs new password; Settings uses `inviteUrl` (no raw token) with copy for new + pending invites.
+- `pendingOutbox` retries `uploading` items; Capture can Discard queue items and surfaces sync toasts; shell online flush announces success/hard failure.
 
 ## 13. Testing
 

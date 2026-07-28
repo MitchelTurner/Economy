@@ -15,6 +15,10 @@ vi.mock('./outbox', () => ({
 
 vi.mock('./api', () => ({
   api: (...args: unknown[]) => api(...args),
+  apiErrorMessage: (err: unknown, fallback = 'Request failed') =>
+    (err as Error)?.message && !/^API \d+/.test((err as Error).message)
+      ? (err as Error).message
+      : fallback,
 }));
 
 vi.mock('./image', () => ({

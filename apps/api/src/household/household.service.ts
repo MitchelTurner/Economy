@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import * as argon2 from 'argon2';
@@ -42,13 +43,20 @@ export class HouseholdService {
             email: true,
             expiresAt: true,
             createdAt: true,
-            // token intentionally omitted from members listing
+            token: true,
           },
         },
       },
     });
     if (!household) throw new NotFoundException('Household not found');
-    return household;
+    const webOrigin = this.webOrigin();
+    return {
+      ...household,
+      invites: household.invites.map(({ token, ...rest }) => ({
+        ...rest,
+        inviteUrl: `${webOrigin}/invite?token=${token}`,
+      })),
+    };
   }
 
   async invite(user: AuthUser, dto: InviteDto) {
@@ -94,10 +102,7 @@ export class HouseholdService {
           include: { household: { select: { name: true } } },
         });
 
-    const webOrigin =
-      this.config.get('CORS_ORIGIN')?.split(',')[0]?.trim() ??
-      'http://localhost:5173';
-    const inviteUrl = `${webOrigin}/invite?token=${invite.token}`;
+    const inviteUrl = `${this.webOrigin()}/invite?token=${invite.token}`;
     await this.notifications.sendInvite({
       to: invite.email,
       householdName: invite.household.name,
@@ -125,10 +130,15 @@ export class HouseholdService {
     if (!invite || invite.acceptedAt || invite.expiresAt < new Date()) {
       throw new BadRequestException('Invite invalid or expired');
     }
+    const existing = await this.prisma.user.findUnique({
+      where: { email: invite.email },
+      select: { id: true },
+    });
     return {
       email: invite.email,
       expiresAt: invite.expiresAt,
       household: invite.household,
+      accountExists: !!existing,
     };
   }
 
@@ -155,7 +165,6 @@ export class HouseholdService {
       where: { email },
       include: { household: { select: { id: true, name: true } } },
     });
-    const passwordHash = await argon2.hash(dto.password);
 
     if (user && user.householdId !== invite.householdId) {
       const [memberCount, receiptCount] = await Promise.all([
@@ -175,17 +184,22 @@ export class HouseholdService {
     }
 
     if (user) {
+      // Existing accounts must prove the current password — never overwrite it.
+      const ok = await argon2.verify(user.passwordHash, dto.password);
+      if (!ok) {
+        throw new UnauthorizedException('Password is incorrect');
+      }
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: {
           householdId: invite.householdId,
-          passwordHash,
           displayName: dto.displayName ?? user.displayName,
           role: 'member',
         },
         include: { household: { select: { id: true, name: true } } },
       });
     } else {
+      const passwordHash = await argon2.hash(dto.password);
       user = await this.prisma.user.create({
         data: {
           email,
@@ -324,5 +338,12 @@ export class HouseholdService {
     await this.prisma.household.delete({ where: { id: householdId } });
 
     return { ok: true, deletedHouseholdId: householdId };
+  }
+
+  private webOrigin() {
+    return (
+      this.config.get('CORS_ORIGIN')?.split(',')[0]?.trim() ??
+      'http://localhost:5173'
+    );
   }
 }

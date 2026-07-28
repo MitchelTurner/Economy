@@ -60,7 +60,16 @@ export async function removeOutbox(id: string) {
   await del(`${BLOB_PREFIX}${id}`);
 }
 
+/**
+ * Items eligible for flush. Includes `uploading` so a crash mid-upload does not
+ * leave the item stuck forever (flush is single-flight per tab; S3 register dedupes).
+ */
 export async function pendingOutbox(): Promise<OutboxMeta[]> {
   const all = await listOutbox();
-  return all.filter((m) => m.status === 'queued' || m.status === 'failed');
+  return all.filter(
+    (m) =>
+      m.status === 'queued' ||
+      m.status === 'failed' ||
+      m.status === 'uploading',
+  );
 }

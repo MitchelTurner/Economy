@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, apiErrorMessage } from './api';
 import { blobToBase64 } from './image';
 import {
   getOutboxBlob,
@@ -95,7 +95,7 @@ export async function flushPendingOutbox(
         await removeOutbox(meta.id);
         onItem?.(meta.id, 'Done');
       } catch (err) {
-        const message = (err as Error).message || 'Upload failed';
+        const message = apiErrorMessage(err, 'Upload failed');
         const offlineLikely = isOfflineLikely(err);
         await patchOutbox(meta.id, { status: 'failed', error: message });
         onItem?.(

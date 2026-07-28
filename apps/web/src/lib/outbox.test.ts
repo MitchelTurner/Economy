@@ -40,4 +40,16 @@ describe('outbox', () => {
     await removeOutbox('a1');
     expect(await listOutbox()).toHaveLength(0);
   });
+
+  it('retries stuck uploading items', async () => {
+    await enqueueOutbox({
+      id: 'stuck',
+      hash: 'h2',
+      blob: new Blob(['y'], { type: 'image/jpeg' }),
+    });
+    await patchOutbox('stuck', { status: 'uploading' });
+    const pending = await pendingOutbox();
+    expect(pending.map((m) => m.id)).toEqual(['stuck']);
+    expect(pending[0]?.status).toBe('uploading');
+  });
 });

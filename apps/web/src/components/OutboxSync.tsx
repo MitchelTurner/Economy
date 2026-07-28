@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listOutbox } from '../lib/outbox';
 import { flushPendingOutbox } from '../lib/outbox-sync';
+import { toast } from '../lib/toast';
 
 /** Shell-level online listener + pending outbox badge. */
 export function OutboxSync() {
@@ -14,8 +15,26 @@ export function OutboxSync() {
 
   useEffect(() => {
     void refreshCount();
+    const flushQuiet = async (announce: boolean) => {
+      const result = await flushPendingOutbox();
+      if (announce) {
+        if (result.reviewIds.length > 0) {
+          toast(
+            result.reviewIds.length === 1
+              ? 'Queued receipt synced'
+              : `Synced ${result.reviewIds.length} queued receipts`,
+            'ok',
+          );
+        }
+        const hardFails = result.failures.filter((f) => !f.offlineLikely);
+        if (hardFails.length > 0) {
+          toast(hardFails[0]!.message || 'Some receipts failed to sync', 'danger');
+        }
+      }
+      await refreshCount();
+    };
     const onOnline = () => {
-      void flushPendingOutbox().finally(() => void refreshCount());
+      void flushQuiet(true);
     };
     const onFocus = () => {
       void refreshCount();
@@ -23,7 +42,7 @@ export function OutboxSync() {
     window.addEventListener('online', onOnline);
     window.addEventListener('focus', onFocus);
     if (navigator.onLine) {
-      void flushPendingOutbox().finally(() => void refreshCount());
+      void flushQuiet(false);
     }
     const t = window.setInterval(() => void refreshCount(), 15_000);
     return () => {
