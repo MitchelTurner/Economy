@@ -1,7 +1,14 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { AnalyticsService } from './analytics.service';
+import { parseSpendQuery } from './analytics.helpers';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
@@ -11,11 +18,17 @@ export class AnalyticsController {
   @Get('spend')
   spend(
     @CurrentUser() user: AuthUser,
-    @Query('groupBy') groupBy?: 'category' | 'store' | 'month',
+    @Query('groupBy') groupBy?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.analytics.spend(user, { groupBy, from, to });
+    let parsed: ReturnType<typeof parseSpendQuery>;
+    try {
+      parsed = parseSpendQuery({ groupBy, from, to });
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    return this.analytics.spend(user, parsed);
   }
 
   @Get('habits')

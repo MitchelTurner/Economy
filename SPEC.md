@@ -502,6 +502,9 @@ Receipts text/total search + cursor load-more, dashboard loading/errors + week/m
 **Phase 15 — invite security + capture outbox harden**
 Invite accept verifies existing passwords (never overwrites), peek `accountExists`, inviteUrl-only Settings + clipboard copy, outbox retries stuck `uploading`, Capture discard/retry toasts, shell online flush feedback.
 
+**Phase 16 — analytics habits + spend views**
+Habits cadence (`tripsPerWeek` / window), validated spend `groupBy`, unit-tested bucketing helpers, dashboard store mix + recurring items, Category/Store/Month spend chart toggle.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -595,6 +598,11 @@ Phase 15 is done when:
 - Accepting an invite for an existing email verifies the current password and does not change `passwordHash`; new users still set a password (≥8).
 - Peek returns `accountExists`; Invite UI labels current vs new password; Settings uses `inviteUrl` (no raw token) with copy for new + pending invites.
 - `pendingOutbox` retries `uploading` items; Capture can Discard queue items and surfaces sync toasts; shell online flush announces success/hard failure.
+
+Phase 16 is done when:
+- `GET /analytics/habits` includes `windowDays` + `tripsPerWeek` cadence over the lookback window.
+- Spend query rejects invalid `groupBy`/`from`/`to`; helpers cover category/store/month bucketing in unit tests.
+- Dashboard habits show cadence, store mix, recurring items, and avg lines; spend chart toggles Category / Store / Month (month uses a multi-month range).
 
 ## 13. Testing
 

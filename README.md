@@ -69,6 +69,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 15:** invite accept verifies existing passwords, inviteUrl copy in Settings, outbox retries stuck uploads + Capture discard, shell sync toasts.
 
+**Phase 16:** habits cadence + store mix/recurring on Home, spend Category/Store/Month toggle, analytics helpers tests + query validation.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

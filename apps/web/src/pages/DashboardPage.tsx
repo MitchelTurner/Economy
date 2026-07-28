@@ -45,8 +45,13 @@ type Habits = {
   tripCount: number;
   avgBasketCents: number;
   avgLinesPerTrip: number;
+  windowDays?: number;
+  tripsPerWeek?: number;
   storeMix: Array<{ name: string; count: number }>;
+  recurringItems?: Array<{ rawText: string; count: number }>;
 };
+
+type SpendGroupBy = 'category' | 'store' | 'month';
 
 type IndexPoint = {
   periodStart: string;
@@ -60,6 +65,9 @@ type ReceiptSummary = { id: string; status: string };
 export function DashboardPage() {
   const [monthSpend, setMonthSpend] = useState<SpendResponse | null>(null);
   const [weekSpend, setWeekSpend] = useState<SpendResponse | null>(null);
+  const [chartSpend, setChartSpend] = useState<SpendResponse | null>(null);
+  const [spendGroupBy, setSpendGroupBy] = useState<SpendGroupBy>('category');
+  const [chartLoading, setChartLoading] = useState(false);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [behavior, setBehavior] = useState<Behavior | null>(null);
@@ -90,6 +98,7 @@ export function DashboardPage() {
       .then(([month, week, insightRows, budgetRows]) => {
         setMonthSpend(month);
         setWeekSpend(week);
+        setChartSpend(month);
         setInsights(insightRows.slice(0, 3));
         setBudgets(budgetRows);
       })
@@ -110,6 +119,24 @@ export function DashboardPage() {
       .then((r) => setFailedCount(r.items.length))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const monthFrom = startOfMonthIso();
+    const monthTo = endOfMonthIso();
+    const rangeFrom =
+      spendGroupBy === 'month' ? monthsAgoIso(5) : monthFrom;
+    const rangeTo = monthTo;
+    setChartLoading(true);
+    void api<SpendResponse>(
+      `/analytics/spend?groupBy=${spendGroupBy}&from=${encodeURIComponent(rangeFrom)}&to=${encodeURIComponent(rangeTo)}`,
+    )
+      .then(setChartSpend)
+      .catch((err) => {
+        toast(apiErrorMessage(err, 'Could not load spend chart'), 'danger');
+      })
+      .finally(() => setChartLoading(false));
+  }, [spendGroupBy, loading]);
 
   const spend = monthSpend;
   const groceryBudget =
@@ -232,12 +259,49 @@ export function DashboardPage() {
       )}
 
       {habits && habits.tripCount > 0 && (
-        <section>
-          <h2 className="text-2xl font-semibold">Shopping habits</h2>
-          <p className="mt-1 text-sm text-[var(--ink-muted)]">
-            {habits.tripCount} trips · avg basket {formatCents(habits.avgBasketCents)}
-            {topStore ? ` · most often ${topStore.name}` : ''}
-          </p>
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-2xl font-semibold">Shopping habits</h2>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              Last {habits.windowDays ?? 90} days · {habits.tripCount} trips ·{' '}
+              {habits.tripsPerWeek != null ? `${habits.tripsPerWeek}/week` : '—'} · avg
+              basket {formatCents(habits.avgBasketCents)} · avg{' '}
+              {habits.avgLinesPerTrip} lines
+              {topStore ? ` · most often ${topStore.name}` : ''}
+            </p>
+          </div>
+          {habits.storeMix.length > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                Store mix
+              </p>
+              <ul className="mt-1 flex flex-wrap gap-2 text-sm">
+                {habits.storeMix.slice(0, 5).map((s) => (
+                  <li key={s.name}>
+                    <span className="font-semibold">{s.name}</span>
+                    <span className="text-[var(--ink-muted)]"> · {s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {habits.recurringItems && habits.recurringItems.length > 0 && (
+            <div>
+              <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                Recurring items
+              </p>
+              <ul className="mt-1 space-y-1 text-sm">
+                {habits.recurringItems.slice(0, 5).map((item) => (
+                  <li key={item.rawText} className="flex justify-between gap-3">
+                    <span className="truncate">{item.rawText}</span>
+                    <span className="shrink-0 tabular-nums text-[var(--ink-muted)]">
+                      ×{item.count}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -271,18 +335,50 @@ export function DashboardPage() {
       )}
 
       <section>
-        <div className="mb-3 flex items-end justify-between">
-          <h2 className="text-2xl font-semibold">By category</h2>
-          <Link to="/receipts" className="text-sm font-semibold text-[var(--brand-soft)]">
-            All receipts
-          </Link>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <h2 className="text-2xl font-semibold">
+            Spend by {spendGroupBy === 'category' ? 'category' : spendGroupBy === 'store' ? 'store' : 'month'}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              className="flex rounded-md border border-[var(--line)] text-sm"
+              role="group"
+              aria-label="Spend grouping"
+            >
+              {(
+                [
+                  ['category', 'Category'],
+                  ['store', 'Store'],
+                  ['month', 'Month'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={spendGroupBy === value}
+                  onClick={() => setSpendGroupBy(value)}
+                  className={[
+                    'px-3 py-1.5 font-semibold',
+                    spendGroupBy === value
+                      ? 'bg-[var(--brand)] text-white'
+                      : 'text-[var(--ink-muted)]',
+                  ].join(' ')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Link to="/receipts" className="text-sm font-semibold text-[var(--brand-soft)]">
+              All receipts
+            </Link>
+          </div>
         </div>
-        {loading ? (
+        {loading || chartLoading ? (
           <p className="text-[var(--ink-muted)]">Loading spend…</p>
-        ) : spend && spend.groups.length > 0 ? (
+        ) : chartSpend && chartSpend.groups.length > 0 ? (
           <div className="h-56 w-full">
             <ResponsiveContainer>
-              <BarChart data={spend.groups.slice(0, 6)}>
+              <BarChart data={chartSpend.groups.slice(0, 6)}>
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                 <YAxis tickFormatter={(v) => `$${v / 100}`} width={48} tick={{ fontSize: 12 }} />
                 <Tooltip formatter={(v: number) => formatCents(v)} />
@@ -294,6 +390,9 @@ export function DashboardPage() {
           <p className="text-[var(--ink-muted)]">
             No confirmed receipts yet. Scan one to start the ledger.
           </p>
+        )}
+        {spendGroupBy === 'month' && (
+          <p className="mt-2 text-xs text-[var(--ink-muted)]">Showing the last 6 months.</p>
         )}
       </section>
 
@@ -397,6 +496,13 @@ function insightHref(i: Insight): string {
     default:
       return '/insights';
   }
+}
+
+function monthsAgoIso(monthsBack: number) {
+  const d = new Date();
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - monthsBack, 1, 0, 0, 0, 0),
+  ).toISOString();
 }
 
 function startOfWeekIso() {
