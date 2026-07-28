@@ -20,7 +20,7 @@ async function main() {
   );
 
   const dirs = readdirSync(root, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
+    .filter((d) => d.isDirectory() && !d.name.startsWith('_'))
     .map((d) => d.name)
     .sort();
 

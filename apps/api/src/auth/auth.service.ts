@@ -86,6 +86,21 @@ export class AuthService {
     return this.issueTokens(payload.sub, payload.householdId, payload.email);
   }
 
+  async logout(dto: RefreshDto) {
+    try {
+      const payload = await this.jwt.verifyAsync<{ sub: string; typ?: string }>(
+        dto.refreshToken,
+        { secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET') },
+      );
+      if (payload.typ === 'refresh') {
+        await this.redis.del(this.refreshKey(payload.sub, dto.refreshToken)).catch(() => undefined);
+      }
+    } catch {
+      // Idempotent — already expired tokens are fine
+    }
+    return { ok: true };
+  }
+
   async me(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },

@@ -26,7 +26,7 @@ type AuthCtx = {
     displayName?: string;
     householdName?: string;
   }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -79,7 +79,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadMe();
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const tokens = getTokens();
+    if (tokens?.refreshToken) {
+      try {
+        await api('/auth/logout', {
+          method: 'POST',
+          json: { refreshToken: tokens.refreshToken },
+          auth: false,
+        });
+      } catch {
+        // Local clear still proceeds if revoke fails (offline / expired).
+      }
+    }
     setTokens(null);
     setUser(null);
   };

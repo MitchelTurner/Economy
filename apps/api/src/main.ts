@@ -1,17 +1,29 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ZodValidationPipe } from './common/pipes/zod-validation.pipe';
+import { validateEnv } from './common/env';
 
 async function bootstrap() {
+  const env = validateEnv();
+
   const app = await NestFactory.create(AppModule);
-  app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') ?? true,
-    credentials: true,
-  });
+
+  const origins = env.CORS_ORIGIN?.split(',').map((s) => s.trim()).filter(Boolean);
+  if (env.NODE_ENV === 'production') {
+    app.enableCors({ origin: origins, credentials: true });
+  } else {
+    app.enableCors({
+      origin: origins?.length ? origins : true,
+      credentials: true,
+    });
+  }
+
   app.useGlobalPipes(new ZodValidationPipe());
-  const port = Number(process.env.API_PORT ?? 3000);
-  await app.listen(port);
-  console.log(`Island Ledger API listening on :${port}`);
+  await app.listen(env.API_PORT);
+  console.log(`Island Ledger API listening on :${env.API_PORT}`);
 }
 
-bootstrap();
+bootstrap().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

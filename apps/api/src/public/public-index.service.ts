@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +22,50 @@ export class PublicIndexService {
 
   getMinHouseholds() {
     return this.minHouseholds;
+  }
+
+  /** Staples-basket catalog chips for the public island page (no household data). */
+  async listStaples(basketSlug = 'staples-25') {
+    const basketPath = join(
+      __dirname,
+      '../../../../data/baskets',
+      `${basketSlug}.json`,
+    );
+    let names: string[] = [];
+    try {
+      const basket = JSON.parse(readFileSync(basketPath, 'utf8')) as {
+        items: Array<{ name: string }>;
+      };
+      names = basket.items.map((i) => i.name);
+    } catch {
+      names = [];
+    }
+
+    const products = names.length
+      ? await this.prisma.product.findMany({
+          where: { name: { in: names } },
+          select: {
+            id: true,
+            name: true,
+            sizeValue: true,
+            sizeUom: true,
+            baseUom: true,
+          },
+          orderBy: { name: 'asc' },
+        })
+      : [];
+
+    return {
+      basketSlug,
+      minHouseholds: this.minHouseholds,
+      products: products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        sizeValue: p.sizeValue == null ? null : Number(p.sizeValue),
+        sizeUom: p.sizeUom,
+        baseUom: p.baseUom,
+      })),
+    };
   }
 
   async index(region: string, basketSlug = 'staples-25') {

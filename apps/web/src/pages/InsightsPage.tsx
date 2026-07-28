@@ -30,6 +30,7 @@ export function InsightsPage() {
   const [items, setItems] = useState<Insight[]>([]);
   const [digest, setDigest] = useState<Digest | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
     setItems(await api<Insight[]>('/insights?active=true'));
@@ -37,7 +38,12 @@ export function InsightsPage() {
   }
 
   useEffect(() => {
-    void load();
+    void load()
+      .catch(() => {
+        setItems([]);
+        setDigest(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   async function dismiss(id: string) {
@@ -74,7 +80,9 @@ export function InsightsPage() {
         </button>
       </div>
 
-      {digest && (
+      {loading && <p className="text-[var(--ink-muted)]">Loading insights…</p>}
+
+      {!loading && digest && (
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
           <p className="text-sm uppercase tracking-wide text-[var(--ink-muted)]">
             Weekly digest
@@ -86,50 +94,52 @@ export function InsightsPage() {
         </section>
       )}
 
-      <ul className="space-y-4">
-        {items.map((i) => (
-          <li
-            key={i.id}
-            className="border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                  {i.severity} · {i.type.replace(/_/g, ' ')}
-                </p>
-                <p className="mt-1 font-semibold">{i.title}</p>
-                <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
-                {i.estimatedSavingsCents != null && (
-                  <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
-                    ~{formatCents(i.estimatedSavingsCents)} at stake
+      {!loading && (
+        <ul className="space-y-4">
+          {items.map((i) => (
+            <li
+              key={i.id}
+              className="border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                    {i.severity} · {i.type.replace(/_/g, ' ')}
                   </p>
-                )}
-                <EvidenceChart data={i.data} type={i.type} />
+                  <p className="mt-1 font-semibold">{i.title}</p>
+                  <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+                  {i.estimatedSavingsCents != null && (
+                    <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
+                      ~{formatCents(i.estimatedSavingsCents)} at stake
+                    </p>
+                  )}
+                  <EvidenceChart data={i.data} type={i.type} />
+                </div>
+                <button
+                  type="button"
+                  className="text-sm font-semibold text-[var(--ink-muted)]"
+                  onClick={() => void dismiss(i.id)}
+                >
+                  Dismiss
+                </button>
               </div>
+            </li>
+          ))}
+          {items.length === 0 && (
+            <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
+              No active insights yet. Confirm a few receipts, then hit Generate — or open the{' '}
               <button
                 type="button"
-                className="text-sm font-semibold text-[var(--ink-muted)]"
-                onClick={() => void dismiss(i.id)}
+                className="font-semibold text-[var(--brand-soft)]"
+                onClick={() => void regenerate()}
               >
-                Dismiss
-              </button>
-            </div>
-          </li>
-        ))}
-        {items.length === 0 && (
-          <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
-            No active insights yet. Confirm a few receipts, then hit Generate — or open the{' '}
-            <button
-              type="button"
-              className="font-semibold text-[var(--brand-soft)]"
-              onClick={() => void regenerate()}
-            >
-              weekly digest
-            </button>{' '}
-            after seed data is loaded.
-          </li>
-        )}
-      </ul>
+                weekly digest
+              </button>{' '}
+              after seed data is loaded.
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

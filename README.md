@@ -53,8 +53,11 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 7:** safe receipt delete, auto-rematch on store change, budgets/delivered discoverability, dashboard insight dismiss + deep links, seed rollups/insights, public index polish, household wipe confirm, shell a11y.
 
+**Phase 8:** Docker/Railway deploy pack (`DEPLOY.md`, `docker-compose.prod.yml`), env validation + health ready probe, GitHub CI, logout session revoke, toast/loading polish, public staples/prices on `/island`, eval fixture template.
+
 ### Production notes
 
+- See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy and health probes.
 - Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.
 - Production refuses silent mock unless `ALLOW_MOCK_EXTRACTION=true`.
 - Optional: `RESEND_API_KEY` + `MAIL_FROM` for real email; otherwise mail is logged.

@@ -22,6 +22,11 @@ export class PublicController {
     return this.publicIndex.productPrices(productId, region);
   }
 
+  @Get('staples')
+  staples(@Query('basket') basket = 'staples-25') {
+    return this.publicIndex.listStaples(basket);
+  }
+
   @Get('meta')
   meta() {
     return { minHouseholds: this.publicIndex.getMinHouseholds() };

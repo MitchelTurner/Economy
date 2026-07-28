@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { Shell } from './components/Shell';
+import { ToastHost } from './components/ToastHost';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { CapturePage } from './pages/CapturePage';
@@ -33,6 +34,7 @@ function Protected({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
+      <ToastHost />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/island" element={<PublicIndexPage />} />

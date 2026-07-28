@@ -478,6 +478,9 @@ Store picker/create on review, manual receipt entry UI, FAILED extractions store
 **Phase 7 — v1 shell finish**
 Safe receipt delete (clear linked observations), auto-rematch on store change, budgets/delivered discoverability, dashboard insight dismiss + deep links, seed index rollups + demo insights, public index/login polish, type-to-confirm household wipe, a11y pass on shell/nav.
 
+**Phase 8 — ship readiness**
+Dockerfiles + compose/Railway deploy pack, boot-time env validation, `/health` + `/health/ready`, GitHub CI, logout revokes Redis refresh sessions, toast/loading polish, public staples + product prices on `/island`, eval fixture template scaffolding.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -516,6 +519,13 @@ Phase 7 is done when:
 - Changing store on review auto-rematches and reports matched-count delta.
 - Dashboard can dismiss insights and deep-link by type; budgets and delivered cost are one tap from home.
 - Seed writes index rollups and demo insights so `/prices/index`, `/island`, and Home insights render after `db:seed`.
+
+Phase 8 is done when:
+- Production boot fails fast without `CORS_ORIGIN` and strong distinct JWT secrets; `/health/ready` probes DB + Redis.
+- `docker-compose.prod.yml` + `DEPLOY.md` document API/web/Postgres/Redis/S3 deploy (Railway sketch).
+- CI runs generate → test → build → `eval:extraction` smoke on PRs.
+- Logout calls `POST /auth/logout` and clears the Redis refresh session; `/island` can list staples and gated public product prices.
+- Eval fixture `_template/` exists for expanding the §13 corpus (not the full 30-receipt set yet).
 
 ## 13. Testing
 

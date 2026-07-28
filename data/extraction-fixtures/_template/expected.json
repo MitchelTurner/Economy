@@ -1,0 +1,23 @@
+{
+  "store": { "name": "Store Name", "address": "123 Example St" },
+  "purchasedAt": "2026-01-15T18:30:00.000Z",
+  "paymentMethod": "VISA",
+  "currency": "USD",
+  "subtotalCents": 0,
+  "taxCents": 0,
+  "totalCents": 0,
+  "confidence": 1,
+  "lines": [
+    {
+      "lineNumber": 1,
+      "rawText": "EXAMPLE ITEM RAW TEXT AS PRINTED",
+      "quantity": 1,
+      "unitPriceCents": 0,
+      "extendedCents": 0,
+      "discountCents": 0,
+      "isTaxable": false,
+      "isRefund": false,
+      "guessedCategory": "pantry"
+    }
+  ]
+}

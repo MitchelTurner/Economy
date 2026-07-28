@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: island
+          POSTGRES_PASSWORD: island
+          POSTGRES_DB: island_ledger
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U island -d island_ledger"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://island:island@localhost:5432/island_ledger
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-access-secret-change-me
+      JWT_REFRESH_SECRET: ci-refresh-secret-change-me
+      EXTRACTION_PROVIDER: mock
+      ALLOW_MOCK_EXTRACTION: 'true'
+      NODE_ENV: test
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: island-ledger-receipts
+      S3_ACCESS_KEY_ID: minioadmin
+      S3_SECRET_ACCESS_KEY: minioadmin
+      S3_FORCE_PATH_STYLE: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Prisma generate + migrate
+        run: |
+          npm run db:generate
+          npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Extraction eval smoke
+        run: npm run eval:extraction -w @island-ledger/api

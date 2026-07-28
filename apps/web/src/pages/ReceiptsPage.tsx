@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type ReceiptSummary } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 const STATUS_FILTERS = [
   { value: '', label: 'All' },
@@ -21,6 +22,7 @@ export function ReceiptsPage() {
   const storeId = params.get('storeId') ?? '';
   const [items, setItems] = useState<ReceiptSummary[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     void api<Store[]>('/catalog/stores').then(setStores);
@@ -33,9 +35,14 @@ export function ReceiptsPage() {
     if (from) qs.set('from', new Date(`${from}T00:00:00.000Z`).toISOString());
     if (to) qs.set('to', new Date(`${to}T23:59:59.999Z`).toISOString());
     const q = qs.toString();
-    void api<{ items: ReceiptSummary[] }>(`/receipts${q ? `?${q}` : ''}`).then((r) =>
-      setItems(r.items),
-    );
+    setLoading(true);
+    void api<{ items: ReceiptSummary[] }>(`/receipts${q ? `?${q}` : ''}`)
+      .then((r) => setItems(r.items))
+      .catch(() => {
+        setItems([]);
+        toast('Could not load receipts', 'danger');
+      })
+      .finally(() => setLoading(false));
   }, [status, from, to, storeId]);
 
   function setParam(key: string, value: string) {
@@ -53,8 +60,13 @@ export function ReceiptsPage() {
     ) {
       return;
     }
-    await api(`/receipts/${id}`, { method: 'DELETE' });
-    setItems((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await api(`/receipts/${id}`, { method: 'DELETE' });
+      setItems((prev) => prev.filter((r) => r.id !== id));
+      toast('Receipt deleted', 'ok');
+    } catch {
+      toast('Delete failed', 'danger');
+    }
   }
 
   return (
@@ -124,45 +136,54 @@ export function ReceiptsPage() {
         </label>
       </div>
 
-      <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
-        {items.map((r) => (
-          <li key={r.id} className="flex items-center gap-3 py-3">
-            <Link to={`/receipts/${r.id}`} className="flex min-w-0 flex-1 items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-semibold">{r.store?.name ?? 'Unknown store'}</p>
-                <p className="text-sm text-[var(--ink-muted)]">
-                  {r.purchasedAt
-                    ? new Date(r.purchasedAt).toLocaleDateString()
-                    : 'No date'}{' '}
-                  · {r._count.lines} lines · {r.status}
+      {loading ? (
+        <p className="py-8 text-center text-[var(--ink-muted)]">Loading receipts…</p>
+      ) : (
+        <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
+          {items.map((r) => (
+            <li key={r.id} className="flex items-center gap-3 py-3">
+              <Link
+                to={`/receipts/${r.id}`}
+                className="flex min-w-0 flex-1 items-center justify-between gap-3"
+              >
+                <div className="min-w-0">
+                  <p className="font-semibold">{r.store?.name ?? 'Unknown store'}</p>
+                  <p className="text-sm text-[var(--ink-muted)]">
+                    {r.purchasedAt
+                      ? new Date(r.purchasedAt).toLocaleDateString()
+                      : 'No date'}{' '}
+                    · {r._count.lines} lines · {r.status}
+                  </p>
+                </div>
+                <p className="shrink-0 font-semibold tabular-nums">
+                  {formatCents(r.totalCents)}
                 </p>
-              </div>
-              <p className="shrink-0 font-semibold tabular-nums">{formatCents(r.totalCents)}</p>
-            </Link>
-            <button
-              type="button"
-              className="shrink-0 text-xs font-semibold text-[var(--danger)]"
-              onClick={() => void remove(r.id)}
-            >
-              Delete
-            </button>
-          </li>
-        ))}
-        {items.length === 0 && (
-          <li className="space-y-3 py-8 text-center text-[var(--ink-muted)]">
-            <p>No receipts match these filters.</p>
-            <p>
-              <Link to="/capture" className="font-semibold text-[var(--brand-soft)]">
-                Scan a receipt
               </Link>
-              {' · '}
-              <Link to="/capture/manual" className="font-semibold text-[var(--brand-soft)]">
-                Enter manually
-              </Link>
-            </p>
-          </li>
-        )}
-      </ul>
+              <button
+                type="button"
+                className="shrink-0 text-xs font-semibold text-[var(--danger)]"
+                onClick={() => void remove(r.id)}
+              >
+                Delete
+              </button>
+            </li>
+          ))}
+          {items.length === 0 && (
+            <li className="space-y-3 py-8 text-center text-[var(--ink-muted)]">
+              <p>No receipts match these filters.</p>
+              <p>
+                <Link to="/capture" className="font-semibold text-[var(--brand-soft)]">
+                  Scan a receipt
+                </Link>
+                {' · '}
+                <Link to="/capture/manual" className="font-semibold text-[var(--brand-soft)]">
+                  Enter manually
+                </Link>
+              </p>
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }

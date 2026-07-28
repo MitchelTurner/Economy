@@ -26,20 +26,78 @@ type PublicIndex = {
   }>;
 };
 
+type StapleProduct = {
+  id: string;
+  name: string;
+  sizeValue: number | null;
+  sizeUom: string | null;
+  baseUom: string | null;
+};
+
+type PublicPrices = {
+  productId: string;
+  minHouseholds: number;
+  observations: Array<{
+    storeId: string;
+    storeName: string;
+    region: string;
+    date: string;
+    unitPriceCents: number;
+    households: number;
+  }>;
+};
+
 export function PublicIndexPage() {
   const [region, setRegion] = useState('ketchikan');
   const [data, setData] = useState<PublicIndex | null>(null);
+  const [staples, setStaples] = useState<StapleProduct[]>([]);
+  const [productId, setProductId] = useState('');
+  const [prices, setPrices] = useState<PublicPrices | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [pricesLoading, setPricesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetch(`${API_URL}/public/index?region=${encodeURIComponent(region)}`)
+    setLoading(true);
+    setError(null);
+    void Promise.all([
+      fetch(`${API_URL}/public/index?region=${encodeURIComponent(region)}`).then(
+        async (r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<PublicIndex>;
+        },
+      ),
+      fetch(`${API_URL}/public/staples`).then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<{ products: StapleProduct[] }>;
+      }),
+    ])
+      .then(([index, stapleRes]) => {
+        setData(index);
+        setStaples(stapleRes.products);
+        setProductId((prev) => prev || stapleRes.products[0]?.id || '');
+      })
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setLoading(false));
+  }, [region]);
+
+  useEffect(() => {
+    if (!productId) {
+      setPrices(null);
+      return;
+    }
+    setPricesLoading(true);
+    void fetch(
+      `${API_URL}/public/prices/${encodeURIComponent(productId)}?region=${encodeURIComponent(region)}`,
+    )
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+        return r.json() as Promise<PublicPrices>;
       })
-      .then(setData)
-      .catch((e) => setError((e as Error).message));
-  }, [region]);
+      .then(setPrices)
+      .catch(() => setPrices({ productId, minHouseholds: 3, observations: [] }))
+      .finally(() => setPricesLoading(false));
+  }, [productId, region]);
 
   const chartData =
     data?.points
@@ -49,6 +107,8 @@ export function PublicIndexPage() {
         index: p.indexValue,
         cost: p.basketCostCents / 100,
       })) ?? [];
+
+  const selected = staples.find((p) => p.id === productId);
 
   return (
     <div className="app-shell space-y-6 py-8">
@@ -74,9 +134,10 @@ export function PublicIndexPage() {
         </select>
       </label>
 
+      {loading && <p className="text-[var(--ink-muted)]">Loading index…</p>}
       {error && <p className="text-[var(--danger)]">{error}</p>}
 
-      {data && data.points.length === 0 && (
+      {data && data.points.length === 0 && !loading && (
         <p className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-[var(--ink-muted)]">
           No public points yet for {region}. The gate requires ≥{data.minHouseholds} households
           contributing observations at the same stores on overlapping dates, then a staples
@@ -120,6 +181,67 @@ export function PublicIndexPage() {
           ))}
         </ul>
       )}
+
+      <section className="space-y-3 border-t border-[var(--line)] pt-6">
+        <h2 className="text-xl font-semibold">Public product prices</h2>
+        <p className="text-sm text-[var(--ink-muted)]">
+          Median unit prices by store/day when ≥{data?.minHouseholds ?? 3} households
+          contribute. Household baskets stay private.
+        </p>
+
+        {staples.length === 0 && !loading && (
+          <p className="text-sm text-[var(--ink-muted)]">
+            Staples catalog not seeded yet — run <code>npm run db:seed</code>.
+          </p>
+        )}
+
+        {staples.length > 0 && (
+          <label className="block text-sm">
+            Staple
+            <select
+              className="mt-1 w-full max-w-md rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+            >
+              {staples.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {pricesLoading && <p className="text-sm text-[var(--ink-muted)]">Loading prices…</p>}
+
+        {!pricesLoading && prices && prices.observations.length === 0 && selected && (
+          <p className="text-sm text-[var(--ink-muted)]">
+            No gated public prices for {selected.name} in {region} yet.
+          </p>
+        )}
+
+        {!pricesLoading && prices && prices.observations.length > 0 && (
+          <ul className="space-y-2 text-sm">
+            {prices.observations.slice(0, 24).map((o, i) => (
+              <li
+                key={`${o.storeId}-${o.date}-${i}`}
+                className="flex justify-between gap-3 border-b border-[var(--line)] py-2"
+              >
+                <span>
+                  {o.storeName} · {new Date(o.date).toLocaleDateString()}
+                  <span className="text-[var(--ink-muted)]">
+                    {' '}
+                    · {o.households} households
+                  </span>
+                </span>
+                <span className="shrink-0 tabular-nums font-semibold">
+                  {formatCents(o.unitPriceCents)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <p className="text-sm">
         <Link to="/login" className="font-semibold text-[var(--brand-soft)]">

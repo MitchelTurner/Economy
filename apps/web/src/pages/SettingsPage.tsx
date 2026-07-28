@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../lib/api';
+import { toast } from '../lib/toast';
 
 type Household = {
   id: string;
@@ -63,6 +64,7 @@ export function SettingsPage() {
     a2.click();
     URL.revokeObjectURL(csvUrl);
     setMessage('Export downloaded (JSON + CSV).');
+    toast('Export downloaded', 'ok');
   }
 
   async function hardDelete() {
@@ -210,7 +212,9 @@ export function SettingsPage() {
           </button>
           <button
             type="button"
-            onClick={logout}
+            onClick={() => {
+              void logout().then(() => toast('Signed out', 'ok'));
+            }}
             className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
           >
             Sign out

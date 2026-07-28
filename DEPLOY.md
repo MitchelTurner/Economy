@@ -1,0 +1,69 @@
+# Deploying Island Ledger
+
+SPEC [§3](./SPEC.md) targets **Railway** (or any Node + Postgres + Redis + S3-compatible host). Local infra stays in `docker-compose.yml`; full stack smoke uses `docker-compose.prod.yml`.
+
+## Services
+
+| Service | Role |
+|---|---|
+| **API** (`apps/api`) | NestJS on `:3000`. Runs `prisma migrate deploy` then `node dist/main.js`. |
+| **Web** (`apps/web`) | Vite SPA. Set `VITE_API_URL` at **build** time to the public API origin (or `/api` behind nginx). |
+| **Postgres** | Prisma `DATABASE_URL` |
+| **Redis** | JWT refresh sessions + BullMQ |
+| **S3 / R2 / MinIO** | Receipt images |
+
+Health probes:
+
+- `GET /health` — liveness
+- `GET /health/ready` — Postgres + Redis (use this for deploy readiness)
+
+## Environment (production checklist)
+
+Copy from `.env.example`, then set:
+
+```
+NODE_ENV=production
+DATABASE_URL=...
+REDIS_URL=...
+JWT_SECRET=<long random>
+JWT_REFRESH_SECRET=<different long random>
+CORS_ORIGIN=https://your-web-origin
+S3_ENDPOINT=...
+S3_BUCKET=...
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+EXTRACTION_PROVIDER=anthropic
+ANTHROPIC_API_KEY=...
+ALLOW_MOCK_EXTRACTION=false
+RESEND_API_KEY=...   # optional; else mail logs
+MAIL_FROM=Island Ledger <noreply@yourdomain>
+PUBLIC_MIN_HOUSEHOLDS=3
+```
+
+Boot fails fast if production secrets are weak/missing or `CORS_ORIGIN` is unset.
+
+Web build:
+
+```
+VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
+```
+
+## Railway sketch
+
+1. Provision Postgres + Redis plugins (or external).
+2. Create **API** service from repo root, Dockerfile path `apps/api/Dockerfile`, root directory `.`
+3. Set env vars above; health check path `/health/ready`
+4. Create **Web** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>`
+5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin
+6. After first deploy: `railway run -s api npm run db:seed -w @island-ledger/api` (optional demo data)
+
+## Compose smoke
+
+```bash
+docker compose -f docker-compose.prod.yml up --build
+# Web http://localhost:8080  API http://localhost:3000/health/ready
+```
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) runs generate → test → build → extraction eval smoke on every PR.

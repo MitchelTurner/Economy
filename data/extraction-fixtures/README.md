@@ -18,6 +18,11 @@ npm run eval:extraction -w @island-ledger/api
 Reports per-fixture **line precision / recall** and **total accuracy** (±2¢).
 Use this whenever you change the extraction prompt or model.
 
+## Template
+
+Copy `_template/` to a new id (directories starting with `_` are skipped by the harness).
+See `_template/notes.md` for the labeling checklist. Target corpus (SPEC §13): ~30 real receipts.
+
 ## Adding real receipts
 
 1. Photograph a receipt, preprocess to JPEG ≤1600px.
