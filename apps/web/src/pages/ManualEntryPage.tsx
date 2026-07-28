@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 import { parseDollarsToCents } from '../lib/money';
 
 type DraftLine = { rawText: string; extended: string; quantity: string };
@@ -65,7 +65,7 @@ export function ManualEntryPage() {
       });
       navigate(`/receipts/${res.receiptId}`);
     } catch (err) {
-      setError((err as Error).message || 'Could not create receipt');
+      setError(apiErrorMessage(err, 'Could not create receipt'));
     } finally {
       setBusy(false);
     }

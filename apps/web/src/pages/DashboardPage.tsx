@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { toast } from '../lib/toast';
 import {
   Bar,
   BarChart,
@@ -57,7 +58,8 @@ type IndexPoint = {
 type ReceiptSummary = { id: string; status: string };
 
 export function DashboardPage() {
-  const [spend, setSpend] = useState<SpendResponse | null>(null);
+  const [monthSpend, setMonthSpend] = useState<SpendResponse | null>(null);
+  const [weekSpend, setWeekSpend] = useState<SpendResponse | null>(null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [behavior, setBehavior] = useState<Behavior | null>(null);
@@ -65,11 +67,37 @@ export function DashboardPage() {
   const [indexPoints, setIndexPoints] = useState<IndexPoint[]>([]);
   const [needsReview, setNeedsReview] = useState(0);
   const [failedCount, setFailedCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api<SpendResponse>('/analytics/spend?groupBy=category').then(setSpend);
-    void api<Insight[]>('/insights?active=true').then((rows) => setInsights(rows.slice(0, 3)));
-    void api<Budget[]>('/budgets').then(setBudgets);
+    const weekFrom = startOfWeekIso();
+    const weekTo = endOfPeriodIso(weekFrom, 7);
+    const monthFrom = startOfMonthIso();
+    const monthTo = endOfMonthIso();
+    setLoading(true);
+    setLoadError(null);
+    void Promise.all([
+      api<SpendResponse>(
+        `/analytics/spend?groupBy=category&from=${encodeURIComponent(monthFrom)}&to=${encodeURIComponent(monthTo)}`,
+      ),
+      api<SpendResponse>(
+        `/analytics/spend?groupBy=category&from=${encodeURIComponent(weekFrom)}&to=${encodeURIComponent(weekTo)}`,
+      ),
+      api<Insight[]>('/insights?active=true'),
+      api<Budget[]>('/budgets'),
+    ])
+      .then(([month, week, insightRows, budgetRows]) => {
+        setMonthSpend(month);
+        setWeekSpend(week);
+        setInsights(insightRows.slice(0, 3));
+        setBudgets(budgetRows);
+      })
+      .catch((err) => {
+        setLoadError(apiErrorMessage(err, 'Could not load dashboard'));
+      })
+      .finally(() => setLoading(false));
+
     void api<Behavior>('/insights/behavior').then(setBehavior).catch(() => undefined);
     void api<Habits>('/analytics/habits').then(setHabits).catch(() => undefined);
     void api<IndexPoint[]>('/prices/index?basket=staples-25&region=ketchikan')
@@ -83,14 +111,21 @@ export function DashboardPage() {
       .catch(() => undefined);
   }, []);
 
+  const spend = monthSpend;
   const groceryBudget =
     budgets.find((b) => !b.category && b.period === 'MONTHLY') ??
     budgets.find((b) => b.period === 'MONTHLY') ??
+    budgets.find((b) => !b.category && b.period === 'WEEKLY') ??
+    budgets.find((b) => b.period === 'WEEKLY') ??
     budgets[0];
+  const paceSpend =
+    groceryBudget?.period === 'WEEKLY' ? weekSpend : monthSpend;
   const pacePct =
-    groceryBudget && spend
-      ? Math.min(150, Math.round((spend.totalCents / groceryBudget.amountCents) * 100))
+    groceryBudget && paceSpend
+      ? Math.min(150, Math.round((paceSpend.totalCents / groceryBudget.amountCents) * 100))
       : null;
+  const paceWindow =
+    groceryBudget?.period === 'WEEKLY' ? 'this week' : 'this month';
 
   const regionPoints = indexPoints.filter((p) => !p.storeId);
   const latest = regionPoints[regionPoints.length - 1];
@@ -104,6 +139,11 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {loadError && (
+        <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm">
+          {loadError}
+        </p>
+      )}
       <section className="relative overflow-hidden rounded-3xl border border-[var(--line)] bg-[linear-gradient(135deg,#0c4a3e_0%,#1a6b59_55%,#2d8f6f_100%)] px-5 py-8 text-white shadow-sm">
         <div
           className="pointer-events-none absolute inset-0 opacity-30"
@@ -114,11 +154,14 @@ export function DashboardPage() {
         />
         <div className="relative">
           <p className="text-sm uppercase tracking-[0.18em] text-white/70">This month</p>
-          <p className="brand mt-2 text-5xl font-bold">{formatCents(spend?.totalCents ?? 0)}</p>
+          <p className="brand mt-2 text-5xl font-bold">
+            {loading ? '…' : formatCents(spend?.totalCents ?? 0)}
+          </p>
           {groceryBudget && pacePct != null && (
             <p className="mt-2 text-white/85">
               {pacePct}% of {formatCents(groceryBudget.amountCents)}{' '}
-              {groceryBudget.category?.name ?? 'overall'} budget ·{' '}
+              {groceryBudget.category?.name ?? 'overall'} {groceryBudget.period.toLowerCase()}{' '}
+              budget ({paceWindow}) ·{' '}
               <Link to="/budgets" className="underline decoration-white/40 underline-offset-2">
                 Manage budgets
               </Link>
@@ -234,7 +277,9 @@ export function DashboardPage() {
             All receipts
           </Link>
         </div>
-        {spend && spend.groups.length > 0 ? (
+        {loading ? (
+          <p className="text-[var(--ink-muted)]">Loading spend…</p>
+        ) : spend && spend.groups.length > 0 ? (
           <div className="h-56 w-full">
             <ResponsiveContainer>
               <BarChart data={spend.groups.slice(0, 6)}>
@@ -286,9 +331,14 @@ export function DashboardPage() {
                     type="button"
                     className="shrink-0 text-xs font-semibold text-[var(--ink-muted)]"
                     onClick={() =>
-                      void api(`/insights/${i.id}/dismiss`, { method: 'POST' }).then(() =>
-                        setInsights((prev) => prev.filter((x) => x.id !== i.id)),
-                      )
+                      void api(`/insights/${i.id}/dismiss`, { method: 'POST' })
+                        .then(() => {
+                          setInsights((prev) => prev.filter((x) => x.id !== i.id));
+                          toast('Insight dismissed', 'ok');
+                        })
+                        .catch((err) =>
+                          toast(apiErrorMessage(err, 'Dismiss failed'), 'danger'),
+                        )
                     }
                   >
                     Dismiss
@@ -347,4 +397,33 @@ function insightHref(i: Insight): string {
     default:
       return '/insights';
   }
+}
+
+function startOfWeekIso() {
+  const d = new Date();
+  const day = d.getUTCDay();
+  const diff = (day + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function startOfMonthIso() {
+  return new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1, 0, 0, 0, 0),
+  ).toISOString();
+}
+
+function endOfMonthIso() {
+  const d = new Date();
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+  ).toISOString();
+}
+
+function endOfPeriodIso(startIso: string, days: number) {
+  const d = new Date(startIso);
+  d.setUTCDate(d.getUTCDate() + days - 1);
+  d.setUTCHours(23, 59, 59, 999);
+  return d.toISOString();
 }

@@ -376,18 +376,37 @@ export class CatalogService {
     const source = receipt.lines.find((l) => l.id === lineId);
     if (!source) throw new NotFoundException('Line not found');
 
-    const token = normalizeRawText(source.rawText).split(' ')[0] ?? '';
+    const sourceTokens = significantTokens(source.rawText);
     let updated = 0;
     for (const line of receipt.lines) {
-      const norm = normalizeRawText(line.rawText);
-      if (token && norm.includes(token)) {
-        await this.prisma.receiptLine.update({
-          where: { id: line.id },
-          data: { categoryId },
-        });
-        updated += 1;
-      }
+      if (!linesShareCategoryHint(sourceTokens, line.rawText)) continue;
+      await this.prisma.receiptLine.update({
+        where: { id: line.id },
+        data: { categoryId },
+      });
+      updated += 1;
     }
     return { updated };
   }
+}
+
+/** Tokens ≥3 chars used to decide "similar" lines for bulk category apply. */
+export function significantTokens(raw: string): string[] {
+  return normalizeRawText(raw)
+    .split(' ')
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+}
+
+/** Match when lines share the first significant token, or ≥2 overlapping tokens. */
+export function linesShareCategoryHint(
+  sourceTokens: string[],
+  otherRaw: string,
+): boolean {
+  if (!sourceTokens.length) return false;
+  const other = significantTokens(otherRaw);
+  if (!other.length) return false;
+  if (sourceTokens[0] === other[0]) return true;
+  const overlap = sourceTokens.filter((t) => other.includes(t)).length;
+  return overlap >= 2;
 }

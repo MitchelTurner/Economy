@@ -4,6 +4,9 @@ type Tokens = { accessToken: string; refreshToken: string };
 
 const TOKEN_KEY = 'island.tokens';
 
+/** Single-flight refresh so concurrent 401s share one rotation. */
+let refreshInFlight: Promise<string | null> | null = null;
+
 export function getTokens(): Tokens | null {
   const raw = localStorage.getItem(TOKEN_KEY);
   if (!raw) return null;
@@ -20,20 +23,42 @@ export function setTokens(tokens: Tokens | null) {
 }
 
 async function refreshAccess(): Promise<string | null> {
-  const tokens = getTokens();
-  if (!tokens?.refreshToken) return null;
-  const res = await fetch(`${API_URL}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    const tokens = getTokens();
+    if (!tokens?.refreshToken) return null;
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+    });
+    if (!res.ok) {
+      setTokens(null);
+      return null;
+    }
+    const data = (await res.json()) as Tokens;
+    setTokens(data);
+    return data.accessToken;
+  })().finally(() => {
+    refreshInFlight = null;
   });
-  if (!res.ok) {
-    setTokens(null);
-    return null;
+  return refreshInFlight;
+}
+
+/** Prefer Nest/zod `message` from API error bodies over bare `API 401`. */
+export function apiErrorMessage(err: unknown, fallback = 'Request failed'): string {
+  const e = err as {
+    detail?: { message?: string | string[]; error?: string };
+    message?: string;
+  };
+  const m = e?.detail?.message;
+  if (typeof m === 'string' && m.trim()) return m;
+  if (Array.isArray(m) && m[0]) return String(m[0]);
+  if (typeof e?.detail?.error === 'string' && e.detail.error.trim()) {
+    return e.detail.error;
   }
-  const data = (await res.json()) as Tokens;
-  setTokens(data);
-  return data.accessToken;
+  if (e?.message && !/^API \d+/.test(e.message)) return e.message;
+  return fallback;
 }
 
 export async function api<T>(

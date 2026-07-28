@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   api,
+  apiErrorMessage,
   type MatchSuggestion,
   type Product,
   type ReceiptDetail,
@@ -123,9 +124,8 @@ export function ReceiptReviewPage() {
       toast('Receipt confirmed', 'ok');
       navigate('/receipts');
     } catch (err) {
-      const detail = (err as { detail?: { message?: string } }).detail;
-      setError(detail?.message ?? (err as Error).message);
-      toast('Confirm failed', 'danger');
+      setError(apiErrorMessage(err, 'Confirm failed'));
+      toast(apiErrorMessage(err, 'Confirm failed'), 'danger');
     } finally {
       setBusy(false);
     }
@@ -135,21 +135,32 @@ export function ReceiptReviewPage() {
     if (!id) return;
     setError(null);
     setInfo(null);
-    const res = await api<{ applied: number; reason?: string }>(
-      `/receipts/${id}/same-as-last`,
-      { method: 'POST' },
-    );
-    await reload();
-    if (res.applied > 0) {
-      setInfo(`Applied ${res.applied} product binding${res.applied === 1 ? '' : 's'} from last trip.`);
-      return;
+    setBusy(true);
+    try {
+      const res = await api<{ applied: number; reason?: string }>(
+        `/receipts/${id}/same-as-last`,
+        { method: 'POST' },
+      );
+      await reload();
+      if (res.applied > 0) {
+        const msg = `Applied ${res.applied} product binding${res.applied === 1 ? '' : 's'} from last trip.`;
+        setInfo(msg);
+        toast(msg, 'ok');
+        return;
+      }
+      const reasons: Record<string, string> = {
+        no_store: 'Set a store first, then try again.',
+        no_prior: 'No prior confirmed trip at this store to copy from.',
+        none_matched: 'Prior trip found, but no unmatched lines shared the same printed text.',
+      };
+      const msg = reasons[res.reason ?? ''] ?? 'Nothing to apply.';
+      setError(msg);
+      toast(msg, 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Same-as-last failed'), 'danger');
+    } finally {
+      setBusy(false);
     }
-    const reasons: Record<string, string> = {
-      no_store: 'Set a store first, then try again.',
-      no_prior: 'No prior confirmed trip at this store to copy from.',
-      none_matched: 'Prior trip found, but no unmatched lines shared the same printed text.',
-    };
-    setError(reasons[res.reason ?? ''] ?? 'Nothing to apply.');
   }
 
   if (!receipt) {
@@ -239,11 +250,22 @@ export function ReceiptReviewPage() {
               onSave={(patch) => void saveLine(line, patch)}
               onDelete={() => void deleteLine(line.id)}
               onApplyCategorySimilar={async (categoryId) => {
-                await api(`/receipts/${id}/lines/${line.id}/apply-category-similar`, {
-                  method: 'POST',
-                  json: { categoryId },
-                });
-                await reload();
+                try {
+                  const res = await api<{ updated: number }>(
+                    `/receipts/${id}/lines/${line.id}/apply-category-similar`,
+                    {
+                      method: 'POST',
+                      json: { categoryId },
+                    },
+                  );
+                  await reload();
+                  toast(
+                    `Applied category to ${res.updated} similar line${res.updated === 1 ? '' : 's'}`,
+                    'ok',
+                  );
+                } catch (err) {
+                  toast(apiErrorMessage(err, 'Could not apply category'), 'danger');
+                }
               }}
             />
           ))}

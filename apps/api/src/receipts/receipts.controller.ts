@@ -64,6 +64,7 @@ export class ReceiptsController {
     @Query('to') to?: string,
     @Query('storeId') storeId?: string,
     @Query('status') status?: ReceiptStatus,
+    @Query('q') q?: string,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
   ) {
@@ -72,6 +73,7 @@ export class ReceiptsController {
       to,
       storeId,
       status,
+      q,
       cursor,
       limit: limit ? Number(limit) : undefined,
     });

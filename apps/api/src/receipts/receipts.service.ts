@@ -149,11 +149,14 @@ export class ReceiptsService {
       to?: string;
       storeId?: string;
       status?: ReceiptStatus;
+      q?: string;
       cursor?: string;
       limit?: number;
     },
   ) {
     const limit = query.limit ?? 30;
+    const q = query.q?.trim();
+    const searchOr = buildReceiptSearchOr(q);
     const where: Prisma.ReceiptWhereInput = {
       householdId: user.householdId,
       ...(query.storeId ? { storeId: query.storeId } : {}),
@@ -166,6 +169,7 @@ export class ReceiptsService {
             },
           }
         : {}),
+      ...(searchOr ? { OR: searchOr } : {}),
     };
 
     const items = await this.prisma.receipt.findMany({
@@ -464,4 +468,23 @@ export class ReceiptsService {
     if (!receipt) throw new NotFoundException('Receipt not found');
     return receipt;
   }
+}
+
+/** Build Prisma OR clauses for receipt text/total search (exported for unit tests). */
+export function buildReceiptSearchOr(
+  q: string | undefined,
+): Prisma.ReceiptWhereInput[] | null {
+  const term = q?.trim();
+  if (!term) return null;
+  const clauses: Prisma.ReceiptWhereInput[] = [
+    { store: { name: { contains: term, mode: 'insensitive' } } },
+    { lines: { some: { rawText: { contains: term, mode: 'insensitive' } } } },
+    { paymentMethod: { contains: term, mode: 'insensitive' } },
+  ];
+  const dollars = Number(term.replace(/^\$/, ''));
+  if (Number.isFinite(dollars) && /^\$?\d+(\.\d{1,2})?$/.test(term)) {
+    const cents = Math.round(dollars * 100);
+    clauses.push({ totalCents: cents });
+  }
+  return clauses;
 }

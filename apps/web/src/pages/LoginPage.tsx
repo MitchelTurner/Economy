@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { apiErrorMessage } from '../lib/api';
 
 export function LoginPage() {
   const { user, login, register, loading } = useAuth();
@@ -21,7 +22,7 @@ export function LoginPage() {
       if (mode === 'login') await login(email, password);
       else await register({ email, password, displayName: displayName || undefined });
     } catch (err) {
-      setError((err as Error).message || 'Auth failed');
+      setError(apiErrorMessage(err, mode === 'login' ? 'Sign in failed' : 'Could not create account'));
     } finally {
       setBusy(false);
     }

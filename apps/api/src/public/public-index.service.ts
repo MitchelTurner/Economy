@@ -72,17 +72,22 @@ export class PublicIndexService {
     // Prefer rolled-up points that already exclude household identity;
     // only expose when underlying observation coverage meets contributor threshold.
     const eligibleStoreIds = await this.storesMeetingThreshold(region);
-    const points = await this.prisma.priceIndexPoint.findMany({
-      where: {
-        basketSlug,
-        region,
-        OR: [
-          { storeId: null },
-          { storeId: { in: eligibleStoreIds } },
-        ],
-      },
-      orderBy: { periodStart: 'asc' },
-    });
+    const regionOk = await this.regionMeetingThreshold(region);
+    const or: Array<{ storeId: null } | { storeId: { in: string[] } }> = [];
+    if (regionOk) or.push({ storeId: null });
+    if (eligibleStoreIds.length) or.push({ storeId: { in: eligibleStoreIds } });
+
+    const points =
+      or.length === 0
+        ? []
+        : await this.prisma.priceIndexPoint.findMany({
+            where: {
+              basketSlug,
+              region,
+              OR: or,
+            },
+            orderBy: { periodStart: 'asc' },
+          });
 
     const stores = await this.prisma.store.findMany({
       where: { id: { in: eligibleStoreIds } },
@@ -93,6 +98,7 @@ export class PublicIndexService {
       region,
       basketSlug,
       minHouseholds: this.minHouseholds,
+      regionPublished: regionOk,
       contributorStores: stores,
       points: points.map((p) => ({
         periodStart: p.periodStart,
@@ -159,5 +165,16 @@ export class PublicIndexService {
       HAVING COUNT(DISTINCT o."householdId") >= ${this.minHouseholds}
     `;
     return rows.map((r) => r.store_id);
+  }
+
+  /** Region-level (storeId null) index points require ≥ minHouseholds in the region. */
+  async regionMeetingThreshold(region: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<Array<{ households: bigint }>>`
+      SELECT COUNT(DISTINCT o."householdId") AS households
+      FROM "PriceObservation" o
+      JOIN "Store" s ON s.id = o."storeId"
+      WHERE s.region = ${region}
+    `;
+    return Number(rows[0]?.households ?? 0) >= this.minHouseholds;
   }
 }

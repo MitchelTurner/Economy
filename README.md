@@ -65,6 +65,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 13:** insight restore, password change revokes all sessions, budget week/month windows + duplicate guard, validated `SEED_ON_BOOT` + rollback docs, alert PATCH + a11y/safe-area polish.
 
+**Phase 14:** receipts search + load more, dashboard pace/loading, review bulk toasts, single-flight refresh + logout-all, clearer API errors, public index region privacy gate.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

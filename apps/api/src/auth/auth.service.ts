@@ -107,6 +107,12 @@ export class AuthService {
     return { ok: true };
   }
 
+  /** Revoke every refresh session for the user (Settings → sign out everywhere). */
+  async logoutAll(userId: string) {
+    const sessionsRevoked = await this.revokeAllSessions(userId);
+    return { ok: true, sessionsRevoked };
+  }
+
   async me(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },

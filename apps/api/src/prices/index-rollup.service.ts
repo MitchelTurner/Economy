@@ -52,9 +52,21 @@ export class IndexRollupService {
 
     const storeIds = [...new Set(observations.map((o) => o.storeId))];
     const regions = [...new Set(observations.map((o) => o.store.region))];
+    const minHouseholds = Number(process.env.PUBLIC_MIN_HOUSEHOLDS ?? 3);
+    const householdsByStore = new Map<string, Set<string>>();
+    const householdsByRegion = new Map<string, Set<string>>();
+    for (const o of observations) {
+      if (!householdsByStore.has(o.storeId)) householdsByStore.set(o.storeId, new Set());
+      householdsByStore.get(o.storeId)!.add(o.householdId);
+      if (!householdsByRegion.has(o.store.region)) {
+        householdsByRegion.set(o.store.region, new Set());
+      }
+      householdsByRegion.get(o.store.region)!.add(o.householdId);
+    }
     let points = 0;
 
     for (const storeId of storeIds) {
+      if ((householdsByStore.get(storeId)?.size ?? 0) < minHouseholds) continue;
       const region = observations.find((o) => o.storeId === storeId)?.store.region ?? 'ketchikan';
       const prices: number[] = [];
       for (const pid of productIds) {
@@ -78,6 +90,7 @@ export class IndexRollupService {
     }
 
     for (const region of regions) {
+      if ((householdsByRegion.get(region)?.size ?? 0) < minHouseholds) continue;
       const prices: number[] = [];
       for (const pid of productIds) {
         const o = byRegionProduct.get(`${region}:${pid}`);

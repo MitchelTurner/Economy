@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { api } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 import { toast } from '../lib/toast';
 
 type Household = {
@@ -387,6 +387,29 @@ export function SettingsPage() {
             className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
           >
             Sign out
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (
+                !confirm(
+                  'Sign out every device and browser session for this account?',
+                )
+              ) {
+                return;
+              }
+              void api('/auth/logout-all', { method: 'POST' })
+                .then(async () => {
+                  toast('Signed out everywhere', 'ok');
+                  await logout();
+                })
+                .catch((err) =>
+                  toast(apiErrorMessage(err, 'Could not sign out everywhere'), 'danger'),
+                );
+            }}
+            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
+          >
+            Sign out everywhere
           </button>
           <button
             type="button"

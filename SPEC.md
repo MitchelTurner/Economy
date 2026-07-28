@@ -496,6 +496,9 @@ Alert pause/resume, branded HTML emails + invite URL-only responses, Insights di
 **Phase 13 — v1.1 harden**
 Insight restore, password change revokes all Redis sessions + re-login, password length hints, budgets week/month spend windows + duplicate guard, validated `SEED_ON_BOOT`, compose seed off by default, DEPLOY rollback, alert PATCH fields + a11y, safe-area shell padding.
 
+**Phase 14 — core UX + privacy harden**
+Receipts text/total search + cursor load-more, dashboard loading/errors + week/month budget pace, review bulk-action toasts + better similar-category matching, single-flight token refresh, logout-all, `apiErrorMessage`, public index region gate (≥3 households) + rollup skip under threshold.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -577,6 +580,13 @@ Phase 13 is done when:
 - Budgets pace week vs month spend windows correctly; duplicate household+category+period returns 409.
 - `SEED_ON_BOOT` is zod-validated (`off|reference|demo`); prod compose defaults `off`; `DEPLOY.md` documents rollback.
 - Alert PATCH accepts `active` / `dropPct` / `targetCents`; Pause/Resume and insight filters expose `aria-pressed`; shell respects safe-area insets.
+
+Phase 14 is done when:
+- Receipts list supports `q=` (store / line text / total) and “Load more” via `nextCursor`.
+- Dashboard shows loading (not silent `$0`), surfaces primary load errors, paces weekly budgets against the week window, and dismisses insights with toasts.
+- Same-as-last / apply-category-similar report applied/updated counts via toasts; similar matching uses significant tokens (≥3 chars).
+- Concurrent 401s share one refresh flight; `POST /auth/logout-all` + Settings “Sign out everywhere”; client errors prefer API `message` text.
+- Public region index points require ≥ `PUBLIC_MIN_HOUSEHOLDS` contributors (read + rollup); store points remain contributor-gated.
 
 ## 13. Testing
 

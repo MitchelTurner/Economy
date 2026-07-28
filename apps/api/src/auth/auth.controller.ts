@@ -56,6 +56,12 @@ export class AuthController {
     return this.auth.logout(dto);
   }
 
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  logoutAll(@CurrentUser() user: AuthUser) {
+    return this.auth.logoutAll(user.userId);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthUser) {
