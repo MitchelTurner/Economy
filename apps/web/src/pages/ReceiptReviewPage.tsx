@@ -41,6 +41,15 @@ export function ReceiptReviewPage() {
     void reload().catch((e) => setError((e as Error).message));
   }, [id]);
 
+  useEffect(() => {
+    if (!id || !receipt) return;
+    if (receipt.status !== 'UPLOADED' && receipt.status !== 'EXTRACTING') return;
+    const t = window.setInterval(() => {
+      void reload().catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(t);
+  }, [id, receipt?.status]);
+
   const suspect = useMemo(
     () => new Set(receipt?.suspectLineNumbers ?? []),
     [receipt?.suspectLineNumbers],
@@ -194,7 +203,7 @@ export function ReceiptReviewPage() {
     setBusy(true);
     try {
       await api(`/receipts/${id}/reextract`, { method: 'POST' });
-      const msg = 'Extraction queued — refresh in a moment.';
+      const msg = 'Extraction queued — watching for results…';
       setInfo(msg);
       toast(msg, 'ok');
       await reload();
@@ -212,6 +221,14 @@ export function ReceiptReviewPage() {
   const delta = receipt.totalDeltaCents;
   const reconciled = delta == null ? false : Math.abs(delta) <= 2;
   const unmatched = receipt.unmatchedCount ?? receipt.lines.filter((l) => !l.productId).length;
+  const staleExtracting =
+    receipt.status === 'EXTRACTING' &&
+    !!receipt.updatedAt &&
+    Date.now() - new Date(receipt.updatedAt).getTime() >= 5 * 60 * 1000;
+  const canRetryExtract =
+    receipt.status === 'FAILED' ||
+    receipt.status === 'UPLOADED' ||
+    staleExtracting;
 
   return (
     <div className="space-y-5">
@@ -255,7 +272,7 @@ export function ReceiptReviewPage() {
         >
           Re-run matching
         </button>
-        {(receipt.status === 'FAILED' || receipt.status === 'UPLOADED') && (
+        {canRetryExtract && (
           <button
             type="button"
             disabled={busy}

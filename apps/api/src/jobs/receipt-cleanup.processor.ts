@@ -1,13 +1,15 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
+import { ReceiptStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { STALE_EXTRACTING_MS } from '../receipts/receipts.service';
 import { QUEUE_RECEIPT_CLEANUP } from './queues';
 
 /**
  * SPEC §5: purge failed uploads with no receipt row.
- * Lists object keys under receipts/ and deletes those not referenced by Receipt.imageKey.
+ * Also fail-closed aged EXTRACTING receipts stuck after worker crashes.
  */
 @Processor(QUEUE_RECEIPT_CLEANUP)
 export class ReceiptCleanupProcessor extends WorkerHost {
@@ -21,7 +23,9 @@ export class ReceiptCleanupProcessor extends WorkerHost {
   }
 
   async process(_job: Job) {
-    return this.purgeOrphanUploads();
+    const orphans = await this.purgeOrphanUploads();
+    const stuck = await this.failStaleExtracting();
+    return { ...orphans, ...stuck };
   }
 
   async purgeOrphanUploads() {
@@ -45,5 +49,23 @@ export class ReceiptCleanupProcessor extends WorkerHost {
       `Orphan upload cleanup: scanned=${keys.length} orphans=${orphans.length} deleted=${orphans.length}`,
     );
     return { scanned: keys.length, orphans: orphans.length, deleted: orphans.length };
+  }
+
+  async failStaleExtracting(now = Date.now()) {
+    const cutoff = new Date(now - STALE_EXTRACTING_MS);
+    const result = await this.prisma.receipt.updateMany({
+      where: {
+        status: ReceiptStatus.EXTRACTING,
+        updatedAt: { lt: cutoff },
+      },
+      data: {
+        status: ReceiptStatus.FAILED,
+        failureReason: `Extraction stalled (no progress for ${Math.round(STALE_EXTRACTING_MS / 60_000)}+ minutes)`,
+      },
+    });
+    if (result.count > 0) {
+      this.logger.warn(`Marked ${result.count} stale EXTRACTING receipt(s) as FAILED`);
+    }
+    return { staleExtractingFailed: result.count };
   }
 }

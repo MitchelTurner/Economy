@@ -103,7 +103,7 @@ Counters use Redis (`ratelimit:*` keys) so multi-replica Railway deploys share l
 | Env | Default | Applies to |
 |---|---|---|
 | `RATE_LIMIT_AUTH` | 30 / min / IP (user id for change-password) | `POST /auth/login\|register\|refresh\|change-password` |
-| `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | `POST /receipts/upload-url` |
+| `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | `POST /receipts/upload-url`, `POST /receipts/:id/reextract` |
 | `RATE_LIMIT_PUBLIC` | 120 / min / IP | `GET /public/*` |
 | `RATE_LIMIT_INVITE` | 30 / min / IP (+ household for create) | `POST /household/invites`, `GET …/peek`, `POST …/accept` |
 | `RATE_LIMIT_HOUSEHOLD` | 20 / min / user+household | `GET /household/export`, `DELETE /household`, `POST /household/transfer` |
@@ -117,7 +117,7 @@ Registered at API boot (`SchedulersService`):
 |---|---|---|
 | `price.index` nightly | `0 8 * * *` | Staples index rollup for all regions |
 | `insights.generate` weekly | `0 14 * * 0` | Fan-out per household with `sendDigest: true` |
-| `receipt.cleanup` daily | `0 3 * * *` | Delete orphan `receipts/*` object keys with no receipt row |
+| `receipt.cleanup` daily | `0 3 * * *` | Delete orphan `receipts/*` keys; mark `EXTRACTING` older than 5m as `FAILED` |
 
 Manual index rollup: `POST /prices/index/rollup` (household **owner** JWT only).
 

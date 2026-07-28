@@ -14,6 +14,18 @@ export class ExtractionProcessor extends WorkerHost {
 
   async process(job: Job<{ receiptId: string }>) {
     this.logger.log(`Extracting receipt ${job.data.receiptId}`);
-    await this.extraction.processReceipt(job.data.receiptId);
+    try {
+      await this.extraction.processReceipt(job.data.receiptId);
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'Unknown extraction error';
+      this.logger.error(
+        `Extraction crashed receipt=${job.data.receiptId}: ${reason}`,
+      );
+      await this.extraction.markFailed(
+        job.data.receiptId,
+        `Extraction crashed: ${reason}`,
+      );
+      throw err;
+    }
   }
 }

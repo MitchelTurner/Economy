@@ -149,6 +149,7 @@ model Receipt {
 
   lines           ReceiptLine[]
   createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@unique([householdId, imageHash])
   @@index([householdId, purchasedAt])

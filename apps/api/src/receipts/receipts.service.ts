@@ -27,6 +27,19 @@ import {
   UploadUrlDto,
 } from './receipts.dto';
 
+/** How long EXTRACTING may sit before cleanup/reextract treat it as stuck. */
+export const STALE_EXTRACTING_MS = 5 * 60 * 1000;
+
+export function isStaleExtracting(
+  receipt: { status: ReceiptStatus; updatedAt: Date },
+  now = Date.now(),
+): boolean {
+  return (
+    receipt.status === ReceiptStatus.EXTRACTING &&
+    now - receipt.updatedAt.getTime() >= STALE_EXTRACTING_MS
+  );
+}
+
 @Injectable()
 export class ReceiptsService {
   constructor(
@@ -388,7 +401,7 @@ export class ReceiptsService {
     return this.catalog.matchReceipt(receiptId);
   }
 
-  /** Re-queue vision extraction for FAILED or stuck UPLOADED photo receipts. */
+  /** Re-queue vision extraction for FAILED, UPLOADED, or stale EXTRACTING photo receipts. */
   async reextract(user: AuthUser, receiptId: string) {
     const receipt = await this.requireOwned(user, receiptId);
     if (receipt.imageKey.startsWith('manual/')) {
@@ -396,10 +409,13 @@ export class ReceiptsService {
     }
     const retryable =
       receipt.status === ReceiptStatus.FAILED ||
-      receipt.status === ReceiptStatus.UPLOADED;
+      receipt.status === ReceiptStatus.UPLOADED ||
+      isStaleExtracting(receipt);
     if (!retryable) {
       throw new BadRequestException(
-        `Only FAILED or UPLOADED receipts can be re-extracted (got ${receipt.status})`,
+        receipt.status === ReceiptStatus.EXTRACTING
+          ? 'Extraction is still in progress — retry after a few minutes if it stays stuck'
+          : `Only FAILED, UPLOADED, or stale EXTRACTING receipts can be re-extracted (got ${receipt.status})`,
       );
     }
 

@@ -144,6 +144,7 @@ export type ReceiptSummary = {
   status: string;
   totalCents: number | null;
   purchasedAt: string | null;
+  updatedAt?: string;
   store: { id: string; name: string } | null;
   _count: { lines: number };
 };
@@ -180,6 +181,7 @@ export type ReceiptDetail = {
   imageUrl?: string | null;
   signedImageUrl?: string | null;
   purchasedAt: string | null;
+  updatedAt?: string;
   subtotalCents: number | null;
   taxCents: number | null;
   totalCents: number | null;

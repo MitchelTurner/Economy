@@ -153,7 +153,16 @@ export class ReceiptsController {
   }
 
   @Post(':id/reextract')
-  reextract(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async reextract(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      name: 'receipts:reextract',
+      limit: Number(process.env.RATE_LIMIT_UPLOAD ?? 60),
+      windowMs: 60_000,
+    });
     return this.receipts.reextract(user, id);
   }
 

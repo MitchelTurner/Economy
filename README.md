@@ -79,6 +79,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 20:** household export/wipe/transfer rate limits, wipe session revoke, refresh deleted-user guard, FAILED re-extract + Review retry CTA, Settings busy/error polish.
 
+**Phase 21:** extract fail-closed, stale EXTRACTING reextract + cleanup, reextract rate limit, Review poll, Receipts list Retry.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

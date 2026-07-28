@@ -517,6 +517,9 @@ Owner can transfer ownership to a member (`POST /household/transfer`); Settings 
 **Phase 20 — privacy wipe/export harden + FAILED re-extract**
 Rate-limit export/wipe/transfer (`RATE_LIMIT_HOUSEHOLD`); wipe revokes all member sessions; refresh rejects deleted users; `POST /receipts/:id/reextract` for FAILED/UPLOADED; Settings 429 messaging + busy states; Review retry CTA.
 
+**Phase 21 — stuck extraction recovery + reextract harden**
+Extract processor fail-closed on crashes; reextract allows stale `EXTRACTING` (≥5m) and is rate-limited; daily cleanup flips aged `EXTRACTING` → `FAILED`; Review auto-polls while extracting; Receipts list Retry CTA.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -635,6 +638,11 @@ Phase 20 is done when:
 - `GET /household/export`, `DELETE /household`, and `POST /household/transfer` enforce `RATE_LIMIT_HOUSEHOLD`; wipe revokes Redis sessions for every household member before delete.
 - `POST /auth/refresh` rejects tokens for deleted users (clears the Redis key).
 - `POST /receipts/:id/reextract` requeues FAILED/UPLOADED photo receipts (not manual/confirmed); Review shows Retry extraction; Settings change-password/export/wipe use `apiErrorMessage` + busy/`aria-busy`.
+
+Phase 21 is done when:
+- Extract processor marks receipts `FAILED` on uncaught crashes; `Receipt.updatedAt` supports stale detection.
+- Reextract allows stale `EXTRACTING` (≥5m), rejects fresh in-flight, and uses `RATE_LIMIT_UPLOAD`; cleanup fails aged `EXTRACTING`.
+- Review polls while `UPLOADED`/`EXTRACTING`; Receipts list exposes Retry for failed/stale rows.
 
 ## 13. Testing
 

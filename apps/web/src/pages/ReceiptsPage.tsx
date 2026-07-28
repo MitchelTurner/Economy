@@ -112,6 +112,26 @@ export function ReceiptsPage() {
     }
   }
 
+  async function retryExtract(id: string) {
+    try {
+      await api(`/receipts/${id}/reextract`, { method: 'POST' });
+      setItems((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'UPLOADED' } : r)),
+      );
+      toast('Extraction queued', 'ok');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not retry extraction'), 'danger');
+    }
+  }
+
+  function canRetry(r: ReceiptSummary) {
+    if (r.status === 'FAILED' || r.status === 'UPLOADED') return true;
+    if (r.status === 'EXTRACTING' && r.updatedAt) {
+      return Date.now() - new Date(r.updatedAt).getTime() >= 5 * 60 * 1000;
+    }
+    return false;
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-end justify-between gap-3">
@@ -224,6 +244,15 @@ export function ReceiptsPage() {
                     {formatCents(r.totalCents)}
                   </p>
                 </Link>
+                {canRetry(r) ? (
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs font-semibold text-[var(--brand-soft)]"
+                    onClick={() => void retryExtract(r.id)}
+                  >
+                    Retry
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="shrink-0 text-xs font-semibold text-[var(--danger)]"

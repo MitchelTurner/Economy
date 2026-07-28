@@ -275,4 +275,20 @@ export class ExtractionService {
       },
     });
   }
+
+  /** Public for processor fail-closed and cleanup of stuck jobs. */
+  async markFailed(receiptId: string, reason: string) {
+    const receipt = await this.prisma.receipt.findUnique({
+      where: { id: receiptId },
+      select: { id: true, status: true },
+    });
+    if (!receipt) return;
+    if (
+      receipt.status === ReceiptStatus.CONFIRMED ||
+      receipt.status === ReceiptStatus.NEEDS_REVIEW
+    ) {
+      return;
+    }
+    await this.fail(receiptId, reason);
+  }
 }
