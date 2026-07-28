@@ -12,11 +12,13 @@ import {
 } from 'recharts';
 import {
   api,
+  apiErrorMessage,
   type PriceCompareResponse,
   type PriceHistoryResponse,
   type Product,
 } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 type PremiumInfo = {
   premiumPct: number | null;
@@ -35,7 +37,9 @@ export function PricesPage() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      void api<Product[]>(`/catalog/products?q=${encodeURIComponent(q)}`).then(setProducts);
+      void api<Product[]>(`/catalog/products?q=${encodeURIComponent(q)}`)
+        .then(setProducts)
+        .catch((err) => toast(apiErrorMessage(err, 'Could not search products'), 'danger'));
     }, 200);
     return () => clearTimeout(t);
   }, [q]);
@@ -43,12 +47,17 @@ export function PricesPage() {
   async function openProduct(p: Product) {
     setSelected(p);
     setPremium(null);
-    const [rows, prem] = await Promise.all([
-      api<PriceHistoryResponse>(`/prices/product/${p.id}/history`),
-      api<PremiumInfo>(`/prices/premium/${p.id}`).catch(() => null),
-    ]);
-    setHistory(rows);
-    setPremium(prem);
+    try {
+      const [rows, prem] = await Promise.all([
+        api<PriceHistoryResponse>(`/prices/product/${p.id}/history`),
+        api<PremiumInfo>(`/prices/premium/${p.id}`).catch(() => null),
+      ]);
+      setHistory(rows);
+      setPremium(prem);
+    } catch (err) {
+      setHistory(null);
+      toast(apiErrorMessage(err, 'Could not load price history'), 'danger');
+    }
   }
 
   function toggleCompare(id: string) {
@@ -64,7 +73,12 @@ export function PricesPage() {
     }
     void api<PriceCompareResponse>(
       `/prices/compare?productIds=${compareIds.join(',')}`,
-    ).then(setCompare);
+    )
+      .then(setCompare)
+      .catch((err) => {
+        setCompare(null);
+        toast(apiErrorMessage(err, 'Could not compare prices'), 'danger');
+      });
   }, [compareIds]);
 
   const chartData = useMemo(() => {

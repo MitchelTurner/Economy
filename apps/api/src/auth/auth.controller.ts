@@ -58,7 +58,11 @@ export class AuthController {
 
   @Post('logout-all')
   @UseGuards(JwtAuthGuard)
-  logoutAll(@CurrentUser() user: AuthUser) {
+  async logoutAll(@CurrentUser() user: AuthUser) {
+    await consumeRateLimit(user.userId, {
+      ...authLimit(),
+      name: 'auth:logout-all',
+    });
     return this.auth.logoutAll(user.userId);
   }
 
@@ -70,7 +74,11 @@ export class AuthController {
 
   @Patch('me')
   @UseGuards(JwtAuthGuard)
-  updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateMeDto) {
+  async updateMe(@CurrentUser() user: AuthUser, @Body() dto: UpdateMeDto) {
+    await consumeRateLimit(user.userId, {
+      ...authLimit(),
+      name: 'auth:me',
+    });
     return this.auth.updateMe(user.userId, dto);
   }
 

@@ -87,6 +87,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 24:** confirmed reopen/unlock, budgets/alerts/insights/rollup rate limits, Insights/Settings/Review error polish.
 
+**Phase 25:** catalog + review-edit + auth me/logout-all rate limits; Review create toasts; Settings/Manual busy; Prices/Delivered/Index/Public error polish.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

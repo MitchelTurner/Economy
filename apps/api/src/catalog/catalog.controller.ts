@@ -1,8 +1,17 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
+import { consumeRateLimit } from '../common/rate-limit';
 import { CatalogService } from './catalog.service';
 import { CreateAliasDto, CreateProductDto, CreateStoreDto } from './catalog.dto';
+
+function householdLimit() {
+  return {
+    name: 'household',
+    limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+    windowMs: 60_000,
+  };
+}
 
 @Controller('catalog')
 @UseGuards(JwtAuthGuard)
@@ -20,7 +29,14 @@ export class CatalogController {
   }
 
   @Post('stores')
-  createStore(@Body() dto: CreateStoreDto) {
+  async createStore(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateStoreDto,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'catalog:stores',
+    });
     return this.catalog.createStore(dto);
   }
 
@@ -35,12 +51,26 @@ export class CatalogController {
   }
 
   @Post('products')
-  createProduct(@Body() dto: CreateProductDto) {
+  async createProduct(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateProductDto,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'catalog:products',
+    });
     return this.catalog.createProduct(dto);
   }
 
   @Post('aliases')
-  createAlias(@Body() dto: CreateAliasDto) {
+  async createAlias(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateAliasDto,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'catalog:aliases',
+    });
     return this.catalog.createAlias(dto);
   }
 }

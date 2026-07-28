@@ -582,17 +582,22 @@ function HeaderEditor({
 
   async function createStore() {
     if (!newStore.trim()) return;
-    const created = await api<{ id: string; name: string; address: string | null }>(
-      '/catalog/stores',
-      {
-        method: 'POST',
-        json: { name: newStore.trim(), region: 'ketchikan' },
-      },
-    );
-    setStores((s) => [created, ...s.filter((x) => x.id !== created.id)]);
-    setStoreId(created.id);
-    setNewStore('');
-    onSave({ storeId: created.id });
+    try {
+      const created = await api<{ id: string; name: string; address: string | null }>(
+        '/catalog/stores',
+        {
+          method: 'POST',
+          json: { name: newStore.trim(), region: 'ketchikan' },
+        },
+      );
+      setStores((s) => [created, ...s.filter((x) => x.id !== created.id)]);
+      setStoreId(created.id);
+      setNewStore('');
+      onSave({ storeId: created.id });
+      toast('Store created', 'ok');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not create store'), 'danger');
+    }
   }
 
   return (
@@ -740,17 +745,22 @@ function LineEditor({
         : undefined) ??
       categories.find((c) => c.slug === 'other') ??
       categories[0];
-    const created = await api<Product>('/catalog/products', {
-      method: 'POST',
-      json: { name: search.trim(), categoryId: preferred.id },
-    });
-    if (storeId) {
-      await api('/catalog/aliases', {
+    try {
+      const created = await api<Product>('/catalog/products', {
         method: 'POST',
-        json: { rawText: line.rawText, productId: created.id, storeId },
+        json: { name: search.trim(), categoryId: preferred.id },
       });
+      if (storeId) {
+        await api('/catalog/aliases', {
+          method: 'POST',
+          json: { rawText: line.rawText, productId: created.id, storeId },
+        });
+      }
+      await bindProduct(created.id);
+      toast('Product created and bound', 'ok');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not create product'), 'danger');
     }
-    await bindProduct(created.id);
   }
 
   return (

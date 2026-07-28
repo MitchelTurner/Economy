@@ -529,6 +529,9 @@ Lock edits while `UPLOADED`/`EXTRACTING` (reextract still allowed); confirm race
 **Phase 24 — confirmed reopen + remaining mutate rate limits**
 `POST /receipts/:id/reopen` (CONFIRMED → NEEDS_REVIEW, clear observations); rate-limit budgets/alerts CRUD, insights dismiss/restore, index rollup; Review Unlock to edit; Insights/Settings/Review mute errors use `apiErrorMessage`.
 
+**Phase 25 — catalog + review-edit rate limits + price-surface polish**
+Rate-limit catalog creates, review edit mutates, `PATCH /auth/me` + logout-all; Review store/product create toasts; Settings/Manual busy states; Prices/Delivered/Index/Public error polish.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -667,6 +670,11 @@ Phase 24 is done when:
 - `POST /receipts/:id/reopen` flips CONFIRMED → NEEDS_REVIEW, deletes linked observations, rejects non-confirmed, and is rate-limited; Review offers Unlock to edit.
 - Budgets/alerts CRUD, insights dismiss/restore, and owner index rollup use `RATE_LIMIT_HOUSEHOLD`.
 - Insights/Settings email prefs and Review line/header saves surface `apiErrorMessage` (+ Generate `aria-busy`).
+
+Phase 25 is done when:
+- Catalog store/product/alias creates use `RATE_LIMIT_HOUSEHOLD`; receipt patch/line/same-as-last/rematch/apply-category use `RATE_LIMIT_UPLOAD`; `PATCH /auth/me` + logout-all use `RATE_LIMIT_AUTH`.
+- Review store/product create failures toast via `apiErrorMessage`; Settings Save name / Sign out everywhere and Manual submit expose busy/`aria-busy`.
+- Prices, Delivered Cost, Price Index, and Public `/island` surface load/compare failures with clear messages (not bare `HTTP nnn`).
 
 ## 13. Testing
 

@@ -36,6 +36,8 @@ export function SettingsPage() {
   const [exportBusy, setExportBusy] = useState(false);
   const [wipeBusy, setWipeBusy] = useState(false);
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [nameBusy, setNameBusy] = useState(false);
+  const [logoutAllBusy, setLogoutAllBusy] = useState(false);
 
   async function load() {
     const [hh, u] = await Promise.all([
@@ -175,8 +177,11 @@ export function SettingsPage() {
         </label>
         <button
           type="button"
-          className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold"
-          onClick={() =>
+          className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+          disabled={nameBusy}
+          aria-busy={nameBusy}
+          onClick={() => {
+            setNameBusy(true);
             void api('/auth/me', {
               method: 'PATCH',
               json: { displayName: displayName.trim() || undefined },
@@ -184,7 +189,8 @@ export function SettingsPage() {
               .then(() => refreshUser())
               .then(() => toast('Display name saved', 'ok'))
               .catch((err) => toast(apiErrorMessage(err, 'Could not save name'), 'danger'))
-          }
+              .finally(() => setNameBusy(false));
+          }}
         >
           Save name
         </button>
@@ -557,6 +563,8 @@ export function SettingsPage() {
           </button>
           <button
             type="button"
+            disabled={logoutAllBusy}
+            aria-busy={logoutAllBusy}
             onClick={() => {
               if (
                 !confirm(
@@ -565,6 +573,7 @@ export function SettingsPage() {
               ) {
                 return;
               }
+              setLogoutAllBusy(true);
               void api('/auth/logout-all', { method: 'POST' })
                 .then(async () => {
                   toast('Signed out everywhere', 'ok');
@@ -572,9 +581,10 @@ export function SettingsPage() {
                 })
                 .catch((err) =>
                   toast(apiErrorMessage(err, 'Could not sign out everywhere'), 'danger'),
-                );
+                )
+                .finally(() => setLogoutAllBusy(false));
             }}
-            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold"
+            className="rounded-md border border-[var(--line)] px-4 py-2 font-semibold disabled:opacity-50"
           >
             Sign out everywhere
           </button>

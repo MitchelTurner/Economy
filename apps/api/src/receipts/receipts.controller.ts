@@ -121,39 +121,59 @@ export class ReceiptsController {
   }
 
   @Patch(':id')
-  patch(
+  async patch(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: PatchReceiptDto,
   ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:patch',
+    });
     return this.receipts.patch(user, id, dto);
   }
 
   @Post(':id/lines')
-  addLine(
+  async addLine(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: AddLineDto,
   ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:add-line',
+    });
     return this.receipts.addLine(user, id, dto);
   }
 
   @Patch(':id/lines/:lineId')
-  patchLine(
+  async patchLine(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Param('lineId') lineId: string,
     @Body() dto: PatchLineDto,
   ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:patch-line',
+    });
     return this.receipts.patchLine(user, id, lineId, dto);
   }
 
   @Delete(':id/lines/:lineId')
-  deleteLine(
+  async deleteLine(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Param('lineId') lineId: string,
   ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:delete-line',
+    });
     return this.receipts.deleteLine(user, id, lineId);
   }
 
@@ -172,12 +192,28 @@ export class ReceiptsController {
   }
 
   @Post(':id/same-as-last')
-  sameAsLast(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async sameAsLast(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:same-as-last',
+    });
     return this.receipts.sameAsLastTime(user, id);
   }
 
   @Post(':id/rematch')
-  rematch(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async rematch(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:rematch',
+    });
     return this.receipts.rematch(user, id);
   }
 
@@ -208,12 +244,17 @@ export class ReceiptsController {
   }
 
   @Post(':id/lines/:lineId/apply-category-similar')
-  applyCategorySimilar(
+  async applyCategorySimilar(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Param('lineId') lineId: string,
     @Body() body: ApplyCategorySimilarDto,
   ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:apply-category',
+    });
     return this.receipts.applyCategoryToSimilar(
       user,
       id,

@@ -8,8 +8,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { api } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 type IndexPoint = {
   periodStart: string;
@@ -27,7 +28,12 @@ export function PriceIndexPage() {
   useEffect(() => {
     void api<IndexPoint[]>(
       `/prices/index?basket=staples-25&region=${encodeURIComponent(region)}`,
-    ).then(setPoints);
+    )
+      .then(setPoints)
+      .catch((err) => {
+        setPoints([]);
+        toast(apiErrorMessage(err, 'Could not load price index'), 'danger');
+      });
   }, [region]);
 
   const chartData = points.map((p) => ({

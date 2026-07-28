@@ -63,12 +63,34 @@ export function PublicIndexPage() {
     void Promise.all([
       fetch(`${API_URL}/public/index?region=${encodeURIComponent(region)}`).then(
         async (r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          if (!r.ok) {
+            let detail: { message?: string } | undefined;
+            try {
+              detail = (await r.json()) as { message?: string };
+            } catch {
+              detail = undefined;
+            }
+            throw Object.assign(new Error(detail?.message || `HTTP ${r.status}`), {
+              status: r.status,
+              detail,
+            });
+          }
           return r.json() as Promise<PublicIndex>;
         },
       ),
       fetch(`${API_URL}/public/staples`).then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          let detail: { message?: string } | undefined;
+          try {
+            detail = (await r.json()) as { message?: string };
+          } catch {
+            detail = undefined;
+          }
+          throw Object.assign(new Error(detail?.message || `HTTP ${r.status}`), {
+            status: r.status,
+            detail,
+          });
+        }
         return r.json() as Promise<{ products: StapleProduct[] }>;
       }),
     ])
@@ -77,7 +99,16 @@ export function PublicIndexPage() {
         setStaples(stapleRes.products);
         setProductId((prev) => prev || stapleRes.products[0]?.id || '');
       })
-      .catch((e) => setError((e as Error).message))
+      .catch((e) => {
+        const err = e as { detail?: { message?: string }; message?: string };
+        const msg =
+          typeof err.detail?.message === 'string'
+            ? err.detail.message
+            : err.message && !/^HTTP \d+/.test(err.message)
+              ? err.message
+              : 'Could not load public index';
+        setError(msg);
+      })
       .finally(() => setLoading(false));
   }, [region]);
 

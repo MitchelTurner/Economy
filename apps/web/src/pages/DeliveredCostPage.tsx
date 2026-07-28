@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api, type Product } from '../lib/api';
+import { api, apiErrorMessage, type Product } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 type Lane = {
   id: string;
@@ -41,18 +42,22 @@ export function DeliveredCostPage() {
   const [result, setResult] = useState<Comparison | null>(null);
 
   useEffect(() => {
-    void api<Lane[]>('/prices/shipping-lanes').then((l) => {
-      setLanes(l);
-      if (l[0]) setLaneId(l[0].id);
-    });
+    void api<Lane[]>('/prices/shipping-lanes')
+      .then((l) => {
+        setLanes(l);
+        if (l[0]) setLaneId(l[0].id);
+      })
+      .catch((err) => toast(apiErrorMessage(err, 'Could not load shipping lanes'), 'danger'));
   }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
-      void api<Product[]>(`/catalog/products?q=${encodeURIComponent(q)}`).then((p) => {
-        setProducts(p);
-        if (!productId && p[0]) setProductId(p[0].id);
-      });
+      void api<Product[]>(`/catalog/products?q=${encodeURIComponent(q)}`)
+        .then((p) => {
+          setProducts(p);
+          if (!productId && p[0]) setProductId(p[0].id);
+        })
+        .catch((err) => toast(apiErrorMessage(err, 'Could not search products'), 'danger'));
     }, 200);
     return () => clearTimeout(t);
   }, [q]);
@@ -68,9 +73,14 @@ export function DeliveredCostPage() {
       quantity: qty,
       ...(laneId ? { laneId } : {}),
     });
-    setResult(
-      await api<Comparison>(`/prices/delivered/${productId}?${qs.toString()}`),
-    );
+    try {
+      setResult(
+        await api<Comparison>(`/prices/delivered/${productId}?${qs.toString()}`),
+      );
+    } catch (err) {
+      setResult(null);
+      toast(apiErrorMessage(err, 'Could not compare delivered cost'), 'danger');
+    }
   }
 
   const c = result?.comparison;
