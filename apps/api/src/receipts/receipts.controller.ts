@@ -194,6 +194,19 @@ export class ReceiptsController {
     return this.receipts.reextract(user, id);
   }
 
+  @Post(':id/reopen')
+  async reopen(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:reopen',
+    });
+    return this.receipts.reopen(user, id);
+  }
+
   @Post(':id/lines/:lineId/apply-category-similar')
   applyCategorySimilar(
     @CurrentUser() user: AuthUser,

@@ -510,6 +510,49 @@ export class ReceiptsService {
     return updated;
   }
 
+  /** Soft unlock: CONFIRMED → NEEDS_REVIEW and clear linked price observations. */
+  async reopen(user: AuthUser, id: string) {
+    const receipt = await this.requireOwned(user, id);
+    if (receipt.status !== ReceiptStatus.CONFIRMED) {
+      throw new BadRequestException(
+        `Only CONFIRMED receipts can be reopened (got ${receipt.status})`,
+      );
+    }
+
+    const lines = await this.prisma.receiptLine.findMany({
+      where: { receiptId: id },
+      select: { id: true },
+    });
+    const lineIds = lines.map((l) => l.id);
+    if (lineIds.length) {
+      await this.prisma.priceObservation.deleteMany({
+        where: { receiptLineId: { in: lineIds } },
+      });
+    }
+
+    const locked = await this.prisma.receipt.updateMany({
+      where: {
+        id,
+        householdId: user.householdId,
+        status: ReceiptStatus.CONFIRMED,
+      },
+      data: {
+        status: ReceiptStatus.NEEDS_REVIEW,
+        reviewedAt: null,
+      },
+    });
+    if (locked.count === 0) {
+      throw new ConflictException(
+        'Receipt was already reopened or is no longer confirmed',
+      );
+    }
+
+    return this.prisma.receipt.findFirstOrThrow({
+      where: { id },
+      include: { lines: true, store: true },
+    });
+  }
+
   async delete(user: AuthUser, id: string) {
     const receipt = await this.requireOwned(user, id);
     const lines = await this.prisma.receiptLine.findMany({

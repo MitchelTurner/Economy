@@ -62,8 +62,8 @@ export function SettingsPage() {
       await api('/auth/me', { method: 'PATCH', json: next });
       await refreshUser();
       toast('Email preferences saved', 'ok');
-    } catch {
-      toast('Could not save email preferences', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not save email preferences'), 'danger');
     }
   }
 

@@ -14,6 +14,14 @@ import { consumeRateLimit } from '../common/rate-limit';
 import { AlertsService } from './alerts.service';
 import { CreateAlertDto, PatchAlertDto } from './alerts.dto';
 
+function householdLimit() {
+  return {
+    name: 'household',
+    limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+    windowMs: 60_000,
+  };
+}
+
 @Controller('alerts')
 @UseGuards(JwtAuthGuard)
 export class AlertsController {
@@ -25,31 +33,42 @@ export class AlertsController {
   }
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateAlertDto) {
+  async create(@CurrentUser() user: AuthUser, @Body() dto: CreateAlertDto) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'alerts:create',
+    });
     return this.alerts.create(user, dto);
   }
 
   @Post('check')
   async check(@CurrentUser() user: AuthUser) {
     await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
       name: 'alerts:check',
-      limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
-      windowMs: 60_000,
     });
     return this.alerts.checkHousehold(user.householdId);
   }
 
   @Patch(':id')
-  patch(
+  async patch(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: PatchAlertDto,
   ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'alerts:patch',
+    });
     return this.alerts.patch(user, id, dto);
   }
 
   @Delete(':id')
-  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'alerts:delete',
+    });
     return this.alerts.remove(user, id);
   }
 }

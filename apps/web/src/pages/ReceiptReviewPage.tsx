@@ -70,28 +70,36 @@ export function ReceiptReviewPage() {
 
   async function saveLine(line: ReceiptLine, patch: Record<string, unknown>) {
     if (!id) return;
-    await api(`/receipts/${id}/lines/${line.id}`, { method: 'PATCH', json: patch });
-    await reload();
+    try {
+      await api(`/receipts/${id}/lines/${line.id}`, { method: 'PATCH', json: patch });
+      await reload();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not save line'), 'danger');
+    }
   }
 
   async function saveHeader(patch: Record<string, unknown>) {
     if (!id) return;
     const beforeMatched = receipt?.lines.filter((l) => l.productId).length ?? 0;
-    await api(`/receipts/${id}`, { method: 'PATCH', json: patch });
-    if ('storeId' in patch) {
-      const res = await api<{ matched: number; unmatched: number }>(
-        `/receipts/${id}/rematch`,
-        { method: 'POST' },
-      );
+    try {
+      await api(`/receipts/${id}`, { method: 'PATCH', json: patch });
+      if ('storeId' in patch) {
+        const res = await api<{ matched: number; unmatched: number }>(
+          `/receipts/${id}/rematch`,
+          { method: 'POST' },
+        );
+        await reload();
+        const after = await api<ReceiptDetail>(`/receipts/${id}`);
+        const msg = `Store updated — rematched ${beforeMatched}→${res.matched} bound (${res.unmatched} unmatched).`;
+        setInfo(msg);
+        toast(msg, 'ok');
+        setReceipt(after);
+        return;
+      }
       await reload();
-      const after = await api<ReceiptDetail>(`/receipts/${id}`);
-      const msg = `Store updated — rematched ${beforeMatched}→${res.matched} bound (${res.unmatched} unmatched).`;
-      setInfo(msg);
-      toast(msg, 'ok');
-      setReceipt(after);
-      return;
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not save header'), 'danger');
     }
-    await reload();
   }
 
   async function addLine() {
@@ -112,6 +120,8 @@ export function ReceiptReviewPage() {
       setNewRaw('');
       setNewExt('');
       await reload();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not add line'), 'danger');
     } finally {
       setAdding(false);
     }
@@ -119,8 +129,33 @@ export function ReceiptReviewPage() {
 
   async function deleteLine(lineId: string) {
     if (!id) return;
-    await api(`/receipts/${id}/lines/${lineId}`, { method: 'DELETE' });
-    await reload();
+    try {
+      await api(`/receipts/${id}/lines/${lineId}`, { method: 'DELETE' });
+      await reload();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not delete line'), 'danger');
+    }
+  }
+
+  async function reopen() {
+    if (!id) return;
+    if (
+      !window.confirm(
+        'Unlock this receipt for editing? Linked price observations will be removed until you confirm again.',
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await api(`/receipts/${id}/reopen`, { method: 'POST' });
+      toast('Receipt unlocked for editing', 'ok');
+      await reload();
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not unlock receipt'), 'danger');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function confirm() {
@@ -263,32 +298,43 @@ export function ReceiptReviewPage() {
       {lockedConfirmed ? (
         <div className="space-y-2 border-l-4 border-[var(--ok)] bg-[var(--surface)] px-3 py-2 text-sm">
           <p>
-            This receipt is confirmed and locked. Delete it if you need to capture it
-            again.
+            This receipt is confirmed and locked. Unlock to edit, or delete if you
+            need to capture it again.
           </p>
-          <button
-            type="button"
-            className="font-semibold text-[var(--danger)]"
-            onClick={() => {
-              if (
-                !window.confirm(
-                  'Delete this receipt and its image? If it was confirmed, its price observations for those lines are removed too.',
-                )
-              ) {
-                return;
-              }
-              void api(`/receipts/${id}`, { method: 'DELETE' })
-                .then(() => {
-                  toast('Receipt deleted', 'ok');
-                  navigate('/receipts');
-                })
-                .catch((err) =>
-                  toast(apiErrorMessage(err, 'Delete failed'), 'danger'),
-                );
-            }}
-          >
-            Delete receipt
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+              disabled={busy}
+              aria-busy={busy}
+              onClick={() => void reopen()}
+            >
+              Unlock to edit
+            </button>
+            <button
+              type="button"
+              className="font-semibold text-[var(--danger)]"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    'Delete this receipt and its image? If it was confirmed, its price observations for those lines are removed too.',
+                  )
+                ) {
+                  return;
+                }
+                void api(`/receipts/${id}`, { method: 'DELETE' })
+                  .then(() => {
+                    toast('Receipt deleted', 'ok');
+                    navigate('/receipts');
+                  })
+                  .catch((err) =>
+                    toast(apiErrorMessage(err, 'Delete failed'), 'danger'),
+                  );
+              }}
+            >
+              Delete receipt
+            </button>
+          </div>
         </div>
       ) : null}
 

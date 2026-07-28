@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
+import { consumeRateLimit } from '../common/rate-limit';
 import { PricesService } from './prices.service';
 import { IndexRollupService } from './index-rollup.service';
 
@@ -52,10 +53,15 @@ export class PricesController {
 
   /** Manual trigger for nightly rollup (also runs on cron). Owner-only. */
   @Post('index/rollup')
-  rollupNow(@CurrentUser() user: AuthUser) {
+  async rollupNow(@CurrentUser() user: AuthUser) {
     if (user.role !== 'owner') {
       throw new ForbiddenException('Only household owners can trigger index rollup');
     }
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      name: 'prices:rollup',
+      limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+      windowMs: 60_000,
+    });
     return this.rollup.rollupAll();
   }
 

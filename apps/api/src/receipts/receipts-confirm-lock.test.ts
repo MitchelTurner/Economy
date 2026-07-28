@@ -183,3 +183,64 @@ describe('ReceiptsService.confirm / confirmed lock', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+describe('ReceiptsService.reopen', () => {
+  it('reopens CONFIRMED to NEEDS_REVIEW and clears observations', async () => {
+    const deleteMany = vi.fn().mockResolvedValue({ count: 2 });
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      receipt: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'r1',
+          householdId: 'h1',
+          status: ReceiptStatus.CONFIRMED,
+        }),
+        updateMany,
+        findFirstOrThrow: vi.fn().mockResolvedValue({
+          id: 'r1',
+          status: ReceiptStatus.NEEDS_REVIEW,
+          lines: [],
+          store: null,
+        }),
+      },
+      receiptLine: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'l1' }, { id: 'l2' }]),
+      },
+      priceObservation: { deleteMany },
+    };
+    const svc = makeSvc(prisma);
+    const res = await svc.reopen(
+      { userId: 'u1', householdId: 'h1', email: 'a@b.c', role: 'owner' },
+      'r1',
+    );
+    expect(res.status).toBe(ReceiptStatus.NEEDS_REVIEW);
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: { receiptLineId: { in: ['l1', 'l2'] } },
+    });
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: ReceiptStatus.CONFIRMED }),
+        data: expect.objectContaining({ status: ReceiptStatus.NEEDS_REVIEW }),
+      }),
+    );
+  });
+
+  it('rejects reopen for non-confirmed receipts', async () => {
+    const prisma = {
+      receipt: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'r1',
+          householdId: 'h1',
+          status: ReceiptStatus.NEEDS_REVIEW,
+        }),
+      },
+    };
+    const svc = makeSvc(prisma);
+    await expect(
+      svc.reopen(
+        { userId: 'u1', householdId: 'h1', email: 'a@b.c', role: 'owner' },
+        'r1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});

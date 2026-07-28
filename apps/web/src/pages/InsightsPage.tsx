@@ -7,7 +7,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { api } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 import { formatCents } from '../lib/money';
 import { toast } from '../lib/toast';
 
@@ -42,9 +42,10 @@ export function InsightsPage() {
   useEffect(() => {
     setLoading(true);
     void load(showActive)
-      .catch(() => {
+      .catch((err) => {
         setItems([]);
         setDigest(null);
+        toast(apiErrorMessage(err, 'Could not load insights'), 'danger');
       })
       .finally(() => setLoading(false));
   }, [showActive]);
@@ -54,8 +55,8 @@ export function InsightsPage() {
       await api(`/insights/${id}/dismiss`, { method: 'POST' });
       toast('Insight dismissed', 'ok');
       await load();
-    } catch {
-      toast('Dismiss failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Dismiss failed'), 'danger');
     }
   }
 
@@ -64,8 +65,8 @@ export function InsightsPage() {
       await api(`/insights/${id}/restore`, { method: 'POST' });
       toast('Insight restored', 'ok');
       await load();
-    } catch {
-      toast('Restore failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Restore failed'), 'danger');
     }
   }
 
@@ -75,8 +76,8 @@ export function InsightsPage() {
       await api('/insights/generate', { method: 'POST' });
       toast('Insights generated', 'ok');
       await load();
-    } catch {
-      toast('Generate failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Generate failed'), 'danger');
     } finally {
       setBusy(false);
     }
@@ -120,6 +121,7 @@ export function InsightsPage() {
           <button
             type="button"
             disabled={busy}
+            aria-busy={busy}
             onClick={() => void regenerate()}
             className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
           >

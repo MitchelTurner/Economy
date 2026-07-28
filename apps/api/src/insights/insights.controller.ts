@@ -4,6 +4,14 @@ import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorat
 import { consumeRateLimit } from '../common/rate-limit';
 import { InsightsService } from './insights.service';
 
+function householdLimit() {
+  return {
+    name: 'household',
+    limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+    windowMs: 60_000,
+  };
+}
+
 @Controller('insights')
 @UseGuards(JwtAuthGuard)
 export class InsightsController {
@@ -27,20 +35,27 @@ export class InsightsController {
   @Post('generate')
   async generate(@CurrentUser() user: AuthUser) {
     await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
       name: 'insights:generate',
-      limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
-      windowMs: 60_000,
     });
     return this.insights.generateForHousehold(user.householdId);
   }
 
   @Post(':id/dismiss')
-  dismiss(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async dismiss(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'insights:dismiss',
+    });
     return this.insights.dismiss(user, id);
   }
 
   @Post(':id/restore')
-  restore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async restore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'insights:restore',
+    });
     return this.insights.restore(user, id);
   }
 }

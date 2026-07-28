@@ -526,6 +526,9 @@ Confirm only from `NEEDS_REVIEW`/`FAILED` (optimistic lock); confirmed receipts 
 **Phase 23 — in-flight mutate lock + confirm/delete harden**
 Lock edits while `UPLOADED`/`EXTRACTING` (reextract still allowed); confirm race returns 409; rate-limit confirm/delete + alerts check/rename/invite revoke; Review in-flight banner + confirmed Delete; Budgets/Alerts use `apiErrorMessage`.
 
+**Phase 24 — confirmed reopen + remaining mutate rate limits**
+`POST /receipts/:id/reopen` (CONFIRMED → NEEDS_REVIEW, clear observations); rate-limit budgets/alerts CRUD, insights dismiss/restore, index rollup; Review Unlock to edit; Insights/Settings/Review mute errors use `apiErrorMessage`.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -659,6 +662,11 @@ Phase 23 is done when:
 - Header/line/rematch mutates reject `UPLOADED`/`EXTRACTING` while reextract remains allowed; confirm race returns 409 Conflict.
 - Confirm/delete use `RATE_LIMIT_UPLOAD`; alerts check + household rename use `RATE_LIMIT_HOUSEHOLD`; invite revoke uses `RATE_LIMIT_INVITE`.
 - Review shows extracting banner + confirmed Delete; Budgets/Alerts surfaces use `apiErrorMessage`.
+
+Phase 24 is done when:
+- `POST /receipts/:id/reopen` flips CONFIRMED → NEEDS_REVIEW, deletes linked observations, rejects non-confirmed, and is rate-limited; Review offers Unlock to edit.
+- Budgets/alerts CRUD, insights dismiss/restore, and owner index rollup use `RATE_LIMIT_HOUSEHOLD`.
+- Insights/Settings email prefs and Review line/header saves surface `apiErrorMessage` (+ Generate `aria-busy`).
 
 ## 13. Testing
 
