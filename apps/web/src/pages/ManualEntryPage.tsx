@@ -183,6 +183,7 @@ export function ManualEntryPage() {
         <button
           type="submit"
           disabled={busy}
+          aria-busy={busy}
           className="w-full rounded-md bg-[var(--brand)] px-4 py-3 font-semibold text-white disabled:opacity-50"
         >
           {busy ? 'Saving…' : 'Continue to review'}
