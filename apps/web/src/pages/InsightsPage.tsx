@@ -9,6 +9,7 @@ import {
 } from 'recharts';
 import { api } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 type Insight = {
   id: string;
@@ -47,15 +48,23 @@ export function InsightsPage() {
   }, []);
 
   async function dismiss(id: string) {
-    await api(`/insights/${id}/dismiss`, { method: 'POST' });
-    await load();
+    try {
+      await api(`/insights/${id}/dismiss`, { method: 'POST' });
+      toast('Insight dismissed', 'ok');
+      await load();
+    } catch {
+      toast('Dismiss failed', 'danger');
+    }
   }
 
   async function regenerate() {
     setBusy(true);
     try {
       await api('/insights/generate', { method: 'POST' });
+      toast('Insights generated', 'ok');
       await load();
+    } catch {
+      toast('Generate failed', 'danger');
     } finally {
       setBusy(false);
     }
@@ -67,7 +76,8 @@ export function InsightsPage() {
         <div>
           <h1 className="text-3xl font-semibold">Insights</h1>
           <p className="mt-1 text-[var(--ink-muted)]">
-            Deterministic rules — every dollar figure comes from stored data.
+            Deterministic rules — every dollar figure comes from stored data. Weekly email
+            digests only send if enabled in Settings.
           </p>
         </div>
         <button

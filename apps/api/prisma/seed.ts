@@ -505,13 +505,25 @@ async function seedDemoInsights(householdId: string) {
   console.log(`Demo insights upserted: ${res.upserted}`);
 }
 
-async function main() {
+async function seedReference() {
   const categoryBySlug = await seedCategories();
   await seedBasketProducts(categoryBySlug);
   await seedProductAliases();
   await seedStores();
   await seedBaselines();
   await seedShippingLanes();
+  return categoryBySlug;
+}
+
+async function main() {
+  await seedReference();
+  const demo =
+    (process.env.SEED_DEMO ?? '1').toLowerCase() !== '0' &&
+    (process.env.SEED_DEMO ?? '1').toLowerCase() !== 'false';
+  if (!demo) {
+    console.log('Reference seed complete (SEED_DEMO=0) — no demo household.');
+    return;
+  }
   const user = await seedDevHousehold();
   await seedSyntheticHistory(user.id, user.householdId);
   await seedPublicContributors(user.householdId);

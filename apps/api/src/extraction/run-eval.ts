@@ -2,12 +2,22 @@
  * CLI: score extraction fixtures under data/extraction-fixtures.
  * Usage: npx tsx src/extraction/run-eval.ts
  */
-import { readFileSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join, resolve } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { ExtractionProvider } from './extraction.provider';
 import { ExtractionResultSchema } from './extraction.schema';
 import { scoreExtraction } from './eval-score';
+
+/** Placeholder 1×1 JPEGs are not real labeled photos (SPEC §13). */
+function isRealPhoto(imagePath: string | undefined): boolean {
+  if (!imagePath) return false;
+  try {
+    return statSync(imagePath).size >= 2048;
+  } catch {
+    return false;
+  }
+}
 
 async function main() {
   const root = resolve(__dirname, '../../../../data/extraction-fixtures');
@@ -25,6 +35,8 @@ async function main() {
     .sort();
 
   let ok = 0;
+  let realPhotos = 0;
+  let mockOnly = 0;
   for (const id of dirs) {
     const dir = join(root, id);
     const expectedPath = join(dir, 'expected.json');
@@ -35,6 +47,10 @@ async function main() {
     const imagePath = ['image.jpg', 'image.jpeg', 'image.png', 'image.webp']
       .map((f) => join(dir, f))
       .find((p) => existsSync(p));
+    const real = isRealPhoto(imagePath);
+    if (real) realPhotos += 1;
+    else mockOnly += 1;
+
     // Mock scoring always uses fixture:<id> scenarios so placeholder JPEGs
     // still map to canned receipts. Live Anthropic path uses the photo bytes.
     const providerMode = process.env.EXTRACTION_PROVIDER ?? 'mock';
@@ -54,11 +70,14 @@ async function main() {
       score.totalAccuracy;
     if (pass) ok += 1;
     console.log(
-      `${pass ? 'PASS' : 'FAIL'} ${id}  recall=${score.lineRecall.toFixed(2)} precision=${score.linePrecision.toFixed(2)} total=${score.totalAccuracy} store=${score.storeNameOk}`,
+      `${pass ? 'PASS' : 'FAIL'} ${id}  [${real ? 'real-photo' : 'mock'}] recall=${score.lineRecall.toFixed(2)} precision=${score.linePrecision.toFixed(2)} total=${score.totalAccuracy} store=${score.storeNameOk}`,
     );
   }
 
   console.log(`\n${ok}/${dirs.length} fixtures passed (≥0.9 P/R + total ±2¢)`);
+  console.log(
+    `Corpus status (SPEC §13): ${realPhotos} real photo(s), ${mockOnly} mock/synthetic — target ~30 real.`,
+  );
   if (ok < dirs.length) process.exitCode = 1;
 }
 

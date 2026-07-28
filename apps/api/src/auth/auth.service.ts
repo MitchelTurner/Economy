@@ -8,7 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto, RefreshDto, RegisterDto } from './auth.dto';
+import { LoginDto, RefreshDto, RegisterDto, UpdateMeDto } from './auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -109,6 +109,30 @@ export class AuthService {
         email: true,
         displayName: true,
         role: true,
+        emailDigest: true,
+        emailAlerts: true,
+        householdId: true,
+        household: { select: { id: true, name: true } },
+        createdAt: true,
+      },
+    });
+  }
+
+  async updateMe(userId: string, dto: UpdateMeDto) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
+        ...(dto.emailDigest !== undefined ? { emailDigest: dto.emailDigest } : {}),
+        ...(dto.emailAlerts !== undefined ? { emailAlerts: dto.emailAlerts } : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        emailDigest: true,
+        emailAlerts: true,
         householdId: true,
         household: { select: { id: true, name: true } },
         createdAt: true,

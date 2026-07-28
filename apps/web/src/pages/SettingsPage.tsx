@@ -19,13 +19,15 @@ type Usage = {
 };
 
 export function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [household, setHousehold] = useState<Household | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [email, setEmail] = useState('');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [emailDigest, setEmailDigest] = useState(true);
+  const [emailAlerts, setEmailAlerts] = useState(true);
 
   async function load() {
     const [hh, u] = await Promise.all([
@@ -40,21 +42,41 @@ export function SettingsPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    setEmailDigest(user?.emailDigest !== false);
+    setEmailAlerts(user?.emailAlerts !== false);
+  }, [user]);
+
+  async function saveEmailPrefs(next: { emailDigest?: boolean; emailAlerts?: boolean }) {
+    try {
+      await api('/auth/me', { method: 'PATCH', json: next });
+      await refreshUser();
+      toast('Email preferences saved', 'ok');
+    } catch {
+      toast('Could not save email preferences', 'danger');
+    }
+  }
+
   async function invite(e: FormEvent) {
     e.preventDefault();
-    const inv = await api<{ token: string; inviteUrl?: string }>(
-      '/household/invites',
-      {
-        method: 'POST',
-        json: { email },
-      },
-    );
-    setInviteLink(
-      inv.inviteUrl ?? `${window.location.origin}/invite?token=${inv.token}`,
-    );
-    setMessage('Invite email queued (or logged in API if no RESEND_API_KEY).');
-    setEmail('');
-    await load();
+    try {
+      const inv = await api<{ token: string; inviteUrl?: string }>(
+        '/household/invites',
+        {
+          method: 'POST',
+          json: { email },
+        },
+      );
+      setInviteLink(
+        inv.inviteUrl ?? `${window.location.origin}/invite?token=${inv.token}`,
+      );
+      setMessage('Invite email queued (or logged in API if no RESEND_API_KEY).');
+      toast('Invite created', 'ok');
+      setEmail('');
+      await load();
+    } catch {
+      toast('Invite failed', 'danger');
+    }
   }
 
   async function exportData() {
@@ -92,8 +114,13 @@ export function SettingsPage() {
     ) {
       return;
     }
-    await api('/household', { method: 'DELETE' });
-    logout();
+    try {
+      await api('/household', { method: 'DELETE' });
+      toast('Household deleted', 'ok');
+      await logout();
+    } catch {
+      toast('Delete failed', 'danger');
+    }
   }
 
   return (
@@ -127,6 +154,38 @@ export function SettingsPage() {
           </p>
         </section>
       )}
+
+      <section className="space-y-3" aria-label="Email notifications">
+        <h2 className="text-xl font-semibold">Email notifications</h2>
+        <p className="text-sm text-[var(--ink-muted)]">
+          Weekly digests and price-drop emails respect these toggles. In-app Insights still
+          update either way.
+        </p>
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={emailDigest}
+            onChange={(e) => {
+              const v = e.target.checked;
+              setEmailDigest(v);
+              void saveEmailPrefs({ emailDigest: v });
+            }}
+          />
+          Weekly insight digest email
+        </label>
+        <label className="flex items-center gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={emailAlerts}
+            onChange={(e) => {
+              const v = e.target.checked;
+              setEmailAlerts(v);
+              void saveEmailPrefs({ emailAlerts: v });
+            }}
+          />
+          Price-drop alert emails
+        </label>
+      </section>
 
       <section>
         <h2 className="text-xl font-semibold">Members</h2>
@@ -180,7 +239,12 @@ export function SettingsPage() {
                   type="button"
                   className="font-semibold text-[var(--danger)]"
                   onClick={() =>
-                    void api(`/household/invites/${i.id}`, { method: 'DELETE' }).then(load)
+                    void api(`/household/invites/${i.id}`, { method: 'DELETE' })
+                      .then(() => {
+                        toast('Invite revoked', 'ok');
+                        return load();
+                      })
+                      .catch(() => toast('Revoke failed', 'danger'))
                   }
                 >
                   Revoke

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 type Budget = {
   id: string;
@@ -46,39 +47,60 @@ export function BudgetsPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const amountCents = parseDollarsToCents(amount);
-    if (amountCents == null) return;
+    if (amountCents == null) {
+      toast('Enter a valid dollar amount', 'danger');
+      return;
+    }
     const startsOn =
       period === 'WEEKLY'
         ? startOfWeekIso()
         : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    await api('/budgets', {
-      method: 'POST',
-      json: {
-        amountCents,
-        period,
-        categoryId: categoryId || null,
-        startsOn,
-      },
-    });
-    setAmount('');
-    setCategoryId('');
-    await load();
+    try {
+      await api('/budgets', {
+        method: 'POST',
+        json: {
+          amountCents,
+          period,
+          categoryId: categoryId || null,
+          startsOn,
+        },
+      });
+      setAmount('');
+      setCategoryId('');
+      toast('Budget added', 'ok');
+      await load();
+    } catch {
+      toast('Could not add budget', 'danger');
+    }
   }
 
   async function saveEdit(id: string) {
     const amountCents = parseDollarsToCents(editAmount);
-    if (amountCents == null) return;
-    await api(`/budgets/${id}`, {
-      method: 'PATCH',
-      json: { amountCents },
-    });
-    setEditingId(null);
-    await load();
+    if (amountCents == null) {
+      toast('Enter a valid dollar amount', 'danger');
+      return;
+    }
+    try {
+      await api(`/budgets/${id}`, {
+        method: 'PATCH',
+        json: { amountCents },
+      });
+      setEditingId(null);
+      toast('Budget updated', 'ok');
+      await load();
+    } catch {
+      toast('Update failed', 'danger');
+    }
   }
 
   async function remove(id: string) {
-    await api(`/budgets/${id}`, { method: 'DELETE' });
-    await load();
+    try {
+      await api(`/budgets/${id}`, { method: 'DELETE' });
+      toast('Budget deleted', 'ok');
+      await load();
+    } catch {
+      toast('Delete failed', 'danger');
+    }
   }
 
   return (

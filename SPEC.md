@@ -487,6 +487,9 @@ Expanded mock eval fixtures across stores/edge cases, household extraction usage
 **Phase 10 — production polish / scheduled jobs / remaining SPEC**
 Helmet + JSON body limit, owner-only index rollup, Redis-backed rate limits, orphan upload cleanup per SPEC §5, job processor tests + schedule docs, PWA runtime caching + outbox badge, budgets/dashboard empty CTAs, eval mock harness ignores placeholder JPEGs.
 
+**Phase 11 — ops harden + notification prefs + remaining SPEC polish**
+Per-user email digest/alert prefs, reference-only seed path, nginx CSP headers + backup/migrate runbook, compose health via Node fetch, island premium on Prices, toast polish on mutating flows, eval corpus status (real vs mock) + refund fixture.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -547,6 +550,13 @@ Phase 10 is done when:
 - Nightly index + weekly digest fan-out processors are unit-tested; schedules documented in `DEPLOY.md`.
 - PWA caches shell/static with NetworkOnly for `/api`; shell shows pending outbox count with Capture link.
 - Budgets empty state and dashboard FAILED queue deep-link to capture/manual; eval mock path uses `fixture:<id>` even when placeholder `image.jpg` exists.
+
+Phase 11 is done when:
+- `User.emailDigest` / `User.emailAlerts` default true; Settings toggles via `PATCH /auth/me`; digests and price-alert emails honor them.
+- `npm run db:seed:reference` (`SEED_DEMO=0`) upserts catalog/baselines/lanes without a demo household; `DEPLOY.md` covers backup/migrate + when to seed.
+- Web nginx ships CSP / nosniff / referrer / frame headers; compose API healthcheck uses Node `fetch` (no wget).
+- Prices product detail shows island premium vs baseline when data exists; Budgets/Alerts/Insights/Settings emit toasts on mutate success/failure.
+- `eval:extraction` reports real-photo vs mock counts toward §13 (~30); refund synthetic fixture passes CI.
 
 ## 13. Testing
 

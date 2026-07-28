@@ -14,6 +14,7 @@
     "lint": "npm run lint --workspaces --if-present",
     "db:migrate": "npm run db:migrate -w @island-ledger/api",
     "db:seed": "npm run db:seed -w @island-ledger/api",
+    "db:seed:reference": "npm run db:seed:reference -w @island-ledger/api",
     "db:generate": "npm run db:generate -w @island-ledger/api"
   },
   "engines": {

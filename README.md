@@ -59,9 +59,11 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 10:** Helmet/body limit, owner-only rollup, Redis rate limits, orphan upload cleanup, job tests + schedule docs, PWA runtime cache + outbox badge, budgets/dashboard CTAs.
 
+**Phase 11:** email digest/alert prefs, reference seed (`db:seed:reference`), nginx CSP + backup runbook, Node healthcheck, Prices island premium, toast polish, eval corpus status + refund fixture.
+
 ### Production notes
 
-- See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy and health probes.
+- See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.
 - Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.
 - Production refuses silent mock unless `ALLOW_MOCK_EXTRACTION=true`.
 - Optional: `RESEND_API_KEY` + `MAIL_FROM` for real email; otherwise mail is logged.

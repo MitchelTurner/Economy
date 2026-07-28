@@ -26,6 +26,8 @@ model User {
   passwordHash String
   displayName  String?
   role         String            @default("member") // owner | member
+  emailDigest  Boolean           @default(true)
+  emailAlerts  Boolean           @default(true)
   householdId  String
   household    Household         @relation(fields: [householdId], references: [id])
   receipts     Receipt[]

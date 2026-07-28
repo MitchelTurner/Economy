@@ -35,9 +35,9 @@ export class PricesProcessor extends WorkerHost {
       for (const t of triggered) {
         const alert = await this.prisma.priceAlert.findUnique({
           where: { id: t.alertId },
-          include: { user: { select: { email: true } } },
+          include: { user: { select: { email: true, emailAlerts: true } } },
         });
-        if (!alert?.user?.email) continue;
+        if (!alert?.user?.email || !alert.user.emailAlerts) continue;
         await this.notifications.sendPriceAlert({
           to: alert.user.email,
           productName: t.productName,

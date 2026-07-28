@@ -13,6 +13,9 @@ type User = {
   email: string;
   displayName: string | null;
   householdId: string;
+  role?: string;
+  emailDigest?: boolean;
+  emailAlerts?: boolean;
   household: { id: string; name: string };
 };
 
@@ -27,6 +30,7 @@ type AuthCtx = {
     householdName?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -97,7 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <Ctx.Provider value={{ user, loading, login, register, logout }}>
+    <Ctx.Provider
+      value={{ user, loading, login, register, logout, refreshUser: loadMe }}
+    >
       {children}
     </Ctx.Provider>
   );

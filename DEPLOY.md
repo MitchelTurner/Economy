@@ -55,14 +55,29 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 3. Set env vars above; health check path `/health/ready`
 4. Create **Web** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>`
 5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin
-6. After first deploy: `railway run -s api npm run db:seed -w @island-ledger/api` (optional demo data)
+6. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
+   `railway run -s api npm run db:seed:reference -w @island-ledger/api`
+7. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default)
 
 ## Compose smoke
 
 ```bash
 docker compose -f docker-compose.prod.yml up --build
 # Web http://localhost:8080  API http://localhost:3000/health/ready
+# API healthcheck uses Node fetch (no wget on alpine)
 ```
+
+## Backup & migrate runbook
+
+- **Migrate on boot:** API container CMD runs `prisma migrate deploy` then `node dist/main.js`.
+- **Postgres backup:** `pg_dump "$DATABASE_URL" -Fc -f island-$(date +%F).dump`  
+  Restore: `pg_restore --clean --if-exists -d "$DATABASE_URL" island-YYYY-MM-DD.dump`
+- **Receipt images:** back up the S3/R2/MinIO bucket (`S3_BUCKET`) separately from the DB.
+- **Reference vs demo seed:** production should use `db:seed:reference` (`SEED_DEMO=0`) for categories/staples/aliases/stores/baselines/shipping lanes. Full `db:seed` also creates `demo@islandledger.local` and synthetic history — fine for local/dev only.
+
+## Web security headers
+
+`apps/web/nginx.conf` sets `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, and a tight CSP (self + Google Fonts). Enable **HSTS** only on the TLS terminator (Railway/CDN), e.g. `Strict-Transport-Security: max-age=31536000; includeSubDomains` — do not set HSTS on plain HTTP compose.
 
 ## Observability
 

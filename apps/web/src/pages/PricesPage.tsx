@@ -18,6 +18,12 @@ import {
 } from '../lib/api';
 import { formatCents } from '../lib/money';
 
+type PremiumInfo = {
+  premiumPct: number | null;
+  local: { pricePerBaseUom: string | number } | null;
+  baseline: { pricePerBaseUom: string | number; region: string } | null;
+};
+
 export function PricesPage() {
   const [q, setQ] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,6 +31,7 @@ export function PricesPage() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compare, setCompare] = useState<PriceCompareResponse | null>(null);
+  const [premium, setPremium] = useState<PremiumInfo | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -35,8 +42,13 @@ export function PricesPage() {
 
   async function openProduct(p: Product) {
     setSelected(p);
-    const rows = await api<PriceHistoryResponse>(`/prices/product/${p.id}/history`);
+    setPremium(null);
+    const [rows, prem] = await Promise.all([
+      api<PriceHistoryResponse>(`/prices/product/${p.id}/history`),
+      api<PremiumInfo>(`/prices/premium/${p.id}`).catch(() => null),
+    ]);
     setHistory(rows);
+    setPremium(prem);
   }
 
   function toggleCompare(id: string) {
@@ -134,6 +146,24 @@ export function PricesPage() {
       {selected && history && (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">{selected.name}</h2>
+          {premium?.premiumPct != null && premium.baseline && premium.local && (
+            <p className="text-sm text-[var(--ink-muted)]">
+              Island premium vs {premium.baseline.region}:{' '}
+              <span className="font-semibold text-[var(--brand)]">
+                {premium.premiumPct.toFixed(0)}%
+              </span>{' '}
+              (
+              ${(Number(premium.local.pricePerBaseUom) / 100).toFixed(4)} local vs $
+              {(Number(premium.baseline.pricePerBaseUom) / 100).toFixed(4)} baseline per{' '}
+              {selected.baseUom ?? 'unit'})
+            </p>
+          )}
+          {premium && premium.premiumPct == null && (
+            <p className="text-sm text-[var(--ink-muted)]">
+              No island premium yet — need a local observation and a baseline price (run
+              reference seed).
+            </p>
+          )}
           {history.observations.length === 0 ? (
             <p className="text-[var(--ink-muted)]">
               No observations yet. Confirm a matched receipt line to start the series.

@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type Product } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
+import { toast } from '../lib/toast';
 
 type Alert = {
   id: string;
@@ -57,17 +58,22 @@ export function AlertsPage() {
       setMessage('Set a drop % and/or target price.');
       return;
     }
-    await api('/alerts', {
-      method: 'POST',
-      json: {
-        productId,
-        dropPct: drop,
-        targetCents,
-      },
-    });
-    setMessage('Alert saved.');
-    setTarget('');
-    await load();
+    try {
+      await api('/alerts', {
+        method: 'POST',
+        json: {
+          productId,
+          dropPct: drop,
+          targetCents,
+        },
+      });
+      setMessage('Alert saved.');
+      toast('Alert saved', 'ok');
+      setTarget('');
+      await load();
+    } catch {
+      toast('Could not save alert', 'danger');
+    }
   }
 
   return (
@@ -194,7 +200,14 @@ export function AlertsPage() {
               <button
                 type="button"
                 className="text-sm font-semibold text-[var(--danger)]"
-                onClick={() => void api(`/alerts/${a.id}`, { method: 'DELETE' }).then(load)}
+                onClick={() =>
+                  void api(`/alerts/${a.id}`, { method: 'DELETE' })
+                    .then(() => {
+                      toast('Alert removed', 'ok');
+                      return load();
+                    })
+                    .catch(() => toast('Remove failed', 'danger'))
+                }
               >
                 Remove
               </button>

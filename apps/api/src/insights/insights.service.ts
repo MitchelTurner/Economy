@@ -352,13 +352,17 @@ export class InsightsService {
     return { upserted };
   }
 
-  /** After weekly generation: email each household member a digest. */
+  /** After weekly generation: email each household member who opted into digests. */
   async emailWeeklyDigest(householdId: string) {
     const household = await this.prisma.household.findUnique({
       where: { id: householdId },
-      include: { users: { select: { email: true, displayName: true } } },
+      include: {
+        users: {
+          select: { email: true, displayName: true, emailDigest: true },
+        },
+      },
     });
-    if (!household?.users.length) return { sent: 0 };
+    if (!household?.users.length) return { sent: 0, skipped: 0 };
 
     const weekAgo = new Date();
     weekAgo.setUTCDate(weekAgo.getUTCDate() - 7);
@@ -377,7 +381,12 @@ export class InsightsService {
     );
 
     let sent = 0;
+    let skipped = 0;
     for (const user of household.users) {
+      if (!user.emailDigest) {
+        skipped += 1;
+        continue;
+      }
       await this.notifications.sendWeeklyDigest({
         to: user.email,
         householdName: household.name,
@@ -387,7 +396,7 @@ export class InsightsService {
       });
       sent += 1;
     }
-    return { sent };
+    return { sent, skipped };
   }
 
   private async loadBasketLines(householdId: string, from: Date, to: Date) {
