@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
 import { toast } from '../lib/toast';
 
@@ -81,8 +81,7 @@ export function BudgetsPage() {
       toast('Budget added', 'ok');
       await load();
     } catch (err) {
-      const detail = (err as { detail?: { message?: string } }).detail;
-      toast(detail?.message ?? 'Could not add budget', 'danger');
+      toast(apiErrorMessage(err, 'Could not add budget'), 'danger');
     }
   }
 
@@ -100,8 +99,8 @@ export function BudgetsPage() {
       setEditingId(null);
       toast('Budget updated', 'ok');
       await load();
-    } catch {
-      toast('Update failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Update failed'), 'danger');
     }
   }
 
@@ -110,8 +109,8 @@ export function BudgetsPage() {
       await api(`/budgets/${id}`, { method: 'DELETE' });
       toast('Budget deleted', 'ok');
       await load();
-    } catch {
-      toast('Delete failed', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Delete failed'), 'danger');
     }
   }
 

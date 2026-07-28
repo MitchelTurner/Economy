@@ -523,6 +523,9 @@ Extract processor fail-closed on crashes; reextract allows stale `EXTRACTING` (�
 **Phase 22 — confirm lock + enqueue mutate harden**
 Confirm only from `NEEDS_REVIEW`/`FAILED` (optimistic lock); confirmed receipts reject header/line/rematch/reextract mutates; rate-limit register/manual/insights generate/leave/remove; Review read-only when confirmed; Receipts list polls in-flight rows.
 
+**Phase 23 — in-flight mutate lock + confirm/delete harden**
+Lock edits while `UPLOADED`/`EXTRACTING` (reextract still allowed); confirm race returns 409; rate-limit confirm/delete + alerts check/rename/invite revoke; Review in-flight banner + confirmed Delete; Budgets/Alerts use `apiErrorMessage`.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -651,6 +654,11 @@ Phase 22 is done when:
 - `POST /receipts/:id/confirm` only succeeds for `NEEDS_REVIEW`/`FAILED` via status-gated `updateMany`; double-confirm does not re-enqueue observe/match/insights.
 - Confirmed receipts reject patch/line/same-as-last/rematch/reextract/apply-category; Review is read-only with a locked banner.
 - Register/manual use `RATE_LIMIT_UPLOAD`; insights generate + leave/remove use `RATE_LIMIT_HOUSEHOLD`; Receipts list polls while any visible row is in-flight.
+
+Phase 23 is done when:
+- Header/line/rematch mutates reject `UPLOADED`/`EXTRACTING` while reextract remains allowed; confirm race returns 409 Conflict.
+- Confirm/delete use `RATE_LIMIT_UPLOAD`; alerts check + household rename use `RATE_LIMIT_HOUSEHOLD`; invite revoke uses `RATE_LIMIT_INVITE`.
+- Review shows extracting banner + confirmed Delete; Budgets/Alerts surfaces use `apiErrorMessage`.
 
 ## 13. Testing
 

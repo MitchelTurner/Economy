@@ -103,10 +103,10 @@ Counters use Redis (`ratelimit:*` keys) so multi-replica Railway deploys share l
 | Env | Default | Applies to |
 |---|---|---|
 | `RATE_LIMIT_AUTH` | 30 / min / IP (user id for change-password) | `POST /auth/login\|register\|refresh\|change-password` |
-| `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | `POST /receipts/upload-url\|register\|manual\|:id/reextract` |
+| `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | `POST /receipts/upload-url\|register\|manual\|:id/reextract\|confirm`, `DELETE /receipts/:id` |
 | `RATE_LIMIT_PUBLIC` | 120 / min / IP | `GET /public/*` |
-| `RATE_LIMIT_INVITE` | 30 / min / IP (+ household for create) | `POST /household/invites`, `GET …/peek`, `POST …/accept` |
-| `RATE_LIMIT_HOUSEHOLD` | 20 / min / user+household | export/wipe/transfer/leave/remove + `POST /insights/generate` |
+| `RATE_LIMIT_INVITE` | 30 / min / IP (+ household for create/revoke) | `POST /household/invites`, `GET …/peek`, `POST …/accept`, `DELETE …/invites/:id` |
+| `RATE_LIMIT_HOUSEHOLD` | 20 / min / user+household | export/wipe/transfer/leave/remove/rename + `POST /insights/generate` + `POST /alerts/check` |
 | `JSON_BODY_LIMIT` | `6mb` | Express JSON parser (imageBase64 fallback) |
 
 ## Scheduled jobs (BullMQ)

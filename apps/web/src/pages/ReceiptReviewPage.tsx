@@ -229,9 +229,11 @@ export function ReceiptReviewPage() {
     receipt.status === 'FAILED' ||
     receipt.status === 'UPLOADED' ||
     staleExtracting;
-  const readOnly = receipt.status === 'CONFIRMED';
   const extracting =
     receipt.status === 'UPLOADED' || receipt.status === 'EXTRACTING';
+  const readOnly =
+    receipt.status === 'CONFIRMED' || extracting;
+  const lockedConfirmed = receipt.status === 'CONFIRMED';
 
   return (
     <div className="space-y-5">
@@ -258,10 +260,42 @@ export function ReceiptReviewPage() {
         </div>
       </div>
 
-      {readOnly ? (
-        <p className="border-l-4 border-[var(--ok)] bg-[var(--surface)] px-3 py-2 text-sm">
-          This receipt is confirmed and locked. Delete it from the list if you need
-          to capture it again.
+      {lockedConfirmed ? (
+        <div className="space-y-2 border-l-4 border-[var(--ok)] bg-[var(--surface)] px-3 py-2 text-sm">
+          <p>
+            This receipt is confirmed and locked. Delete it if you need to capture it
+            again.
+          </p>
+          <button
+            type="button"
+            className="font-semibold text-[var(--danger)]"
+            onClick={() => {
+              if (
+                !confirm(
+                  'Delete this receipt and its image? If it was confirmed, its price observations for those lines are removed too.',
+                )
+              ) {
+                return;
+              }
+              void api(`/receipts/${id}`, { method: 'DELETE' })
+                .then(() => {
+                  toast('Receipt deleted', 'ok');
+                  navigate('/receipts');
+                })
+                .catch((err) =>
+                  toast(apiErrorMessage(err, 'Delete failed'), 'danger'),
+                );
+            }}
+          >
+            Delete receipt
+          </button>
+        </div>
+      ) : null}
+
+      {extracting ? (
+        <p className="border-l-4 border-[var(--warn)] bg-[var(--surface)] px-3 py-2 text-sm">
+          Extraction is running — editing is paused until it finishes. You can retry
+          if it stays stuck.
         </p>
       ) : null}
 
@@ -271,8 +305,10 @@ export function ReceiptReviewPage() {
         onSave={(p) => void saveHeader(p)}
       />
 
-      {!readOnly ? (
+      {(!readOnly || canRetryExtract) ? (
       <div className="flex flex-wrap gap-2">
+        {!readOnly ? (
+          <>
         <button
           type="button"
           disabled={busy}
@@ -291,6 +327,8 @@ export function ReceiptReviewPage() {
         >
           Re-run matching
         </button>
+          </>
+        ) : null}
         {canRetryExtract && (
           <button
             type="button"
@@ -302,7 +340,7 @@ export function ReceiptReviewPage() {
             Retry extraction
           </button>
         )}
-        {(receipt.status === 'FAILED' || receipt.lines.length === 0) && (
+        {!readOnly && (receipt.status === 'FAILED' || receipt.lines.length === 0) && (
           <Link
             to="/capture/manual"
             className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold"

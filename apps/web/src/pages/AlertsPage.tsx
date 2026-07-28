@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { api, type Product } from '../lib/api';
+import { api, apiErrorMessage, type Product } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
 import { toast } from '../lib/toast';
 
@@ -71,8 +71,8 @@ export function AlertsPage() {
       toast('Alert saved', 'ok');
       setTarget('');
       await load();
-    } catch {
-      toast('Could not save alert', 'danger');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not save alert'), 'danger');
     }
   }
 
@@ -145,14 +145,18 @@ export function AlertsPage() {
           type="button"
           className="text-sm font-semibold text-[var(--brand-soft)]"
           onClick={() =>
-            void api<typeof triggered>('/alerts/check', { method: 'POST' }).then((rows) => {
-              setTriggered(rows);
-              setMessage(
-                rows.length
-                  ? `${rows.length} alert${rows.length === 1 ? '' : 's'} triggered`
-                  : 'No alerts triggered right now.',
-              );
-            })
+            void api<typeof triggered>('/alerts/check', { method: 'POST' })
+              .then((rows) => {
+                setTriggered(rows);
+                setMessage(
+                  rows.length
+                    ? `${rows.length} alert${rows.length === 1 ? '' : 's'} triggered`
+                    : 'No alerts triggered right now.',
+                );
+              })
+              .catch((err) =>
+                toast(apiErrorMessage(err, 'Could not check alerts'), 'danger'),
+              )
           }
         >
           Check now
@@ -219,7 +223,9 @@ export function AlertsPage() {
                         toast(a.active ? 'Alert paused' : 'Alert resumed', 'ok');
                         return load();
                       })
-                      .catch(() => toast('Update failed', 'danger'))
+                      .catch((err) =>
+                        toast(apiErrorMessage(err, 'Update failed'), 'danger'),
+                      )
                   }
                 >
                   {a.active ? 'Pause' : 'Resume'}
@@ -233,7 +239,9 @@ export function AlertsPage() {
                         toast('Alert removed', 'ok');
                         return load();
                       })
-                      .catch(() => toast('Remove failed', 'danger'))
+                      .catch((err) =>
+                        toast(apiErrorMessage(err, 'Remove failed'), 'danger'),
+                      )
                   }
                 >
                   Remove

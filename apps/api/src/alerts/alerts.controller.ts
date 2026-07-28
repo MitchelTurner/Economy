@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
+import { consumeRateLimit } from '../common/rate-limit';
 import { AlertsService } from './alerts.service';
 import { CreateAlertDto, PatchAlertDto } from './alerts.dto';
 
@@ -29,7 +30,12 @@ export class AlertsController {
   }
 
   @Post('check')
-  check(@CurrentUser() user: AuthUser) {
+  async check(@CurrentUser() user: AuthUser) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      name: 'alerts:check',
+      limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+      windowMs: 60_000,
+    });
     return this.alerts.checkHousehold(user.householdId);
   }
 

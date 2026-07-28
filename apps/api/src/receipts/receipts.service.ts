@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -391,7 +392,12 @@ export class ReceiptsService {
 
   /** Re-queue vision extraction for FAILED, UPLOADED, or stale EXTRACTING photo receipts. */
   async reextract(user: AuthUser, receiptId: string) {
-    const receipt = await this.requireEditable(user, receiptId);
+    const receipt = await this.requireOwned(user, receiptId);
+    if (receipt.status === ReceiptStatus.CONFIRMED) {
+      throw new BadRequestException(
+        'Confirmed receipts are locked — delete and re-capture to change them',
+      );
+    }
     if (receipt.imageKey.startsWith('manual/')) {
       throw new BadRequestException('Manual receipts cannot be re-extracted');
     }
@@ -470,7 +476,7 @@ export class ReceiptsService {
       },
     });
     if (locked.count === 0) {
-      throw new BadRequestException(
+      throw new ConflictException(
         'Receipt was already confirmed or is no longer confirmable',
       );
     }
@@ -529,12 +535,20 @@ export class ReceiptsService {
     return receipt;
   }
 
-  /** Owned receipt that is not yet CONFIRMED (mutations would desync observations). */
+  /** Owned receipt that can be edited (not confirmed or mid-extraction). */
   private async requireEditable(user: AuthUser, id: string) {
     const receipt = await this.requireOwned(user, id);
     if (receipt.status === ReceiptStatus.CONFIRMED) {
       throw new BadRequestException(
         'Confirmed receipts are locked — delete and re-capture to change them',
+      );
+    }
+    if (
+      receipt.status === ReceiptStatus.UPLOADED ||
+      receipt.status === ReceiptStatus.EXTRACTING
+    ) {
+      throw new BadRequestException(
+        'Receipt is still extracting — wait for results or retry extraction if stuck',
       );
     }
     return receipt;

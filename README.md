@@ -83,6 +83,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 22:** confirm status lock + confirmed mutate lock, register/manual/insights/leave rate limits, Review read-only + Receipts in-flight poll.
 
+**Phase 23:** in-flight mutate lock, confirm 409, confirm/delete + alerts/rename/revoke rate limits, Review delete + Budgets/Alerts error polish.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

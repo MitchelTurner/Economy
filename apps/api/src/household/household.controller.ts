@@ -50,7 +50,11 @@ export class HouseholdController {
 
   @Patch()
   @UseGuards(JwtAuthGuard)
-  rename(@CurrentUser() user: AuthUser, @Body() dto: RenameHouseholdDto) {
+  async rename(@CurrentUser() user: AuthUser, @Body() dto: RenameHouseholdDto) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'household:rename',
+    });
     return this.household.rename(user, dto);
   }
 
@@ -124,7 +128,11 @@ export class HouseholdController {
 
   @Delete('invites/:id')
   @UseGuards(JwtAuthGuard)
-  revoke(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async revoke(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...inviteLimit(),
+      name: 'invite:revoke',
+    });
     return this.household.revokeInvite(user, id);
   }
 

@@ -158,11 +158,16 @@ export class ReceiptsController {
   }
 
   @Post(':id/confirm')
-  confirm(
+  async confirm(
+    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Body() dto: ConfirmReceiptDto,
   ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:confirm',
+    });
     return this.receipts.confirm(user, id, dto);
   }
 
@@ -205,7 +210,15 @@ export class ReceiptsController {
   }
 
   @Delete(':id')
-  delete(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async delete(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:delete',
+    });
     return this.receipts.delete(user, id);
   }
 }
