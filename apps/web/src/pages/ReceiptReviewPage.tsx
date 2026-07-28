@@ -271,7 +271,7 @@ export function ReceiptReviewPage() {
             className="font-semibold text-[var(--danger)]"
             onClick={() => {
               if (
-                !confirm(
+                !window.confirm(
                   'Delete this receipt and its image? If it was confirmed, its price observations for those lines are removed too.',
                 )
               ) {
