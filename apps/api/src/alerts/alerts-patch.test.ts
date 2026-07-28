@@ -25,6 +25,7 @@ describe('AlertsService.patch', () => {
       data: { active: false },
       include: { product: true },
     });
+    expect(row.active).toBe(false);
   });
 
   it('can update dropPct without touching active', async () => {

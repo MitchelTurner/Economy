@@ -121,4 +121,4 @@ Manual index rollup: `POST /prices/index/rollup` (household **owner** JWT only).
 
 ## CI
 
-GitHub Actions (`.github/workflows/ci.yml`) runs generate → test → build → extraction eval smoke, then validates Dockerfiles via `docker build`.
+GitHub Actions (`.github/workflows/ci.yml`) runs generate → lint → test → build → extraction eval smoke, then validates Dockerfiles via `docker build`.

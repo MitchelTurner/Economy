@@ -40,9 +40,10 @@ export function LoginPage() {
           onSubmit={onSubmit}
           className="mt-8 space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 backdrop-blur"
         >
-          <div className="flex gap-2 text-sm font-semibold">
+          <div className="flex gap-2 text-sm font-semibold" role="group" aria-label="Auth mode">
             <button
               type="button"
+              aria-pressed={mode === 'login'}
               className={mode === 'login' ? 'text-[var(--brand)]' : 'text-[var(--ink-muted)]'}
               onClick={() => setMode('login')}
             >
@@ -51,6 +52,7 @@ export function LoginPage() {
             <span className="text-[var(--ink-muted)]">·</span>
             <button
               type="button"
+              aria-pressed={mode === 'register'}
               className={mode === 'register' ? 'text-[var(--brand)]' : 'text-[var(--ink-muted)]'}
               onClick={() => setMode('register')}
             >

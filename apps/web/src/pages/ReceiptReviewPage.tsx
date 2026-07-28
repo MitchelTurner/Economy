@@ -70,13 +70,15 @@ export function ReceiptReviewPage() {
     const beforeMatched = receipt?.lines.filter((l) => l.productId).length ?? 0;
     await api(`/receipts/${id}`, { method: 'PATCH', json: patch });
     if ('storeId' in patch) {
-      await api(`/receipts/${id}/rematch`, { method: 'POST' });
+      const res = await api<{ matched: number; unmatched: number }>(
+        `/receipts/${id}/rematch`,
+        { method: 'POST' },
+      );
       await reload();
       const after = await api<ReceiptDetail>(`/receipts/${id}`);
-      const afterMatched = after.lines.filter((l) => l.productId).length;
-      setInfo(
-        `Store updated — rematched ${beforeMatched}→${afterMatched} product bindings.`,
-      );
+      const msg = `Store updated — rematched ${beforeMatched}→${res.matched} bound (${res.unmatched} unmatched).`;
+      setInfo(msg);
+      toast(msg, 'ok');
       setReceipt(after);
       return;
     }
@@ -163,6 +165,28 @@ export function ReceiptReviewPage() {
     }
   }
 
+  async function rematch() {
+    if (!id) return;
+    setError(null);
+    setInfo(null);
+    setBusy(true);
+    const beforeMatched = receipt?.lines.filter((l) => l.productId).length ?? 0;
+    try {
+      const res = await api<{ matched: number; unmatched: number }>(
+        `/receipts/${id}/rematch`,
+        { method: 'POST' },
+      );
+      await reload();
+      const msg = `Rematched — ${res.matched} bound, ${res.unmatched} unmatched (was ${beforeMatched} bound).`;
+      setInfo(msg);
+      toast(msg, 'ok');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Rematch failed'), 'danger');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!receipt) {
     return <p className="text-[var(--ink-muted)]">{error ?? 'Loading receipt…'}</p>;
   }
@@ -197,17 +221,19 @@ export function ReceiptReviewPage() {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
+          disabled={busy}
+          aria-busy={busy}
           onClick={() => void sameAsLast()}
-          className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold"
+          className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:opacity-50"
         >
           Same as last time at this store
         </button>
         <button
           type="button"
-          onClick={() =>
-            void api(`/receipts/${id}/rematch`, { method: 'POST' }).then(() => reload())
-          }
-          className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold"
+          disabled={busy}
+          aria-busy={busy}
+          onClick={() => void rematch()}
+          className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] disabled:opacity-50"
         >
           Re-run matching
         </button>

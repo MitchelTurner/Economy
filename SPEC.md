@@ -505,6 +505,9 @@ Invite accept verifies existing passwords (never overwrites), peek `accountExist
 **Phase 16 — analytics habits + spend views**
 Habits cadence (`tripsPerWeek` / window), validated spend `groupBy`, unit-tested bucketing helpers, dashboard store mix + recurring items, Category/Store/Month spend chart toggle.
 
+**Phase 17 — review rematch + a11y + CI lint**
+Rematch clears stale non-manual bindings, review rematch toasts/busy + store-change toast, Login/Capture a11y, Capture file-input reset, ESLint wired with CI `npm run lint`.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -603,6 +606,12 @@ Phase 16 is done when:
 - `GET /analytics/habits` includes `windowDays` + `tripsPerWeek` cadence over the lookback window.
 - Spend query rejects invalid `groupBy`/`from`/`to`; helpers cover category/store/month bucketing in unit tests.
 - Dashboard habits show cadence, store mix, recurring items, and avg lines; spend chart toggles Category / Store / Month (month uses a multi-month range).
+
+Phase 17 is done when:
+- `matchReceipt` / rematch clears `productId` on auto-match misses while preserving `manual` bindings; unit-tested.
+- Review “Re-run matching” reports matched/unmatched with busy/toast; store-change rematch toasts; same-as-last/rematch are `aria-busy` + focus-visible.
+- Login mode toggle uses `aria-pressed`; Capture camera CTA is labeled and resets the file input after pick.
+- ESLint runs via `npm run lint` in CI (generate → lint → test → build → eval → docker).
 
 ## 13. Testing
 

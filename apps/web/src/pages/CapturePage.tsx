@@ -45,7 +45,6 @@ export function CapturePage() {
       for (const url of previewUrlsRef.current.values()) URL.revokeObjectURL(url);
       previewUrlsRef.current.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function runFlush() {
@@ -166,10 +165,13 @@ export function CapturePage() {
 
       <button
         type="button"
+        aria-label="Open camera or choose receipt photos"
         onClick={() => inputRef.current?.click()}
-        className="flex min-h-[220px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--brand-soft)] bg-[var(--surface)] text-center backdrop-blur"
+        className="flex min-h-[220px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--brand-soft)] bg-[var(--surface)] text-center backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
       >
-        <span className="brand text-4xl text-[var(--brand)]">Open camera</span>
+        <span className="brand text-4xl text-[var(--brand)]" aria-hidden="true">
+          Open camera
+        </span>
         <span className="mt-2 max-w-xs text-sm text-[var(--ink-muted)]">
           Multi-shot queue works offline — sync resumes when you are back online.
         </span>
@@ -181,8 +183,12 @@ export function CapturePage() {
         capture="environment"
         multiple
         className="hidden"
-        aria-label="Choose or take receipt photos"
-        onChange={(e) => void handleFiles(e.target.files)}
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = '';
+        }}
       />
 
       <p className="text-center text-sm text-[var(--ink-muted)]">

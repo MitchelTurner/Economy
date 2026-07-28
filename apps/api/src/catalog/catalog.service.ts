@@ -276,6 +276,17 @@ export class CatalogService {
         });
         matched += 1;
       } else {
+        // Drop stale auto/alias/fuzzy bindings so rematch can't leave ghosts.
+        if (line.productId) {
+          await this.prisma.receiptLine.update({
+            where: { id: line.id },
+            data: {
+              productId: null,
+              matchConfidence: null,
+              matchMethod: null,
+            },
+          });
+        }
         unmatched += 1;
       }
     }

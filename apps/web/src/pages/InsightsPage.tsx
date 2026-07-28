@@ -47,7 +47,6 @@ export function InsightsPage() {
         setDigest(null);
       })
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showActive]);
 
   async function dismiss(id: string) {

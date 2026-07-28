@@ -71,6 +71,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 16:** habits cadence + store mix/recurring on Home, spend Category/Store/Month toggle, analytics helpers tests + query validation.
 
+**Phase 17:** rematch clears stale auto-matches + review toasts, Login/Capture a11y, Capture file reset, ESLint + CI lint step.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.
