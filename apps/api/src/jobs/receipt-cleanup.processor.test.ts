@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReceiptCleanupProcessor } from './receipt-cleanup.processor';
-import { STALE_EXTRACTING_MS } from '../receipts/receipts.service';
+import { STALE_EXTRACTING_MS } from '../receipts/receipt-stale';
 
 describe('ReceiptCleanupProcessor', () => {
   it('deletes storage keys with no matching receipt row', async () => {

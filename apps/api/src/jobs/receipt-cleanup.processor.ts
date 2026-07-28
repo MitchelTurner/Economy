@@ -4,7 +4,7 @@ import { Job } from 'bullmq';
 import { ReceiptStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { STALE_EXTRACTING_MS } from '../receipts/receipts.service';
+import { STALE_EXTRACTING_MS } from '../receipts/receipt-stale';
 import { QUEUE_RECEIPT_CLEANUP } from './queues';
 
 /**

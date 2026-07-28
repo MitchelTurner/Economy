@@ -3,9 +3,9 @@ import { ReceiptStatus } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import {
   isStaleExtracting,
-  ReceiptsService,
   STALE_EXTRACTING_MS,
-} from './receipts.service';
+} from './receipt-stale';
+import { ReceiptsService } from './receipts.service';
 
 describe('ReceiptsService.reextract', () => {
   it('requeues FAILED photo receipts and clears failureReason', async () => {
