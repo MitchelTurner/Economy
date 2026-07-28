@@ -26,7 +26,16 @@ import {
   RegisterReceiptDto,
   UploadUrlDto,
   AddLineDto,
+  ApplyCategorySimilarDto,
 } from './receipts.dto';
+
+function uploadLimit() {
+  return {
+    name: 'receipts:upload',
+    limit: Number(process.env.RATE_LIMIT_UPLOAD ?? 60),
+    windowMs: 60_000,
+  };
+}
 
 @Controller('receipts')
 @UseGuards(JwtAuthGuard)
@@ -40,20 +49,35 @@ export class ReceiptsController {
     @Body() dto: UploadUrlDto,
   ) {
     await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
       name: 'receipts:upload-url',
-      limit: Number(process.env.RATE_LIMIT_UPLOAD ?? 60),
-      windowMs: 60_000,
     });
     return this.receipts.createUploadUrl(user, dto);
   }
 
   @Post()
-  register(@CurrentUser() user: AuthUser, @Body() dto: RegisterReceiptDto) {
+  async register(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: RegisterReceiptDto,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:register',
+    });
     return this.receipts.register(user, dto);
   }
 
   @Post('manual')
-  manual(@CurrentUser() user: AuthUser, @Body() dto: ManualReceiptDto) {
+  async manual(
+    @Req() req: Request,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ManualReceiptDto,
+  ) {
+    await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
+      name: 'receipts:manual',
+    });
     return this.receipts.createManual(user, dto);
   }
 
@@ -159,9 +183,8 @@ export class ReceiptsController {
     @Param('id') id: string,
   ) {
     await consumeRateLimit(clientKeyFromReq(req) + ':' + user.householdId, {
+      ...uploadLimit(),
       name: 'receipts:reextract',
-      limit: Number(process.env.RATE_LIMIT_UPLOAD ?? 60),
-      windowMs: 60_000,
     });
     return this.receipts.reextract(user, id);
   }
@@ -171,7 +194,7 @@ export class ReceiptsController {
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
     @Param('lineId') lineId: string,
-    @Body() body: { categoryId: string },
+    @Body() body: ApplyCategorySimilarDto,
   ) {
     return this.receipts.applyCategoryToSimilar(
       user,

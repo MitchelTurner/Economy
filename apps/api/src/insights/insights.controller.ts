@@ -1,6 +1,7 @@
 import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
+import { consumeRateLimit } from '../common/rate-limit';
 import { InsightsService } from './insights.service';
 
 @Controller('insights')
@@ -24,7 +25,12 @@ export class InsightsController {
   }
 
   @Post('generate')
-  generate(@CurrentUser() user: AuthUser) {
+  async generate(@CurrentUser() user: AuthUser) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      name: 'insights:generate',
+      limit: Number(process.env.RATE_LIMIT_HOUSEHOLD ?? 20),
+      windowMs: 60_000,
+    });
     return this.insights.generateForHousehold(user.householdId);
   }
 

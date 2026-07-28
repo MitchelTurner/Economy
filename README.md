@@ -81,6 +81,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 21:** extract fail-closed, stale EXTRACTING reextract + cleanup, reextract rate limit, Review poll, Receipts list Retry.
 
+**Phase 22:** confirm status lock + confirmed mutate lock, register/manual/insights/leave rate limits, Review read-only + Receipts in-flight poll.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.

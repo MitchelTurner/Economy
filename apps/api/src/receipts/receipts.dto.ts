@@ -132,6 +132,15 @@ export class ConfirmReceiptDto {
   overrideArithmetic!: boolean;
 }
 
+export const ApplyCategorySimilarSchema = z.object({
+  categoryId: z.string().min(1),
+});
+
+@ZodBody(ApplyCategorySimilarSchema)
+export class ApplyCategorySimilarDto {
+  categoryId!: string;
+}
+
 export const ListReceiptsQuerySchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),

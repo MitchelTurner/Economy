@@ -28,6 +28,8 @@ export function ReceiptsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchDraft, setSearchDraft] = useState(q);
 
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+
   useEffect(() => {
     void api<Store[]>('/catalog/stores').then(setStores);
   }, []);
@@ -59,6 +61,32 @@ export function ReceiptsPage() {
       })
       .finally(() => setLoading(false));
   }, [status, from, to, storeId, q]);
+
+  const hasInFlight = items.some(
+    (r) => r.status === 'UPLOADED' || r.status === 'EXTRACTING',
+  );
+
+  useEffect(() => {
+    if (!hasInFlight || loading) return;
+    const t = window.setInterval(() => {
+      const qs = new URLSearchParams();
+      if (status) qs.set('status', status);
+      if (storeId) qs.set('storeId', storeId);
+      if (from) qs.set('from', new Date(`${from}T00:00:00.000Z`).toISOString());
+      if (to) qs.set('to', new Date(`${to}T23:59:59.999Z`).toISOString());
+      if (q.trim()) qs.set('q', q.trim());
+      const query = qs.toString();
+      void api<{ items: ReceiptSummary[]; nextCursor: string | null }>(
+        `/receipts${query ? `?${query}` : ''}`,
+      )
+        .then((r) => {
+          setItems(r.items);
+          setNextCursor(r.nextCursor);
+        })
+        .catch(() => undefined);
+    }, 2500);
+    return () => window.clearInterval(t);
+  }, [hasInFlight, loading, status, from, to, storeId, q]);
 
   function setParam(key: string, value: string) {
     const n = new URLSearchParams(params);
@@ -113,6 +141,7 @@ export function ReceiptsPage() {
   }
 
   async function retryExtract(id: string) {
+    setRetryingId(id);
     try {
       await api(`/receipts/${id}/reextract`, { method: 'POST' });
       setItems((prev) =>
@@ -121,6 +150,8 @@ export function ReceiptsPage() {
       toast('Extraction queued', 'ok');
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not retry extraction'), 'danger');
+    } finally {
+      setRetryingId(null);
     }
   }
 
@@ -247,7 +278,9 @@ export function ReceiptsPage() {
                 {canRetry(r) ? (
                   <button
                     type="button"
-                    className="shrink-0 text-xs font-semibold text-[var(--brand-soft)]"
+                    className="shrink-0 text-xs font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                    disabled={retryingId === r.id}
+                    aria-busy={retryingId === r.id}
                     onClick={() => void retryExtract(r.id)}
                   >
                     Retry

@@ -268,7 +268,7 @@ export class ReceiptsService {
   }
 
   async patch(user: AuthUser, id: string, dto: PatchReceiptDto) {
-    await this.requireOwned(user, id);
+    await this.requireEditable(user, id);
     return this.prisma.receipt.update({
       where: { id },
       data: {
@@ -288,7 +288,7 @@ export class ReceiptsService {
   }
 
   async patchLine(user: AuthUser, receiptId: string, lineId: string, dto: PatchLineDto) {
-    const receipt = await this.requireOwned(user, receiptId);
+    const receipt = await this.requireEditable(user, receiptId);
     const line = await this.prisma.receiptLine.findFirst({
       where: { id: lineId, receiptId },
     });
@@ -333,7 +333,7 @@ export class ReceiptsService {
   }
 
   async addLine(user: AuthUser, receiptId: string, dto: AddLineDto) {
-    await this.requireOwned(user, receiptId);
+    await this.requireEditable(user, receiptId);
     const max = await this.prisma.receiptLine.aggregate({
       where: { receiptId },
       _max: { lineNumber: true },
@@ -355,7 +355,7 @@ export class ReceiptsService {
   }
 
   async deleteLine(user: AuthUser, receiptId: string, lineId: string) {
-    await this.requireOwned(user, receiptId);
+    await this.requireEditable(user, receiptId);
     const line = await this.prisma.receiptLine.findFirst({
       where: { id: lineId, receiptId },
     });
@@ -365,7 +365,7 @@ export class ReceiptsService {
   }
 
   async sameAsLastTime(user: AuthUser, receiptId: string) {
-    await this.requireOwned(user, receiptId);
+    await this.requireEditable(user, receiptId);
     return this.catalog.applySameAsLastTime(user.householdId, receiptId);
   }
 
@@ -375,7 +375,7 @@ export class ReceiptsService {
     lineId: string,
     categoryId: string,
   ) {
-    await this.requireOwned(user, receiptId);
+    await this.requireEditable(user, receiptId);
     return this.catalog.applyCategoryToSimilar(
       user.householdId,
       receiptId,
@@ -385,13 +385,13 @@ export class ReceiptsService {
   }
 
   async rematch(user: AuthUser, receiptId: string) {
-    await this.requireOwned(user, receiptId);
+    await this.requireEditable(user, receiptId);
     return this.catalog.matchReceipt(receiptId);
   }
 
   /** Re-queue vision extraction for FAILED, UPLOADED, or stale EXTRACTING photo receipts. */
   async reextract(user: AuthUser, receiptId: string) {
-    const receipt = await this.requireOwned(user, receiptId);
+    const receipt = await this.requireEditable(user, receiptId);
     if (receipt.imageKey.startsWith('manual/')) {
       throw new BadRequestException('Manual receipts cannot be re-extracted');
     }
@@ -431,6 +431,15 @@ export class ReceiptsService {
     });
     if (!receipt) throw new NotFoundException('Receipt not found');
 
+    const confirmable =
+      receipt.status === ReceiptStatus.NEEDS_REVIEW ||
+      receipt.status === ReceiptStatus.FAILED;
+    if (!confirmable) {
+      throw new BadRequestException(
+        `Only NEEDS_REVIEW or FAILED receipts can be confirmed (got ${receipt.status})`,
+      );
+    }
+
     const arith = receiptArithmeticOk({
       lines: receipt.lines,
       taxCents: receipt.taxCents,
@@ -446,13 +455,28 @@ export class ReceiptsService {
       });
     }
 
-    const updated = await this.prisma.receipt.update({
-      where: { id },
+    const locked = await this.prisma.receipt.updateMany({
+      where: {
+        id,
+        householdId: user.householdId,
+        status: {
+          in: [ReceiptStatus.NEEDS_REVIEW, ReceiptStatus.FAILED],
+        },
+      },
       data: {
         status: ReceiptStatus.CONFIRMED,
         reviewedAt: new Date(),
         arithmeticOk: arith.ok,
       },
+    });
+    if (locked.count === 0) {
+      throw new BadRequestException(
+        'Receipt was already confirmed or is no longer confirmable',
+      );
+    }
+
+    const updated = await this.prisma.receipt.findFirstOrThrow({
+      where: { id },
       include: { lines: true, store: true },
     });
 
@@ -502,6 +526,17 @@ export class ReceiptsService {
       where: { id, householdId: user.householdId },
     });
     if (!receipt) throw new NotFoundException('Receipt not found');
+    return receipt;
+  }
+
+  /** Owned receipt that is not yet CONFIRMED (mutations would desync observations). */
+  private async requireEditable(user: AuthUser, id: string) {
+    const receipt = await this.requireOwned(user, id);
+    if (receipt.status === ReceiptStatus.CONFIRMED) {
+      throw new BadRequestException(
+        'Confirmed receipts are locked — delete and re-capture to change them',
+      );
+    }
     return receipt;
   }
 }

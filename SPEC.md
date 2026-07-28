@@ -520,6 +520,9 @@ Rate-limit export/wipe/transfer (`RATE_LIMIT_HOUSEHOLD`); wipe revokes all membe
 **Phase 21 — stuck extraction recovery + reextract harden**
 Extract processor fail-closed on crashes; reextract allows stale `EXTRACTING` (≥5m) and is rate-limited; daily cleanup flips aged `EXTRACTING` → `FAILED`; Review auto-polls while extracting; Receipts list Retry CTA.
 
+**Phase 22 — confirm lock + enqueue mutate harden**
+Confirm only from `NEEDS_REVIEW`/`FAILED` (optimistic lock); confirmed receipts reject header/line/rematch/reextract mutates; rate-limit register/manual/insights generate/leave/remove; Review read-only when confirmed; Receipts list polls in-flight rows.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -643,6 +646,11 @@ Phase 21 is done when:
 - Extract processor marks receipts `FAILED` on uncaught crashes; `Receipt.updatedAt` supports stale detection.
 - Reextract allows stale `EXTRACTING` (≥5m), rejects fresh in-flight, and uses `RATE_LIMIT_UPLOAD`; cleanup fails aged `EXTRACTING`.
 - Review polls while `UPLOADED`/`EXTRACTING`; Receipts list exposes Retry for failed/stale rows.
+
+Phase 22 is done when:
+- `POST /receipts/:id/confirm` only succeeds for `NEEDS_REVIEW`/`FAILED` via status-gated `updateMany`; double-confirm does not re-enqueue observe/match/insights.
+- Confirmed receipts reject patch/line/same-as-last/rematch/reextract/apply-category; Review is read-only with a locked banner.
+- Register/manual use `RATE_LIMIT_UPLOAD`; insights generate + leave/remove use `RATE_LIMIT_HOUSEHOLD`; Receipts list polls while any visible row is in-flight.
 
 ## 13. Testing
 

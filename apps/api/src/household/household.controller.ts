@@ -56,20 +56,30 @@ export class HouseholdController {
 
   @Post('leave')
   @UseGuards(JwtAuthGuard)
-  leave(@CurrentUser() user: AuthUser) {
+  async leave(@CurrentUser() user: AuthUser) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'household:leave',
+    });
     return this.household.leave(user);
   }
 
   @Delete('members/:userId')
   @UseGuards(JwtAuthGuard)
-  removeMember(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+  async removeMember(
+    @CurrentUser() user: AuthUser,
+    @Param('userId') userId: string,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'household:remove-member',
+    });
     return this.household.removeMember(user, userId);
   }
 
   @Post('transfer')
   @UseGuards(JwtAuthGuard)
   async transfer(
-    @Req() req: Request,
     @CurrentUser() user: AuthUser,
     @Body() dto: TransferOwnershipDto,
   ) {
@@ -120,7 +130,7 @@ export class HouseholdController {
 
   @Get('export')
   @UseGuards(JwtAuthGuard)
-  async export(@Req() req: Request, @CurrentUser() user: AuthUser) {
+  async export(@CurrentUser() user: AuthUser) {
     await consumeRateLimit(`${user.userId}:${user.householdId}`, {
       ...householdLimit(),
       name: 'household:export',
@@ -136,7 +146,7 @@ export class HouseholdController {
 
   @Delete()
   @UseGuards(JwtAuthGuard)
-  async hardDelete(@Req() req: Request, @CurrentUser() user: AuthUser) {
+  async hardDelete(@CurrentUser() user: AuthUser) {
     await consumeRateLimit(`${user.userId}:${user.householdId}`, {
       ...householdLimit(),
       name: 'household:wipe',

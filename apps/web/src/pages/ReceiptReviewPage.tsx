@@ -229,6 +229,9 @@ export function ReceiptReviewPage() {
     receipt.status === 'FAILED' ||
     receipt.status === 'UPLOADED' ||
     staleExtracting;
+  const readOnly = receipt.status === 'CONFIRMED';
+  const extracting =
+    receipt.status === 'UPLOADED' || receipt.status === 'EXTRACTING';
 
   return (
     <div className="space-y-5">
@@ -240,8 +243,12 @@ export function ReceiptReviewPage() {
           <h1 className="mt-2 text-3xl font-semibold">
             {receipt.store?.name ?? 'Review receipt'}
           </h1>
-          <p className="text-sm text-[var(--ink-muted)]">
+          <p
+            className="text-sm text-[var(--ink-muted)]"
+            aria-live="polite"
+          >
             {receipt.status}
+            {extracting ? ' — extraction in progress…' : ''}
             {receipt.confidence != null
               ? ` · confidence ${(receipt.confidence * 100).toFixed(0)}%`
               : ''}
@@ -251,8 +258,20 @@ export function ReceiptReviewPage() {
         </div>
       </div>
 
-      <HeaderEditor receipt={receipt} onSave={(p) => void saveHeader(p)} />
+      {readOnly ? (
+        <p className="border-l-4 border-[var(--ok)] bg-[var(--surface)] px-3 py-2 text-sm">
+          This receipt is confirmed and locked. Delete it from the list if you need
+          to capture it again.
+        </p>
+      ) : null}
 
+      <HeaderEditor
+        receipt={receipt}
+        readOnly={readOnly}
+        onSave={(p) => void saveHeader(p)}
+      />
+
+      {!readOnly ? (
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
@@ -292,6 +311,7 @@ export function ReceiptReviewPage() {
           </Link>
         )}
       </div>
+      ) : null}
 
       {info && (
         <p className="border-l-4 border-[var(--ok)] bg-[var(--surface)] px-3 py-2 text-sm">
@@ -319,6 +339,7 @@ export function ReceiptReviewPage() {
               suspect={suspect.has(line.lineNumber)}
               categories={categories}
               storeId={receipt.store?.id}
+              readOnly={readOnly}
               onSave={(patch) => void saveLine(line, patch)}
               onDelete={() => void deleteLine(line.id)}
               onApplyCategorySimilar={async (categoryId) => {
@@ -342,6 +363,7 @@ export function ReceiptReviewPage() {
             />
           ))}
 
+          {!readOnly ? (
           <div className="rounded-xl border border-dashed border-[var(--line)] px-3 py-3">
             <p className="text-sm font-semibold">Add line</p>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -367,6 +389,7 @@ export function ReceiptReviewPage() {
               </button>
             </div>
           </div>
+          ) : null}
         </div>
       </div>
 
@@ -393,7 +416,7 @@ export function ReceiptReviewPage() {
           </div>
         </div>
 
-        {!reconciled && (
+        {!readOnly && !reconciled && (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -406,6 +429,7 @@ export function ReceiptReviewPage() {
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
+          {!readOnly ? (
           <button
             type="button"
             disabled={busy || (!reconciled && !override)}
@@ -415,7 +439,8 @@ export function ReceiptReviewPage() {
           >
             {busy ? 'Confirming…' : 'Confirm receipt'}
           </button>
-          {!reconciled && (
+          ) : null}
+          {!readOnly && !reconciled && (
             <p id="confirm-override-hint" className="text-xs text-[var(--ink-muted)]">
               Totals must reconcile, or check override above.
             </p>
@@ -428,9 +453,11 @@ export function ReceiptReviewPage() {
 function HeaderEditor({
   receipt,
   onSave,
+  readOnly = false,
 }: {
   receipt: ReceiptDetail;
   onSave: (patch: Record<string, unknown>) => void;
+  readOnly?: boolean;
 }) {
   const [stores, setStores] = useState<Array<{ id: string; name: string; address: string | null }>>(
     [],
@@ -485,12 +512,12 @@ function HeaderEditor({
   }
 
   return (
-    <div className="space-y-2">
+    <fieldset disabled={readOnly} className="space-y-2 border-0 p-0">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="text-xs">
           Store
           <select
-            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5"
+            className="mt-1 w-full rounded border border-[var(--line)] bg-white/90 px-2 py-1.5 disabled:opacity-60"
             value={storeId}
             onChange={(e) => {
               setStoreId(e.target.value);
@@ -573,7 +600,7 @@ function HeaderEditor({
           />
         </label>
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -585,6 +612,7 @@ function LineEditor({
   onSave,
   onDelete,
   onApplyCategorySimilar,
+  readOnly = false,
 }: {
   line: ReceiptLine;
   suspect: boolean;
@@ -593,6 +621,7 @@ function LineEditor({
   onSave: (patch: Record<string, unknown>) => void;
   onDelete: () => void;
   onApplyCategorySimilar: (categoryId: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const [qty, setQty] = useState(String(line.quantity));
   const [price, setPrice] = useState(
@@ -641,6 +670,7 @@ function LineEditor({
   }
 
   return (
+    <fieldset disabled={readOnly} className="min-w-0 border-0 p-0">
     <div
       className={[
         'rounded-xl border px-3 py-3',
@@ -649,6 +679,7 @@ function LineEditor({
           : line.productId
             ? 'border-[var(--line)] bg-[var(--surface)]'
             : 'border-[var(--accent)] bg-[#fff8f2]',
+        readOnly ? 'opacity-90' : '',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2">
@@ -677,6 +708,7 @@ function LineEditor({
         </div>
         <div className="text-right">
           <p className="font-semibold tabular-nums">{formatCents(line.extendedCents)}</p>
+          {!readOnly ? (
           <button
             type="button"
             className="mt-1 text-xs font-semibold text-[var(--danger)]"
@@ -684,6 +716,7 @@ function LineEditor({
           >
             Delete
           </button>
+          ) : null}
         </div>
       </div>
 
@@ -793,7 +826,7 @@ function LineEditor({
         </select>
       </label>
 
-      {line.categoryId && (
+      {line.categoryId && !readOnly && (
         <button
           type="button"
           className="mt-2 text-xs font-semibold text-[var(--brand-soft)]"
@@ -803,5 +836,6 @@ function LineEditor({
         </button>
       )}
     </div>
+    </fieldset>
   );
 }
