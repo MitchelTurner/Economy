@@ -31,6 +31,8 @@ export function BudgetsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
 
   async function load() {
     const weekFrom = startOfWeekIso();
@@ -66,6 +68,7 @@ export function BudgetsPage() {
     }
     const startsOn =
       period === 'WEEKLY' ? startOfWeekIso() : startOfMonthIso();
+    setBusy(true);
     try {
       await api('/budgets', {
         method: 'POST',
@@ -82,6 +85,8 @@ export function BudgetsPage() {
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not add budget'), 'danger');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -91,6 +96,7 @@ export function BudgetsPage() {
       toast('Enter a valid dollar amount', 'danger');
       return;
     }
+    setActionId(id);
     try {
       await api(`/budgets/${id}`, {
         method: 'PATCH',
@@ -101,16 +107,22 @@ export function BudgetsPage() {
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Update failed'), 'danger');
+    } finally {
+      setActionId(null);
     }
   }
 
   async function remove(id: string) {
+    if (!window.confirm('Delete this budget?')) return;
+    setActionId(id);
     try {
       await api(`/budgets/${id}`, { method: 'DELETE' });
       toast('Budget deleted', 'ok');
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Delete failed'), 'danger');
+    } finally {
+      setActionId(null);
     }
   }
 
@@ -161,9 +173,11 @@ export function BudgetsPage() {
         </label>
         <button
           type="submit"
-          className="self-end rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white"
+          disabled={busy}
+          aria-busy={busy}
+          className="self-end rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
-          Add budget
+          {busy ? 'Saving…' : 'Add budget'}
         </button>
       </form>
 
@@ -210,7 +224,9 @@ export function BudgetsPage() {
                     />
                     <button
                       type="button"
-                      className="text-sm font-semibold text-[var(--brand)]"
+                      className="text-sm font-semibold text-[var(--brand)] disabled:opacity-50"
+                      disabled={actionId === b.id}
+                      aria-busy={actionId === b.id}
                       onClick={() => void saveEdit(b.id)}
                     >
                       Save
@@ -252,7 +268,9 @@ export function BudgetsPage() {
                   </button>
                   <button
                     type="button"
-                    className="font-semibold text-[var(--danger)]"
+                    className="font-semibold text-[var(--danger)] disabled:opacity-50"
+                    disabled={actionId === b.id}
+                    aria-busy={actionId === b.id}
                     onClick={() => void remove(b.id)}
                   >
                     Delete

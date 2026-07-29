@@ -532,6 +532,9 @@ Lock edits while `UPLOADED`/`EXTRACTING` (reextract still allowed); confirm race
 **Phase 25 — catalog + review-edit rate limits + price-surface polish**
 Rate-limit catalog creates, review edit mutates, `PATCH /auth/me` + logout-all; Review store/product create toasts; Settings/Manual busy states; Prices/Delivered/Index/Public error polish.
 
+**Phase 26 — invite orphan guard + query bounds + mutate UX**
+Invite accept cannot orphan last-owner / solo-with-receipts households; revoke sessions on household move; rate-limit logout; validate list/compare/delivered query bounds; Review/Receipts/Budgets/Alerts/Insights busy + confirms; shared outbox flush; public product-price errors.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -675,6 +678,12 @@ Phase 25 is done when:
 - Catalog store/product/alias creates use `RATE_LIMIT_HOUSEHOLD`; receipt patch/line/same-as-last/rematch/apply-category use `RATE_LIMIT_UPLOAD`; `PATCH /auth/me` + logout-all use `RATE_LIMIT_AUTH`.
 - Review store/product create failures toast via `apiErrorMessage`; Settings Save name / Sign out everywhere and Manual submit expose busy/`aria-busy`.
 - Prices, Delivered Cost, Price Index, and Public `/island` surface load/compare failures with clear messages (not bare `HTTP nnn`).
+
+Phase 26 is done when:
+- `POST /auth/logout` uses `RATE_LIMIT_AUTH`; `GET /receipts` validates list query (incl. `q`/`limit`); `/prices/compare` caps product ids; `/prices/delivered` rejects invalid quantity.
+- Invite accept rejects last-owner multi-member moves and solo moves that leave receipts; household moves revoke prior refresh sessions.
+- Review/Receipts/Budgets/Alerts/Insights mutate controls expose busy/`aria-busy` (and confirm destructive deletes); Review load/image errors use `apiErrorMessage`; polling pauses while hidden.
+- Capture/Shell share one outbox flush promise; Public `/island` product prices surface load errors instead of a false empty state.
 
 ## 13. Testing
 

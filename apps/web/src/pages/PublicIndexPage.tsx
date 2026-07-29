@@ -55,6 +55,7 @@ export function PublicIndexPage() {
   const [prices, setPrices] = useState<PublicPrices | null>(null);
   const [loading, setLoading] = useState(true);
   const [pricesLoading, setPricesLoading] = useState(false);
+  const [pricesError, setPricesError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,18 +116,42 @@ export function PublicIndexPage() {
   useEffect(() => {
     if (!productId) {
       setPrices(null);
+      setPricesError(null);
       return;
     }
     setPricesLoading(true);
+    setPricesError(null);
     void fetch(
       `${API_URL}/public/prices/${encodeURIComponent(productId)}?region=${encodeURIComponent(region)}`,
     )
       .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        if (!r.ok) {
+          let detail: unknown;
+          try {
+            detail = await r.json();
+          } catch {
+            detail = undefined;
+          }
+          const msg =
+            detail &&
+            typeof detail === 'object' &&
+            detail !== null &&
+            'message' in detail &&
+            typeof (detail as { message: unknown }).message === 'string'
+              ? (detail as { message: string }).message
+              : `Could not load product prices (${r.status})`;
+          throw new Error(msg);
+        }
         return r.json() as Promise<PublicPrices>;
       })
-      .then(setPrices)
-      .catch(() => setPrices({ productId, minHouseholds: 3, observations: [] }))
+      .then((rows) => {
+        setPrices(rows);
+        setPricesError(null);
+      })
+      .catch((e) => {
+        setPrices(null);
+        setPricesError((e as Error).message || 'Could not load product prices');
+      })
       .finally(() => setPricesLoading(false));
   }, [productId, region]);
 
@@ -245,7 +270,13 @@ export function PublicIndexPage() {
 
         {pricesLoading && <p className="text-sm text-[var(--ink-muted)]">Loading prices…</p>}
 
-        {!pricesLoading && prices && prices.observations.length === 0 && selected && (
+        {!pricesLoading && pricesError && (
+          <p className="text-sm text-[var(--danger)]" role="alert">
+            {pricesError}
+          </p>
+        )}
+
+        {!pricesLoading && !pricesError && prices && prices.observations.length === 0 && selected && (
           <p className="text-sm text-[var(--ink-muted)]">
             No gated public prices for {selected.name} in {region} yet.
           </p>

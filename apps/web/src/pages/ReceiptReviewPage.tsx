@@ -38,16 +38,28 @@ export function ReceiptReviewPage() {
   }
 
   useEffect(() => {
-    void reload().catch((e) => setError((e as Error).message));
+    void reload().catch((e) => setError(apiErrorMessage(e, 'Could not load receipt')));
   }, [id]);
 
   useEffect(() => {
     if (!id || !receipt) return;
     if (receipt.status !== 'UPLOADED' && receipt.status !== 'EXTRACTING') return;
-    const t = window.setInterval(() => {
-      void reload().catch(() => undefined);
-    }, 2000);
-    return () => window.clearInterval(t);
+    let inFlight = false;
+    const tick = () => {
+      if (document.visibilityState === 'hidden' || inFlight) return;
+      inFlight = true;
+      void reload()
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false;
+        });
+    };
+    const t = window.setInterval(tick, 2000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', tick);
+    };
   }, [id, receipt?.status]);
 
   const suspect = useMemo(
@@ -69,18 +81,22 @@ export function ReceiptReviewPage() {
   }, [receipt, suspect]);
 
   async function saveLine(line: ReceiptLine, patch: Record<string, unknown>) {
-    if (!id) return;
+    if (!id || busy) return;
+    setBusy(true);
     try {
       await api(`/receipts/${id}/lines/${line.id}`, { method: 'PATCH', json: patch });
       await reload();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not save line'), 'danger');
+    } finally {
+      setBusy(false);
     }
   }
 
   async function saveHeader(patch: Record<string, unknown>) {
-    if (!id) return;
+    if (!id || busy) return;
     const beforeMatched = receipt?.lines.filter((l) => l.productId).length ?? 0;
+    setBusy(true);
     try {
       await api(`/receipts/${id}`, { method: 'PATCH', json: patch });
       if ('storeId' in patch) {
@@ -99,6 +115,8 @@ export function ReceiptReviewPage() {
       await reload();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not save header'), 'danger');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -128,12 +146,16 @@ export function ReceiptReviewPage() {
   }
 
   async function deleteLine(lineId: string) {
-    if (!id) return;
+    if (!id || busy) return;
+    if (!window.confirm('Delete this line from the receipt?')) return;
+    setBusy(true);
     try {
       await api(`/receipts/${id}/lines/${lineId}`, { method: 'DELETE' });
       await reload();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not delete line'), 'danger');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -313,7 +335,9 @@ export function ReceiptReviewPage() {
             </button>
             <button
               type="button"
-              className="font-semibold text-[var(--danger)]"
+              className="font-semibold text-[var(--danger)] disabled:opacity-50"
+              disabled={busy}
+              aria-busy={busy}
               onClick={() => {
                 if (
                   !window.confirm(
@@ -322,6 +346,7 @@ export function ReceiptReviewPage() {
                 ) {
                   return;
                 }
+                setBusy(true);
                 void api(`/receipts/${id}`, { method: 'DELETE' })
                   .then(() => {
                     toast('Receipt deleted', 'ok');
@@ -329,7 +354,8 @@ export function ReceiptReviewPage() {
                   })
                   .catch((err) =>
                     toast(apiErrorMessage(err, 'Delete failed'), 'danger'),
-                  );
+                  )
+                  .finally(() => setBusy(false));
               }}
             >
               Delete receipt
@@ -465,7 +491,8 @@ export function ReceiptReviewPage() {
               />
               <button
                 type="button"
-                disabled={adding || !newRaw.trim()}
+                disabled={adding || busy || !newRaw.trim()}
+                aria-busy={adding}
                 onClick={() => void addLine()}
                 className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
@@ -517,6 +544,7 @@ export function ReceiptReviewPage() {
           <button
             type="button"
             disabled={busy || (!reconciled && !override)}
+            aria-busy={busy}
             onClick={() => void confirm()}
             aria-describedby={!reconciled ? 'confirm-override-hint' : undefined}
             className="w-full rounded-md bg-[var(--brand)] px-4 py-3 font-semibold text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"

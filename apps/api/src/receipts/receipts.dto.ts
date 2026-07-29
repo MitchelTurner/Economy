@@ -146,6 +146,18 @@ export const ListReceiptsQuerySchema = z.object({
   to: z.string().optional(),
   storeId: z.string().optional(),
   status: z.nativeEnum(ReceiptStatus).optional(),
+  q: z.string().max(200).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(30),
 });
+
+@ZodBody(ListReceiptsQuerySchema)
+export class ListReceiptsQueryDto {
+  from?: string;
+  to?: string;
+  storeId?: string;
+  status?: ReceiptStatus;
+  q?: string;
+  cursor?: string;
+  limit!: number;
+}

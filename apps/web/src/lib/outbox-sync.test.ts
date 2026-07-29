@@ -65,7 +65,7 @@ describe('flushPendingOutbox', () => {
     expect(result.failures[0]!.offlineLikely).toBe(false);
   });
 
-  it('is single-flight (second call while flushing is no-op)', async () => {
+  it('is single-flight (second call shares the same result)', async () => {
     let release!: () => void;
     const gate = new Promise<void>((r) => {
       release = r;
@@ -77,9 +77,12 @@ describe('flushPendingOutbox', () => {
 
     const { flushPendingOutbox } = await import('./outbox-sync');
     const first = flushPendingOutbox();
-    const second = await flushPendingOutbox();
-    expect(second).toEqual({ reviewIds: [], failures: [] });
+    const second = flushPendingOutbox();
+    expect(second).toBe(first);
     release();
-    await first;
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { reviewIds: [], failures: [] },
+      { reviewIds: [], failures: [] },
+    ]);
   });
 });

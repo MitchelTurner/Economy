@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchAuthedBlobUrl } from '../lib/api';
+import { apiErrorMessage, fetchAuthedBlobUrl } from '../lib/api';
 
 export function ReceiptImageViewer({
   imageUrl,
@@ -43,7 +43,7 @@ export function ReceiptImageViewer({
         objectUrlRef.current = url;
         setSrc(url);
       } catch (err) {
-        if (!cancelled) setError((err as Error).message || 'Could not load image');
+        if (!cancelled) setError(apiErrorMessage(err, 'Could not load image'));
       }
     }
 

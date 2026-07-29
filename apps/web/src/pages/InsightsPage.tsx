@@ -31,6 +31,7 @@ export function InsightsPage() {
   const [items, setItems] = useState<Insight[]>([]);
   const [digest, setDigest] = useState<Digest | null>(null);
   const [busy, setBusy] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showActive, setShowActive] = useState(true);
 
@@ -51,22 +52,28 @@ export function InsightsPage() {
   }, [showActive]);
 
   async function dismiss(id: string) {
+    setActionId(id);
     try {
       await api(`/insights/${id}/dismiss`, { method: 'POST' });
       toast('Insight dismissed', 'ok');
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Dismiss failed'), 'danger');
+    } finally {
+      setActionId(null);
     }
   }
 
   async function restore(id: string) {
+    setActionId(id);
     try {
       await api(`/insights/${id}/restore`, { method: 'POST' });
       toast('Insight restored', 'ok');
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Restore failed'), 'danger');
+    } finally {
+      setActionId(null);
     }
   }
 
@@ -168,7 +175,9 @@ export function InsightsPage() {
                 {showActive ? (
                   <button
                     type="button"
-                    className="text-sm font-semibold text-[var(--ink-muted)]"
+                    className="text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
+                    disabled={actionId === i.id}
+                    aria-busy={actionId === i.id}
                     onClick={() => void dismiss(i.id)}
                   >
                     Dismiss
@@ -176,7 +185,9 @@ export function InsightsPage() {
                 ) : (
                   <button
                     type="button"
-                    className="text-sm font-semibold text-[var(--brand-soft)]"
+                    className="text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                    disabled={actionId === i.id}
+                    aria-busy={actionId === i.id}
                     onClick={() => void restore(i.id)}
                   >
                     Restore

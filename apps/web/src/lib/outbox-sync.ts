@@ -73,17 +73,17 @@ async function waitForReview(receiptId: string) {
   throw new Error('Extraction timed out — open Receipts to check status');
 }
 
-let flushing = false;
+let flushInFlight: Promise<FlushResult> | null = null;
 
-/** Flush IndexedDB outbox; safe to call from Capture or shell (single-flight). */
-export async function flushPendingOutbox(
+/** Flush IndexedDB outbox; safe to call from Capture or shell (shared single-flight). */
+export function flushPendingOutbox(
   onItem?: (id: string, status: string) => void,
 ): Promise<FlushResult> {
-  if (flushing) return { reviewIds: [], failures: [] };
-  flushing = true;
-  const reviewIds: string[] = [];
-  const failures: FlushResult['failures'] = [];
-  try {
+  if (flushInFlight) return flushInFlight;
+
+  flushInFlight = (async () => {
+    const reviewIds: string[] = [];
+    const failures: FlushResult['failures'] = [];
     const pending = await pendingOutbox();
     for (const meta of pending) {
       onItem?.(meta.id, 'Uploading…');
@@ -105,8 +105,10 @@ export async function flushPendingOutbox(
         failures.push({ id: meta.id, message, offlineLikely });
       }
     }
-  } finally {
-    flushing = false;
-  }
-  return { reviewIds, failures };
+    return { reviewIds, failures };
+  })().finally(() => {
+    flushInFlight = null;
+  });
+
+  return flushInFlight;
 }

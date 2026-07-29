@@ -134,7 +134,18 @@ export async function fetchAuthedBlobUrl(path: string): Promise<string> {
       res = await fetch(`${API_URL}${path}`, { headers });
     }
   }
-  if (!res.ok) throw new Error(`Image ${res.status}`);
+  if (!res.ok) {
+    let detail: unknown;
+    try {
+      detail = await res.json();
+    } catch {
+      detail = undefined;
+    }
+    throw Object.assign(new Error(apiErrorMessage({ detail }, `Could not load image (${res.status})`)), {
+      status: res.status,
+      detail,
+    });
+  }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }

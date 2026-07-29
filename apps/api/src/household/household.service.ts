@@ -188,9 +188,12 @@ export class HouseholdService {
       user && user.householdId !== invite.householdId ? user.householdId : null;
 
     if (user && user.householdId !== invite.householdId) {
-      const [memberCount, receiptCount] = await Promise.all([
+      const [memberCount, receiptCount, ownerCount] = await Promise.all([
         this.prisma.user.count({ where: { householdId: user.householdId } }),
         this.prisma.receipt.count({ where: { householdId: user.householdId } }),
+        this.prisma.user.count({
+          where: { householdId: user.householdId, role: 'owner' },
+        }),
       ]);
       const hasOtherLife = memberCount > 1 || receiptCount > 0;
       if (hasOtherLife && !dto.moveHousehold) {
@@ -201,6 +204,16 @@ export class HouseholdService {
           currentHouseholdName: user.household.name,
           inviteHouseholdName: invite.household.name,
         });
+      }
+      if (memberCount <= 1 && receiptCount > 0) {
+        throw new BadRequestException(
+          'Delete the household or remove its receipts before accepting an invite that leaves it',
+        );
+      }
+      if (memberCount > 1 && user.role === 'owner' && ownerCount <= 1) {
+        throw new BadRequestException(
+          'Transfer ownership before accepting an invite that leaves your current household',
+        );
       }
     }
 
@@ -239,6 +252,7 @@ export class HouseholdService {
     });
 
     if (previousHouseholdId) {
+      await this.auth.revokeAllSessions(user.id);
       await this.deleteEmptyHouseholdShell(previousHouseholdId);
     }
 

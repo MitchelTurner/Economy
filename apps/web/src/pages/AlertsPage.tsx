@@ -25,6 +25,9 @@ export function AlertsPage() {
   const [triggered, setTriggered] = useState<
     Array<{ productName: string; currentCents: number; reason: string }>
   >([]);
+  const [busy, setBusy] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   async function load() {
     setAlerts(await api<Alert[]>('/alerts'));
@@ -58,6 +61,7 @@ export function AlertsPage() {
       setMessage('Set a drop % and/or target price.');
       return;
     }
+    setBusy(true);
     try {
       await api('/alerts', {
         method: 'POST',
@@ -73,6 +77,8 @@ export function AlertsPage() {
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Could not save alert'), 'danger');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -133,9 +139,11 @@ export function AlertsPage() {
           </label>
           <button
             type="submit"
-            className="ml-auto rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white"
+            disabled={busy}
+            aria-busy={busy}
+            className="ml-auto rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
-            Add alert
+            {busy ? 'Saving…' : 'Add alert'}
           </button>
         </div>
       </form>
@@ -143,8 +151,11 @@ export function AlertsPage() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
-          className="text-sm font-semibold text-[var(--brand-soft)]"
-          onClick={() =>
+          className="text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+          disabled={checking}
+          aria-busy={checking}
+          onClick={() => {
+            setChecking(true);
             void api<typeof triggered>('/alerts/check', { method: 'POST' })
               .then((rows) => {
                 setTriggered(rows);
@@ -157,9 +168,10 @@ export function AlertsPage() {
               .catch((err) =>
                 toast(apiErrorMessage(err, 'Could not check alerts'), 'danger'),
               )
-          }
+              .finally(() => setChecking(false));
+          }}
         >
-          Check now
+          {checking ? 'Checking…' : 'Check now'}
         </button>
         <Link to="/prices" className="text-sm font-semibold text-[var(--brand-soft)]">
           Browse prices
@@ -213,8 +225,11 @@ export function AlertsPage() {
                   type="button"
                   aria-pressed={!a.active}
                   aria-label={a.active ? 'Pause alert' : 'Resume alert'}
-                  className="text-sm font-semibold text-[var(--brand-soft)]"
-                  onClick={() =>
+                  className="text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                  disabled={actionId === a.id}
+                  aria-busy={actionId === a.id}
+                  onClick={() => {
+                    setActionId(a.id);
                     void api(`/alerts/${a.id}`, {
                       method: 'PATCH',
                       json: { active: !a.active },
@@ -226,14 +241,19 @@ export function AlertsPage() {
                       .catch((err) =>
                         toast(apiErrorMessage(err, 'Update failed'), 'danger'),
                       )
-                  }
+                      .finally(() => setActionId(null));
+                  }}
                 >
                   {a.active ? 'Pause' : 'Resume'}
                 </button>
                 <button
                   type="button"
-                  className="text-sm font-semibold text-[var(--danger)]"
-                  onClick={() =>
+                  className="text-sm font-semibold text-[var(--danger)] disabled:opacity-50"
+                  disabled={actionId === a.id}
+                  aria-busy={actionId === a.id}
+                  onClick={() => {
+                    if (!window.confirm('Remove this price alert?')) return;
+                    setActionId(a.id);
                     void api(`/alerts/${a.id}`, { method: 'DELETE' })
                       .then(() => {
                         toast('Alert removed', 'ok');
@@ -242,7 +262,8 @@ export function AlertsPage() {
                       .catch((err) =>
                         toast(apiErrorMessage(err, 'Remove failed'), 'danger'),
                       )
-                  }
+                      .finally(() => setActionId(null));
+                  }}
                 >
                   Remove
                 </button>

@@ -29,6 +29,7 @@ export function ReceiptsPage() {
   const [searchDraft, setSearchDraft] = useState(q);
 
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     void api<Store[]>('/catalog/stores').then(setStores);
@@ -131,12 +132,15 @@ export function ReceiptsPage() {
     ) {
       return;
     }
+    setDeletingId(id);
     try {
       await api(`/receipts/${id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((r) => r.id !== id));
       toast('Receipt deleted', 'ok');
     } catch (err) {
       toast(apiErrorMessage(err, 'Delete failed'), 'danger');
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -288,10 +292,12 @@ export function ReceiptsPage() {
                 ) : null}
                 <button
                   type="button"
-                  className="shrink-0 text-xs font-semibold text-[var(--danger)]"
+                  className="shrink-0 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
+                  disabled={deletingId === r.id}
+                  aria-busy={deletingId === r.id}
                   onClick={() => void remove(r.id)}
                 >
-                  Delete
+                  {deletingId === r.id ? 'Deleting…' : 'Delete'}
                 </button>
               </li>
             ))}
@@ -314,6 +320,7 @@ export function ReceiptsPage() {
             <button
               type="button"
               disabled={loadingMore}
+              aria-busy={loadingMore}
               onClick={() => void loadMore()}
               className="w-full rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:opacity-60"
             >

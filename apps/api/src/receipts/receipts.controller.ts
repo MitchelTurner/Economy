@@ -13,7 +13,6 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import type { Request } from 'express';
-import { ReceiptStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { clientKeyFromReq, consumeRateLimit } from '../common/rate-limit';
@@ -27,6 +26,7 @@ import {
   UploadUrlDto,
   AddLineDto,
   ApplyCategorySimilarDto,
+  ListReceiptsQueryDto,
 } from './receipts.dto';
 
 function uploadLimit() {
@@ -82,24 +82,15 @@ export class ReceiptsController {
   }
 
   @Get()
-  list(
-    @CurrentUser() user: AuthUser,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-    @Query('storeId') storeId?: string,
-    @Query('status') status?: ReceiptStatus,
-    @Query('q') q?: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
-  ) {
+  list(@CurrentUser() user: AuthUser, @Query() query: ListReceiptsQueryDto) {
     return this.receipts.list(user, {
-      from,
-      to,
-      storeId,
-      status,
-      q,
-      cursor,
-      limit: limit ? Number(limit) : undefined,
+      from: query.from,
+      to: query.to,
+      storeId: query.storeId,
+      status: query.status,
+      q: query.q,
+      cursor: query.cursor,
+      limit: query.limit,
     });
   }
 

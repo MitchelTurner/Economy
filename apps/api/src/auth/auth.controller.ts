@@ -52,7 +52,11 @@ export class AuthController {
   }
 
   @Post('logout')
-  logout(@Body() dto: RefreshDto) {
+  async logout(@Req() req: Request, @Body() dto: RefreshDto) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:logout',
+    });
     return this.auth.logout(dto);
   }
 

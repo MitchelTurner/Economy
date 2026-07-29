@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   ForbiddenException,
   Get,
@@ -7,11 +8,26 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { consumeRateLimit } from '../common/rate-limit';
 import { PricesService } from './prices.service';
 import { IndexRollupService } from './index-rollup.service';
+
+const CompareProductIdsSchema = z
+  .string()
+  .max(2000)
+  .optional()
+  .transform((raw) =>
+    (raw ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean),
+  )
+  .pipe(z.array(z.string().min(1).max(64)).max(40));
+
+const DeliveredQuantitySchema = z.coerce.number().finite().positive().max(10_000);
 
 @Controller('prices')
 @UseGuards(JwtAuthGuard)
@@ -34,8 +50,14 @@ export class PricesController {
 
   @Get('compare')
   compare(@CurrentUser() user: AuthUser, @Query('productIds') productIds?: string) {
-    const ids = (productIds ?? '').split(',').filter(Boolean);
-    return this.prices.compare(user, ids);
+    const parsed = CompareProductIdsSchema.safeParse(productIds);
+    if (!parsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid productIds (max 40 ids)',
+        issues: parsed.error.issues,
+      });
+    }
+    return this.prices.compare(user, parsed.data);
   }
 
   @Get('index')
@@ -77,9 +99,19 @@ export class PricesController {
     @Query('laneId') laneId?: string,
     @Query('quantity') quantity?: string,
   ) {
+    const qtyParsed =
+      quantity == null || quantity === ''
+        ? ({ success: true as const, data: 1 })
+        : DeliveredQuantitySchema.safeParse(quantity);
+    if (!qtyParsed.success) {
+      throw new BadRequestException({
+        message: 'Invalid quantity (must be a positive number ≤ 10000)',
+        issues: qtyParsed.error.issues,
+      });
+    }
     return this.prices.deliveredCost(user, productId, {
       laneId,
-      quantity: quantity ? Number(quantity) : 1,
+      quantity: qtyParsed.data,
     });
   }
 }
