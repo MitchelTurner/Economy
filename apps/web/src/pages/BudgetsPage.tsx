@@ -33,26 +33,36 @@ export function BudgetsPage() {
   const [editAmount, setEditAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
     const weekFrom = startOfWeekIso();
     const weekTo = endOfPeriodIso(weekFrom, 7);
     const monthFrom = startOfMonthIso();
     const monthTo = endOfMonthIso();
-    const [b, c, week, month] = await Promise.all([
-      api<Budget[]>('/budgets'),
-      api<Category[]>('/catalog/categories'),
-      api<SpendResponse>(
-        `/analytics/spend?groupBy=category&from=${encodeURIComponent(weekFrom)}&to=${encodeURIComponent(weekTo)}`,
-      ),
-      api<SpendResponse>(
-        `/analytics/spend?groupBy=category&from=${encodeURIComponent(monthFrom)}&to=${encodeURIComponent(monthTo)}`,
-      ),
-    ]);
-    setBudgets(b);
-    setCategories(c);
-    setWeekSpend(week);
-    setMonthSpend(month);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [b, c, week, month] = await Promise.all([
+        api<Budget[]>('/budgets'),
+        api<Category[]>('/catalog/categories'),
+        api<SpendResponse>(
+          `/analytics/spend?groupBy=category&from=${encodeURIComponent(weekFrom)}&to=${encodeURIComponent(weekTo)}`,
+        ),
+        api<SpendResponse>(
+          `/analytics/spend?groupBy=category&from=${encodeURIComponent(monthFrom)}&to=${encodeURIComponent(monthTo)}`,
+        ),
+      ]);
+      setBudgets(b);
+      setCategories(c);
+      setWeekSpend(week);
+      setMonthSpend(month);
+    } catch (err) {
+      setLoadError(apiErrorMessage(err, 'Could not load budgets'));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -135,6 +145,22 @@ export function BudgetsPage() {
         </p>
       </div>
 
+      {loadError && (
+        <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm" role="alert">
+          {loadError}{' '}
+          <button
+            type="button"
+            className="font-semibold text-[var(--brand-soft)]"
+            onClick={() => void load()}
+          >
+            Retry
+          </button>
+        </p>
+      )}
+      {loading && budgets.length === 0 && !loadError && (
+        <p className="text-sm text-[var(--ink-muted)]">Loading budgets…</p>
+      )}
+
       <form onSubmit={onSubmit} className="grid gap-2 sm:grid-cols-4" aria-label="Add budget">
         <label className="text-sm sm:col-span-1">
           Amount ($)
@@ -181,7 +207,7 @@ export function BudgetsPage() {
         </button>
       </form>
 
-      {budgets.length === 0 && (
+      {!loading && !loadError && budgets.length === 0 && (
         <p className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-sm text-[var(--ink-muted)]">
           No budgets yet. Add one above — or{' '}
           <Link to="/capture" className="font-semibold text-[var(--brand-soft)]">

@@ -19,29 +19,52 @@ export function CapturePage() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [flushing, setFlushing] = useState(false);
+  const [discardingId, setDiscardingId] = useState<string | null>(null);
+  const [online, setOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  );
   const navigate = useNavigate();
   const previewUrlsRef = useRef<Map<string, string>>(new Map());
 
-  useEffect(() => {
-    void (async () => {
+  async function hydrateQueueFromOutbox() {
+    try {
       const existing = await listOutbox();
       const items: QueueItem[] = [];
+      const keep = new Set<string>();
       for (const m of existing.filter((x) => x.status !== 'done')) {
-        const blob = await getOutboxBlob(m.id);
-        let previewUrl = '';
-        if (blob) {
-          previewUrl = URL.createObjectURL(blob);
-          previewUrlsRef.current.set(m.id, previewUrl);
+        keep.add(m.id);
+        let previewUrl = previewUrlsRef.current.get(m.id) ?? '';
+        if (!previewUrl) {
+          const blob = await getOutboxBlob(m.id);
+          if (blob) {
+            previewUrl = URL.createObjectURL(blob);
+            previewUrlsRef.current.set(m.id, previewUrl);
+          }
         }
         items.push({ id: m.id, previewUrl, status: labelFor(m) });
       }
-      setQueue(items);
-      if (navigator.onLine) {
-        await runFlush();
+      for (const [id, url] of previewUrlsRef.current) {
+        if (!keep.has(id)) {
+          URL.revokeObjectURL(url);
+          previewUrlsRef.current.delete(id);
+        }
       }
-    })();
+      setQueue(items);
+    } catch (err) {
+      const msg = apiErrorMessage(err, 'Could not read offline outbox');
+      setError(msg);
+      toast(msg, 'danger');
+    }
+  }
 
+  useEffect(() => {
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
     return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
       for (const url of previewUrlsRef.current.values()) URL.revokeObjectURL(url);
       previewUrlsRef.current.clear();
     };
@@ -65,6 +88,9 @@ export function CapturePage() {
         }
       });
 
+      // Reconcile after shared single-flight (Shell may own the onItem callbacks).
+      await hydrateQueueFromOutbox();
+
       if (failures.length) {
         const first = failures[0]!;
         const msg = first.offlineLikely
@@ -86,21 +112,45 @@ export function CapturePage() {
       } else if (reviewIds.length > 1) {
         navigate('/receipts?status=NEEDS_REVIEW');
       }
+    } catch (err) {
+      const msg = apiErrorMessage(err, 'Outbox sync failed');
+      setError(msg);
+      toast(msg, 'danger');
     } finally {
       setFlushing(false);
     }
   }
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      await hydrateQueueFromOutbox();
+      if (!cancelled && navigator.onLine) {
+        await runFlush();
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function discard(id: string) {
     if (!confirm('Discard this queued receipt photo?')) return;
-    await removeOutbox(id);
-    const preview = previewUrlsRef.current.get(id);
-    if (preview) {
-      URL.revokeObjectURL(preview);
-      previewUrlsRef.current.delete(id);
+    setDiscardingId(id);
+    try {
+      await removeOutbox(id);
+      const preview = previewUrlsRef.current.get(id);
+      if (preview) {
+        URL.revokeObjectURL(preview);
+        previewUrlsRef.current.delete(id);
+      }
+      setQueue((q) => q.filter((item) => item.id !== id));
+      toast('Discarded from outbox', 'ok');
+    } catch (err) {
+      toast(apiErrorMessage(err, 'Could not discard outbox item'), 'danger');
+    } finally {
+      setDiscardingId(null);
     }
-    setQueue((q) => q.filter((item) => item.id !== id));
-    toast('Discarded from outbox', 'ok');
   }
 
   async function handleFiles(files: FileList | null) {
@@ -161,6 +211,9 @@ export function CapturePage() {
           One tap from home. HEIC is converted when needed; images resize to 1600px and queue in
           IndexedDB until upload succeeds.
         </p>
+        <p className="mt-1 text-xs text-[var(--ink-muted)]" aria-live="polite">
+          {online ? 'Online' : 'Offline — photos stay queued until you reconnect.'}
+        </p>
       </section>
 
       <button
@@ -198,12 +251,13 @@ export function CapturePage() {
         </Link>
       </p>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-[var(--danger)]" role="alert">{error}</p>}
 
       {canRetry && (
         <button
           type="button"
-          disabled={flushing || !navigator.onLine}
+          disabled={flushing || !online}
+          aria-busy={flushing}
           onClick={() => void runFlush()}
           className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
         >
@@ -227,10 +281,12 @@ export function CapturePage() {
               <span className="min-w-0 flex-1 text-sm font-medium">{item.status}</span>
               <button
                 type="button"
-                className="shrink-0 text-xs font-semibold text-[var(--danger)]"
+                className="shrink-0 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
+                disabled={discardingId === item.id || flushing}
+                aria-busy={discardingId === item.id}
                 onClick={() => void discard(item.id)}
               >
-                Discard
+                {discardingId === item.id ? 'Discarding…' : 'Discard'}
               </button>
             </li>
           ))}

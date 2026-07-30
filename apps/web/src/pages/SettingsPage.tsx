@@ -38,15 +38,31 @@ export function SettingsPage() {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [nameBusy, setNameBusy] = useState(false);
   const [logoutAllBusy, setLogoutAllBusy] = useState(false);
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [prefsBusy, setPrefsBusy] = useState(false);
+  const [leaveBusy, setLeaveBusy] = useState(false);
+  const [memberActionId, setMemberActionId] = useState<string | null>(null);
+  const [inviteActionId, setInviteActionId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function load() {
-    const [hh, u] = await Promise.all([
-      api<Household>('/household'),
-      api<Usage>('/household/usage'),
-    ]);
-    setHousehold(hh);
-    setHouseholdName(hh.name);
-    setUsage(u);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [hh, u] = await Promise.all([
+        api<Household>('/household'),
+        api<Usage>('/household/usage'),
+      ]);
+      setHousehold(hh);
+      setHouseholdName(hh.name);
+      setUsage(u);
+    } catch (err) {
+      setLoadError(apiErrorMessage(err, 'Could not load settings'));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -59,13 +75,20 @@ export function SettingsPage() {
     setDisplayName(user?.displayName ?? '');
   }, [user]);
 
-  async function saveEmailPrefs(next: { emailDigest?: boolean; emailAlerts?: boolean }) {
+  async function saveEmailPrefs(
+    next: { emailDigest?: boolean; emailAlerts?: boolean },
+    rollback: () => void,
+  ) {
+    setPrefsBusy(true);
     try {
       await api('/auth/me', { method: 'PATCH', json: next });
       await refreshUser();
       toast('Email preferences saved', 'ok');
     } catch (err) {
+      rollback();
       toast(apiErrorMessage(err, 'Could not save email preferences'), 'danger');
+    } finally {
+      setPrefsBusy(false);
     }
   }
 
@@ -81,6 +104,7 @@ export function SettingsPage() {
 
   async function invite(e: FormEvent) {
     e.preventDefault();
+    setInviteBusy(true);
     try {
       const inv = await api<{ inviteUrl: string }>('/household/invites', {
         method: 'POST',
@@ -94,6 +118,8 @@ export function SettingsPage() {
       await load();
     } catch (err) {
       toast(apiErrorMessage(err, 'Invite failed'), 'danger');
+    } finally {
+      setInviteBusy(false);
     }
   }
 
@@ -160,6 +186,22 @@ export function SettingsPage() {
         </p>
       </div>
 
+      {loadError && (
+        <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm" role="alert">
+          {loadError}{' '}
+          <button
+            type="button"
+            className="font-semibold text-[var(--brand-soft)]"
+            onClick={() => void load()}
+          >
+            Retry
+          </button>
+        </p>
+      )}
+      {loading && !household && !loadError && (
+        <p className="text-sm text-[var(--ink-muted)]">Loading household…</p>
+      )}
+
       <section className="space-y-3">
         <p className="text-sm text-[var(--ink-muted)]">Signed in as</p>
         <p className="font-semibold">{user?.email}</p>
@@ -206,23 +248,27 @@ export function SettingsPage() {
         {user?.role === 'owner' ? (
           <button
             type="button"
-            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold"
+            className="rounded-md border border-[var(--line)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+            disabled={renameBusy}
+            aria-busy={renameBusy}
             onClick={() => {
               const name = householdName.trim();
               if (!name) {
                 toast('Enter a household name', 'danger');
                 return;
               }
+              setRenameBusy(true);
               void api('/household', { method: 'PATCH', json: { name } })
                 .then(() => refreshUser())
                 .then(() => load())
                 .then(() => toast('Household renamed', 'ok'))
                 .catch((err) =>
                   toast(apiErrorMessage(err, 'Could not rename household'), 'danger'),
-                );
+                )
+                .finally(() => setRenameBusy(false));
             }}
           >
-            Save household name
+            {renameBusy ? 'Saving…' : 'Save household name'}
           </button>
         ) : (
           <p className="text-xs text-[var(--ink-muted)]">Only the owner can rename the household.</p>
@@ -310,10 +356,13 @@ export function SettingsPage() {
           <input
             type="checkbox"
             checked={emailDigest}
+            disabled={prefsBusy}
+            aria-busy={prefsBusy}
             onChange={(e) => {
               const v = e.target.checked;
+              const prev = emailDigest;
               setEmailDigest(v);
-              void saveEmailPrefs({ emailDigest: v });
+              void saveEmailPrefs({ emailDigest: v }, () => setEmailDigest(prev));
             }}
           />
           Weekly insight digest email
@@ -322,10 +371,13 @@ export function SettingsPage() {
           <input
             type="checkbox"
             checked={emailAlerts}
+            disabled={prefsBusy}
+            aria-busy={prefsBusy}
             onChange={(e) => {
               const v = e.target.checked;
+              const prev = emailAlerts;
               setEmailAlerts(v);
-              void saveEmailPrefs({ emailAlerts: v });
+              void saveEmailPrefs({ emailAlerts: v }, () => setEmailAlerts(prev));
             }}
           />
           Price-drop alert emails
@@ -346,7 +398,9 @@ export function SettingsPage() {
                 {user?.role === 'owner' && u.id !== user?.id && u.role !== 'owner' ? (
                   <button
                     type="button"
-                    className="font-semibold text-[var(--brand-soft)]"
+                    className="font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                    disabled={memberActionId === u.id}
+                    aria-busy={memberActionId === u.id}
                     onClick={() => {
                       if (
                         !confirm(
@@ -355,6 +409,7 @@ export function SettingsPage() {
                       ) {
                         return;
                       }
+                      setMemberActionId(u.id);
                       void api('/household/transfer', {
                         method: 'POST',
                         json: { userId: u.id },
@@ -369,7 +424,8 @@ export function SettingsPage() {
                             apiErrorMessage(err, 'Could not transfer ownership'),
                             'danger',
                           ),
-                        );
+                        )
+                        .finally(() => setMemberActionId(null));
                     }}
                   >
                     Make owner
@@ -378,9 +434,12 @@ export function SettingsPage() {
                 {user?.role === 'owner' && u.id !== user?.id ? (
                   <button
                     type="button"
-                    className="font-semibold text-[var(--danger)]"
+                    className="font-semibold text-[var(--danger)] disabled:opacity-50"
+                    disabled={memberActionId === u.id}
+                    aria-busy={memberActionId === u.id}
                     onClick={() => {
                       if (!confirm(`Remove ${u.email} from this household?`)) return;
+                      setMemberActionId(u.id);
                       void api(`/household/members/${u.id}`, { method: 'DELETE' })
                         .then(() => {
                           toast('Member removed', 'ok');
@@ -388,7 +447,8 @@ export function SettingsPage() {
                         })
                         .catch((err) =>
                           toast(apiErrorMessage(err, 'Could not remove member'), 'danger'),
-                        );
+                        )
+                        .finally(() => setMemberActionId(null));
                     }}
                   >
                     Remove
@@ -401,7 +461,9 @@ export function SettingsPage() {
         {household && household.users.length > 1 ? (
           <button
             type="button"
-            className="mt-3 text-sm font-semibold text-[var(--brand-soft)]"
+            className="mt-3 text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+            disabled={leaveBusy}
+            aria-busy={leaveBusy}
             onClick={() => {
               if (
                 !confirm(
@@ -410,6 +472,7 @@ export function SettingsPage() {
               ) {
                 return;
               }
+              setLeaveBusy(true);
               void api<{
                 accessToken: string;
                 refreshToken: string;
@@ -425,10 +488,11 @@ export function SettingsPage() {
                 })
                 .catch((err) =>
                   toast(apiErrorMessage(err, 'Could not leave household'), 'danger'),
-                );
+                )
+                .finally(() => setLeaveBusy(false));
             }}
           >
-            Leave household
+            {leaveBusy ? 'Leaving…' : 'Leave household'}
           </button>
         ) : null}
       </section>
@@ -446,9 +510,11 @@ export function SettingsPage() {
           />
           <button
             type="submit"
-            className="rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white"
+            disabled={inviteBusy}
+            aria-busy={inviteBusy}
+            className="rounded-md bg-[var(--brand)] px-4 py-2 font-semibold text-white disabled:opacity-50"
           >
-            Invite
+            {inviteBusy ? 'Sending…' : 'Invite'}
           </button>
         </form>
         {inviteLink && (
@@ -483,8 +549,12 @@ export function SettingsPage() {
                   </button>
                   <button
                     type="button"
-                    className="font-semibold text-[var(--danger)]"
-                    onClick={() =>
+                    className="font-semibold text-[var(--danger)] disabled:opacity-50"
+                    disabled={inviteActionId === i.id}
+                    aria-busy={inviteActionId === i.id}
+                    onClick={() => {
+                      if (!confirm(`Revoke invite for ${i.email}?`)) return;
+                      setInviteActionId(i.id);
                       void api(`/household/invites/${i.id}`, { method: 'DELETE' })
                         .then(() => {
                           toast('Invite revoked', 'ok');
@@ -493,7 +563,8 @@ export function SettingsPage() {
                         .catch((err) =>
                           toast(apiErrorMessage(err, 'Revoke failed'), 'danger'),
                         )
-                    }
+                        .finally(() => setInviteActionId(null));
+                    }}
                   >
                     Revoke
                   </button>

@@ -28,9 +28,19 @@ export function AlertsPage() {
   const [busy, setBusy] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function load() {
-    setAlerts(await api<Alert[]>('/alerts'));
+    setLoading(true);
+    setLoadError(null);
+    try {
+      setAlerts(await api<Alert[]>('/alerts'));
+    } catch (err) {
+      setLoadError(apiErrorMessage(err, 'Could not load alerts'));
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -90,6 +100,22 @@ export function AlertsPage() {
           Notify when a tracked item falls from its 30-day high or hits a target price.
         </p>
       </div>
+
+      {loadError && (
+        <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm" role="alert">
+          {loadError}{' '}
+          <button
+            type="button"
+            className="font-semibold text-[var(--brand-soft)]"
+            onClick={() => void load()}
+          >
+            Retry
+          </button>
+        </p>
+      )}
+      {loading && alerts.length === 0 && !loadError && (
+        <p className="text-sm text-[var(--ink-muted)]">Loading alerts…</p>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-2" aria-label="Create price alert">
         <label className="block text-sm">
@@ -191,7 +217,7 @@ export function AlertsPage() {
         </ul>
       )}
 
-      {alerts.length === 0 ? (
+      {!loading && !loadError && alerts.length === 0 ? (
         <p className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
           No alerts yet. Search a staple from{' '}
           <Link to="/prices" className="font-semibold text-[var(--brand-soft)]">
@@ -199,7 +225,7 @@ export function AlertsPage() {
           </Link>{' '}
           or add one above before the next barge.
         </p>
-      ) : (
+      ) : !loadError && alerts.length > 0 ? (
         <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
           {alerts.map((a) => (
             <li key={a.id} className="flex items-center justify-between gap-3 py-3">
@@ -271,7 +297,7 @@ export function AlertsPage() {
             </li>
           ))}
         </ul>
-      )}
+      ) : null}
     </div>
   );
 }

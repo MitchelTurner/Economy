@@ -94,13 +94,14 @@ export function disconnectRateLimitRedis() {
   }
 }
 
+/**
+ * Client identity for IP-keyed rate limits.
+ * Uses Express `req.ip` only — never raw `X-Forwarded-For`.
+ * Configure `TRUST_PROXY` so Express derives `req.ip` from a trusted proxy chain.
+ */
 export function clientKeyFromReq(req: {
   ip?: string;
-  headers?: Record<string, unknown>;
+  socket?: { remoteAddress?: string | null };
 }): string {
-  const forwarded = req.headers?.['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0]!.trim();
-  }
-  return req.ip || 'unknown';
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }

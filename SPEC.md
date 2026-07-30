@@ -535,6 +535,9 @@ Rate-limit catalog creates, review edit mutates, `PATCH /auth/me` + logout-all; 
 **Phase 26 — invite orphan guard + query bounds + mutate UX**
 Invite accept cannot orphan last-owner / solo-with-receipts households; revoke sessions on household move; rate-limit logout; validate list/compare/delivered query bounds; Review/Receipts/Budgets/Alerts/Insights busy + confirms; shared outbox flush; public product-price errors.
 
+**Phase 27 — proxy-safe rate limits + Settings/polling/Capture polish**
+`TRUST_PROXY` + `req.ip` for rate-limit identity (no raw XFF spoofing); Settings household mutates busy + load retry; Receipts/Dashboard visibility-safe polling; Capture online/discard busy + outbox reconcile; Budgets/Alerts load errors.
+
 ## 12. Acceptance criteria
 
 Phase 0 is done when:
@@ -684,6 +687,12 @@ Phase 26 is done when:
 - Invite accept rejects last-owner multi-member moves and solo moves that leave receipts; household moves revoke prior refresh sessions.
 - Review/Receipts/Budgets/Alerts/Insights mutate controls expose busy/`aria-busy` (and confirm destructive deletes); Review load/image errors use `apiErrorMessage`; polling pauses while hidden.
 - Capture/Shell share one outbox flush promise; Public `/island` product prices surface load errors instead of a false empty state.
+
+Phase 27 is done when:
+- Rate-limit client keys use Express `req.ip` only; spoofed `X-Forwarded-For` is ignored unless `TRUST_PROXY` is configured.
+- Settings rename/invite/transfer/remove/leave/revoke/email prefs expose busy/`aria-busy` (prefs roll back on failure); household load failures offer Retry.
+- Receipts in-flight polling pauses while hidden, never overlaps, and merges first-page updates without collapsing Load more.
+- Dashboard primary failures never show as `$0`; queue counts refresh safely; insight dismiss is single-flight; Budgets/Alerts/Capture surface load/sync/discard failures.
 
 ## 13. Testing
 

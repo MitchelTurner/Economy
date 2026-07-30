@@ -54,6 +54,8 @@ services:
       JWT_SECRET: compose-dev-access-secret-32chars
       JWT_REFRESH_SECRET: compose-dev-refresh-secret-32c
       CORS_ORIGIN: http://localhost:8080
+      # nginx sets X-Forwarded-For; honor one proxy hop for rate-limit client IP
+      TRUST_PROXY: "1"
       S3_ENDPOINT: http://minio:9000
       S3_BUCKET: island-ledger-receipts
       S3_ACCESS_KEY_ID: minioadmin

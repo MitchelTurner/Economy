@@ -100,8 +100,11 @@ docker compose -f docker-compose.prod.yml up --build
 
 Counters use Redis (`ratelimit:*` keys) so multi-replica Railway deploys share limits. Falls back to in-process memory if Redis is unreachable.
 
+IP-keyed limits use Express `req.ip` only — never raw `X-Forwarded-For`. Set `TRUST_PROXY` when the API sits behind a reverse proxy (compose nginx sets `X-Forwarded-For`; Railway/edge usually needs `TRUST_PROXY=1`). Default `false` ignores spoofed forwarding headers.
+
 | Env | Default | Applies to |
 |---|---|---|
+| `TRUST_PROXY` | `false` | Express trust-proxy for `req.ip` (`false` / `1` / hop count / proxy CIDRs) |
 | `RATE_LIMIT_AUTH` | 30 / min / IP (user id for me/change-password/logout-all) | `POST /auth/login\|register\|refresh\|logout\|change-password\|logout-all`, `PATCH /auth/me` |
 | `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | receipt upload/register/manual/confirm/reextract/reopen/delete + review patch/line/same-as-last/rematch/apply-category |
 | `RATE_LIMIT_PUBLIC` | 120 / min / IP | `GET /public/*` |

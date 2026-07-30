@@ -3,7 +3,7 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ZodValidationPipe } from './common/pipes/zod-validation.pipe';
-import { validateEnv } from './common/env';
+import { parseTrustProxy, validateEnv } from './common/env';
 import { initRateLimitRedis } from './common/rate-limit';
 
 async function bootstrap() {
@@ -12,6 +12,10 @@ async function bootstrap() {
 
   // Disable default body parser so we can set a larger limit for imageBase64 fallback.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+
+  // Only honor X-Forwarded-For when TRUST_PROXY is configured (default: off).
+  const trustProxy = parseTrustProxy(env.TRUST_PROXY);
+  app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
 
   app.use(
     helmet({

@@ -30,9 +30,17 @@ export function ReceiptsPage() {
 
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [storesError, setStoresError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api<Store[]>('/catalog/stores').then(setStores);
+    void api<Store[]>('/catalog/stores')
+      .then((rows) => {
+        setStores(rows);
+        setStoresError(null);
+      })
+      .catch((err) => {
+        setStoresError(apiErrorMessage(err, 'Could not load stores'));
+      });
   }, []);
 
   useEffect(() => {
@@ -69,7 +77,10 @@ export function ReceiptsPage() {
 
   useEffect(() => {
     if (!hasInFlight || loading) return;
-    const t = window.setInterval(() => {
+    let inFlight = false;
+    const poll = () => {
+      if (document.visibilityState === 'hidden' || inFlight) return;
+      inFlight = true;
       const qs = new URLSearchParams();
       if (status) qs.set('status', status);
       if (storeId) qs.set('storeId', storeId);
@@ -81,12 +92,26 @@ export function ReceiptsPage() {
         `/receipts${query ? `?${query}` : ''}`,
       )
         .then((r) => {
-          setItems(r.items);
-          setNextCursor(r.nextCursor);
+          // Merge first-page updates without collapsing Load-more pagination.
+          setItems((prev) => {
+            const freshById = new Map(r.items.map((row) => [row.id, row]));
+            const existingIds = new Set(prev.map((row) => row.id));
+            const newcomers = r.items.filter((row) => !existingIds.has(row.id));
+            const updated = prev.map((row) => freshById.get(row.id) ?? row);
+            return [...newcomers, ...updated];
+          });
         })
-        .catch(() => undefined);
-    }, 2500);
-    return () => window.clearInterval(t);
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false;
+        });
+    };
+    const t = window.setInterval(poll, 2500);
+    document.addEventListener('visibilitychange', poll);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', poll);
+    };
   }, [hasInFlight, loading, status, from, to, storeId, q]);
 
   function setParam(key: string, value: string) {
@@ -218,6 +243,12 @@ export function ReceiptsPage() {
           </button>
         ))}
       </div>
+
+      {storesError && (
+        <p className="text-sm text-[var(--danger)]" role="alert">
+          {storesError}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <label className="text-xs text-[var(--ink-muted)]">

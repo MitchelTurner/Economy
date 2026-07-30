@@ -8,12 +8,27 @@ const EnvSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16),
   API_PORT: z.coerce.number().int().positive().default(3000),
   CORS_ORIGIN: z.string().optional(),
+  /**
+   * Express trust-proxy setting for rate-limit client IP.
+   * Default false (ignore X-Forwarded-For). Set `1` / `true` behind a single
+   * trusted reverse proxy, a hop count, or comma-separated proxy IPs/CIDRs.
+   */
+  TRUST_PROXY: z.string().optional().default('false'),
   S3_BUCKET: z.string().optional(),
   EXTRACTION_PROVIDER: z.enum(['mock', 'anthropic']).optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   ALLOW_MOCK_EXTRACTION: z.string().optional(),
   SEED_ON_BOOT: z.enum(['off', 'reference', 'demo']).optional().default('off'),
 });
+
+/** Parse TRUST_PROXY into an Express-compatible value. */
+export function parseTrustProxy(raw: string | undefined): boolean | number | string {
+  const v = (raw ?? 'false').trim().toLowerCase();
+  if (!v || v === 'false' || v === '0' || v === 'off' || v === 'no') return false;
+  if (v === 'true' || v === 'yes' || v === 'on') return true;
+  if (/^\d+$/.test(v)) return Number(v);
+  return raw!.trim();
+}
 
 export type AppEnv = z.infer<typeof EnvSchema>;
 

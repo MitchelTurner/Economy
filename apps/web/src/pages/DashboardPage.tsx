@@ -77,6 +77,24 @@ export function DashboardPage() {
   const [failedCount, setFailedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [secondaryError, setSecondaryError] = useState<string | null>(null);
+  const [dismissId, setDismissId] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  function refreshQueueCounts() {
+    return Promise.all([
+      api<{ items: ReceiptSummary[] }>('/receipts?status=NEEDS_REVIEW&limit=50'),
+      api<{ items: ReceiptSummary[] }>('/receipts?status=FAILED&limit=50'),
+    ])
+      .then(([review, failed]) => {
+        setNeedsReview(review.items.length);
+        setFailedCount(failed.items.length);
+        setSecondaryError(null);
+      })
+      .catch((err) => {
+        setSecondaryError(apiErrorMessage(err, 'Could not refresh receipt queues'));
+      });
+  }
 
   useEffect(() => {
     const weekFrom = startOfWeekIso();
@@ -103,6 +121,11 @@ export function DashboardPage() {
         setBudgets(budgetRows);
       })
       .catch((err) => {
+        setMonthSpend(null);
+        setWeekSpend(null);
+        setChartSpend(null);
+        setInsights([]);
+        setBudgets([]);
         setLoadError(apiErrorMessage(err, 'Could not load dashboard'));
       })
       .finally(() => setLoading(false));
@@ -112,12 +135,24 @@ export function DashboardPage() {
     void api<IndexPoint[]>('/prices/index?basket=staples-25&region=ketchikan')
       .then(setIndexPoints)
       .catch(() => undefined);
-    void api<{ items: ReceiptSummary[] }>('/receipts?status=NEEDS_REVIEW&limit=50')
-      .then((r) => setNeedsReview(r.items.length))
-      .catch(() => undefined);
-    void api<{ items: ReceiptSummary[] }>('/receipts?status=FAILED&limit=50')
-      .then((r) => setFailedCount(r.items.length))
-      .catch(() => undefined);
+    void refreshQueueCounts();
+  }, [reloadToken]);
+
+  useEffect(() => {
+    let inFlight = false;
+    const tick = () => {
+      if (document.visibilityState === 'hidden' || inFlight) return;
+      inFlight = true;
+      void refreshQueueCounts().finally(() => {
+        inFlight = false;
+      });
+    };
+    const t = window.setInterval(tick, 15_000);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(t);
+      document.removeEventListener('visibilitychange', tick);
+    };
   }, []);
 
   useEffect(() => {
@@ -167,8 +202,20 @@ export function DashboardPage() {
   return (
     <div className="space-y-8">
       {loadError && (
-        <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm">
-          {loadError}
+        <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-4 py-3 text-sm" role="alert">
+          {loadError}{' '}
+          <button
+            type="button"
+            className="font-semibold text-[var(--brand-soft)]"
+            onClick={() => setReloadToken((n) => n + 1)}
+          >
+            Retry
+          </button>
+        </p>
+      )}
+      {secondaryError && (
+        <p className="border-l-4 border-[var(--warn)] bg-[var(--surface)] px-4 py-3 text-sm" role="status">
+          {secondaryError}
         </p>
       )}
       <section className="relative overflow-hidden rounded-3xl border border-[var(--line)] bg-[linear-gradient(135deg,#0c4a3e_0%,#1a6b59_55%,#2d8f6f_100%)] px-5 py-8 text-white shadow-sm">
@@ -182,7 +229,7 @@ export function DashboardPage() {
         <div className="relative">
           <p className="text-sm uppercase tracking-[0.18em] text-white/70">This month</p>
           <p className="brand mt-2 text-5xl font-bold">
-            {loading ? '…' : formatCents(spend?.totalCents ?? 0)}
+            {loading ? '…' : loadError ? '—' : formatCents(spend?.totalCents ?? 0)}
           </p>
           {groceryBudget && pacePct != null && (
             <p className="mt-2 text-white/85">
@@ -428,8 +475,11 @@ export function DashboardPage() {
                   </Link>
                   <button
                     type="button"
-                    className="shrink-0 text-xs font-semibold text-[var(--ink-muted)]"
-                    onClick={() =>
+                    className="shrink-0 text-xs font-semibold text-[var(--ink-muted)] disabled:opacity-50"
+                    disabled={dismissId === i.id}
+                    aria-busy={dismissId === i.id}
+                    onClick={() => {
+                      setDismissId(i.id);
                       void api(`/insights/${i.id}/dismiss`, { method: 'POST' })
                         .then(() => {
                           setInsights((prev) => prev.filter((x) => x.id !== i.id));
@@ -438,7 +488,8 @@ export function DashboardPage() {
                         .catch((err) =>
                           toast(apiErrorMessage(err, 'Dismiss failed'), 'danger'),
                         )
-                    }
+                        .finally(() => setDismissId(null));
+                    }}
                   >
                     Dismiss
                   </button>

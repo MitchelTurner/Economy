@@ -91,6 +91,8 @@ data/        abbreviation dictionary + staple basket seed data
 
 **Phase 26:** invite orphan guard + session revoke on move; logout + list/compare/delivered query bounds; Review/Receipts/Budgets/Alerts/Insights busy UX; shared outbox flush; public product-price errors.
 
+**Phase 27:** `TRUST_PROXY` / `req.ip` rate-limit identity; Settings household mutate busy + load retry; Receipts/Dashboard visibility-safe polling; Capture online/discard + outbox reconcile; Budgets/Alerts load errors.
+
 ### Production notes
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.
