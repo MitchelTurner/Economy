@@ -51,13 +51,15 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 ## Railway sketch
 
 1. Provision Postgres + Redis plugins (or external).
-2. Create **API** service from repo root, Dockerfile path `apps/api/Dockerfile`, root directory `.`
-3. Set env vars above; health check path `/health/ready`
-4. Create **Web** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>`
+2. Create **API** service from the monorepo root (Railpack or Dockerfile).
+   - **Railpack (default):** root directory `.`, build `npm run build --workspace=@island-ledger/api`, start `npm run start --workspace=@island-ledger/api`. The API `build` script runs `prisma generate` before `nest build` (required — `@prisma/client` has no schema types until generate).
+   - **Dockerfile:** path `apps/api/Dockerfile`, root directory `.` (entrypoint runs `migrate deploy` then start).
+3. Set env vars above; health check path `/health/ready`. Behind Railway’s proxy set `TRUST_PROXY=1`.
+4. Create **Web** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>` (or Railpack with the web workspace build/start).
 5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin
 6. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
-   Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward).
+   Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward). With Railpack (no Docker entrypoint), run migrate explicitly: `railway run -s api npm run db:migrate:deploy -w @island-ledger/api`.
 7. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default) or `SEED_ON_BOOT=demo`
 
 ## Compose smoke
