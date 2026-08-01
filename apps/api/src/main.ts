@@ -3,7 +3,7 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { ZodValidationPipe } from './common/pipes/zod-validation.pipe';
-import { parseTrustProxy, validateEnv } from './common/env';
+import { listenPort, parseTrustProxy, validateEnv } from './common/env';
 import { initRateLimitRedis } from './common/rate-limit';
 
 async function bootstrap() {
@@ -13,7 +13,7 @@ async function bootstrap() {
   // Disable default body parser so we can set a larger limit for imageBase64 fallback.
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
-  // Only honor X-Forwarded-For when TRUST_PROXY is configured (default: off).
+  // Only honor X-Forwarded-For when TRUST_PROXY is configured (default: off locally, 1 in prod).
   const trustProxy = parseTrustProxy(env.TRUST_PROXY);
   app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
 
@@ -41,8 +41,10 @@ async function bootstrap() {
   }
 
   app.useGlobalPipes(new ZodValidationPipe());
-  await app.listen(env.API_PORT);
-  console.log(`Island Ledger API listening on :${env.API_PORT}`);
+  // Railway injects PORT and routes to it — bind all interfaces, not just API_PORT.
+  const port = listenPort(env);
+  await app.listen(port, '0.0.0.0');
+  console.log(`Island Ledger API listening on 0.0.0.0:${port}`);
 }
 
 bootstrap().catch((err) => {

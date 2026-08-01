@@ -52,15 +52,17 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 
 1. Provision Postgres + Redis plugins (or external).
 2. Create **API** service from the monorepo root (Railpack or Dockerfile).
-   - **Railpack (default):** root directory `.`, build `npm run build --workspace=@island-ledger/api`, start `npm run start --workspace=@island-ledger/api`. The API `build` script runs `prisma generate` before `nest build` (required — `@prisma/client` has no schema types until generate).
-   - **Dockerfile:** path `apps/api/Dockerfile`, root directory `.` (entrypoint runs `migrate deploy` then start).
-3. Set env vars above; health check path `/health/ready`. Behind Railway’s proxy set `TRUST_PROXY=1`.
+   - **Railpack (default):** root directory `.`, build `npm run build --workspace=@island-ledger/api`, start `npm run start --workspace=@island-ledger/api`. Build runs `prisma generate`; start runs `docker-entrypoint.sh` (`migrate deploy` → optional seed → `node dist/main.js`). The process listens on Railway’s `PORT` (falls back to `API_PORT`, default 3000) on `0.0.0.0`.
+   - **Dockerfile:** path `apps/api/Dockerfile`, root directory `.` (same entrypoint).
+3. Set env vars above; health check path `/health/ready`. Production defaults `TRUST_PROXY=1` when unset (override with `false` only if nothing proxies the API).
 4. Create **Web** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>` (or Railpack with the web workspace build/start).
-5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin
+5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin (and the public API URL if the SPA calls it cross-origin).
 6. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
-   Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward). With Railpack (no Docker entrypoint), run migrate explicitly: `railway run -s api npm run db:migrate:deploy -w @island-ledger/api`.
+   Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward).
 7. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default) or `SEED_ON_BOOT=demo`
+
+If the public URL shows **Application failed to respond**, the API almost always bound the wrong port — confirm deploy logs print `listening on 0.0.0.0:<PORT>` matching Railway’s `PORT`, and that boot did not exit on missing `CORS_ORIGIN` / weak JWTs / DB migrate failure.
 
 ## Compose smoke
 
@@ -106,7 +108,9 @@ IP-keyed limits use Express `req.ip` only — never raw `X-Forwarded-For`. Set `
 
 | Env | Default | Applies to |
 |---|---|---|
-| `TRUST_PROXY` | `false` | Express trust-proxy for `req.ip` (`false` / `1` / hop count / proxy CIDRs) |
+| `TRUST_PROXY` | `false` locally / `1` in production when unset | Express trust-proxy for `req.ip` (`false` / `1` / hop count / proxy CIDRs) |
+| `PORT` | set by Railway | Listen port (wins over `API_PORT`) |
+| `API_PORT` | `3000` | Listen port when `PORT` is unset |
 | `RATE_LIMIT_AUTH` | 30 / min / IP (user id for me/change-password/logout-all) | `POST /auth/login\|register\|refresh\|logout\|change-password\|logout-all`, `PATCH /auth/me` |
 | `RATE_LIMIT_UPLOAD` | 60 / min / IP+household | receipt upload/register/manual/confirm/reextract/reopen/delete + review patch/line/same-as-last/rematch/apply-category |
 | `RATE_LIMIT_PUBLIC` | 120 / min / IP | `GET /public/*` |

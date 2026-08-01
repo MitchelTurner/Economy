@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateEnv } from './env';
+import { listenPort, validateEnv } from './env';
 
 describe('validateEnv', () => {
   const base = {
@@ -13,6 +13,17 @@ describe('validateEnv', () => {
   it('accepts development defaults', () => {
     const env = validateEnv(base);
     expect(env.API_PORT).toBe(3000);
+    expect(env.TRUST_PROXY).toBe('false');
+  });
+
+  it('prefers platform PORT over API_PORT for listen', () => {
+    const env = validateEnv({ ...base, API_PORT: '3000', PORT: '8080' });
+    expect(listenPort(env)).toBe(8080);
+  });
+
+  it('falls back to API_PORT when PORT is unset', () => {
+    const env = validateEnv({ ...base, API_PORT: '4000' });
+    expect(listenPort(env)).toBe(4000);
   });
 
   it('rejects production with open CORS and weak JWT secrets', () => {
@@ -36,6 +47,7 @@ describe('validateEnv', () => {
       ALLOW_MOCK_EXTRACTION: 'true',
     });
     expect(env.CORS_ORIGIN).toBe('https://app.example.com');
+    expect(env.TRUST_PROXY).toBe('1');
   });
 
   it('defaults SEED_ON_BOOT to off', () => {

@@ -6,14 +6,16 @@ const EnvSchema = z.object({
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
   JWT_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),
+  /** Local/dev listen port. Platforms like Railway inject `PORT` instead — see `listenPort()`. */
   API_PORT: z.coerce.number().int().positive().default(3000),
+  PORT: z.coerce.number().int().positive().optional(),
   CORS_ORIGIN: z.string().optional(),
   /**
    * Express trust-proxy setting for rate-limit client IP.
-   * Default false (ignore X-Forwarded-For). Set `1` / `true` behind a single
-   * trusted reverse proxy, a hop count, or comma-separated proxy IPs/CIDRs.
+   * Default false locally; production defaults to `1` (one reverse-proxy hop)
+   * when unset so Railway/nginx X-Forwarded-For works.
    */
-  TRUST_PROXY: z.string().optional().default('false'),
+  TRUST_PROXY: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   EXTRACTION_PROVIDER: z.enum(['mock', 'anthropic']).optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
@@ -28,6 +30,11 @@ export function parseTrustProxy(raw: string | undefined): boolean | number | str
   if (v === 'true' || v === 'yes' || v === 'on') return true;
   if (/^\d+$/.test(v)) return Number(v);
   return raw!.trim();
+}
+
+/** Prefer platform `PORT` (Railway) over `API_PORT`. */
+export function listenPort(env: AppEnv): number {
+  return env.PORT ?? env.API_PORT;
 }
 
 export type AppEnv = z.infer<typeof EnvSchema>;
@@ -65,6 +72,11 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): AppEnv {
         'Invalid environment: production extraction requires ANTHROPIC_API_KEY (or ALLOW_MOCK_EXTRACTION=true)',
       );
     }
+    if (data.TRUST_PROXY == null || data.TRUST_PROXY.trim() === '') {
+      data.TRUST_PROXY = '1';
+    }
+  } else if (data.TRUST_PROXY == null || data.TRUST_PROXY.trim() === '') {
+    data.TRUST_PROXY = 'false';
   }
 
   return data;
