@@ -1,0 +1,14 @@
+# Island Ledger API — Railway / Railpack defaults for the monorepo root service.
+# Web should be a separate service (Dockerfile apps/web/Dockerfile) with VITE_API_URL.
+
+[build]
+builder = "RAILPACK"
+buildCommand = "npm run build --workspace=@island-ledger/api"
+
+[deploy]
+startCommand = "npm run start --workspace=@island-ledger/api"
+# Liveness only — /health/ready also needs Redis and will 503 if Redis is missing.
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

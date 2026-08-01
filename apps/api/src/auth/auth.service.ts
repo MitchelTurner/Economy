@@ -15,6 +15,7 @@ import {
   RegisterDto,
   UpdateMeDto,
 } from './auth.dto';
+import { redisConnectionFromUrl } from '../common/redis-connection';
 
 @Injectable()
 export class AuthService {
@@ -25,8 +26,10 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {
-    this.redis = new Redis(this.config.get('REDIS_URL') ?? 'redis://localhost:6379', {
-      maxRetriesPerRequest: null,
+    this.redis = new Redis({
+      ...redisConnectionFromUrl(
+        this.config.get('REDIS_URL') ?? 'redis://localhost:6379',
+      ),
       lazyConnect: true,
     });
     void this.redis.connect().catch(() => {

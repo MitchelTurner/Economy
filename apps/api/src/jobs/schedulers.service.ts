@@ -20,6 +20,25 @@ export class SchedulersService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    // Must not block Nest listen() if Redis is slow/unreachable (Railway 502).
+    try {
+      await Promise.race([
+        this.registerRepeatableJobs(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('scheduler registration timed out')), 12_000),
+        ),
+      ]);
+      this.logger.log('Registered BullMQ repeatable schedulers');
+    } catch (err) {
+      this.logger.error(
+        `Skipping scheduler registration — Redis unavailable or slow: ${
+          (err as Error)?.message ?? err
+        }`,
+      );
+    }
+  }
+
+  private async registerRepeatableJobs() {
     // Nightly index rollup 08:00 UTC
     await this.indexQueue.add(
       'nightly',
@@ -51,8 +70,6 @@ export class SchedulersService implements OnModuleInit {
         removeOnComplete: 10,
       },
     );
-
-    this.logger.log('Registered BullMQ repeatable schedulers');
   }
 
   async enqueueInsightsForHousehold(householdId: string) {

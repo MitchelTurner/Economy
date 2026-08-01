@@ -74,15 +74,22 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 2. Create **API** service from the monorepo root (Railpack or Dockerfile).
    - **Railpack (default):** root directory `.`, build `npm run build --workspace=@island-ledger/api`, start `npm run start --workspace=@island-ledger/api`. Build runs `prisma generate`; start runs `docker-entrypoint.sh` (`migrate deploy` → optional seed → `node dist/main.js`). The process listens on Railway’s `PORT` (falls back to `API_PORT`, default 3000) on `0.0.0.0`.
    - **Dockerfile:** path `apps/api/Dockerfile`, root directory `.` (same entrypoint).
-3. Set env vars above; health check path `/health/ready`. Production defaults `TRUST_PROXY=1` when unset (override with `false` only if nothing proxies the API).
-4. Create **Web** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>` (or Railpack with the web workspace build/start).
-5. Point custom domains; ensure `CORS_ORIGIN` matches the web origin (and the public API URL if the SPA calls it cross-origin).
-6. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
+3. Set env vars above. Repo `railway.toml` uses health check **`/health`** (liveness). Do **not** point Railway’s healthcheck at `/health/ready` unless Redis is linked — ready returns 503 without Redis and the edge will 502.
+4. Networking: leave the public domain **target port empty** (auto) so it follows Railway’s `PORT`. If you hard-code target port `3000` while the app listens on another `PORT`, you get **Application failed to respond**.
+5. Attach **Postgres + Redis** plugins and reference their `DATABASE_URL` / `REDIS_URL` on the API service. Without Redis, HTTP can still come up, but queues/schedulers/auth refresh won’t work.
+6. Create **Web** as a **separate** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>`.
+7. Point custom domains; ensure `CORS_ORIGIN` matches the web origin (and the public API URL if the SPA calls it cross-origin).
+8. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
    Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward).
-7. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default) or `SEED_ON_BOOT=demo`
+9. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default) or `SEED_ON_BOOT=demo`
 
-If the public URL shows **Application failed to respond**, the API almost always bound the wrong port — confirm deploy logs print `listening on 0.0.0.0:<PORT>` matching Railway’s `PORT`, and that boot did not exit on missing `CORS_ORIGIN` / weak JWTs / DB migrate failure.
+If the public URL shows **Application failed to respond**:
+
+1. Deploy logs must show `Island Ledger API listening on 0.0.0.0:<port>` — if not, boot crashed (JWT / CORS / migrate) or hung before listen.
+2. Confirm Settings → Networking → target port is **empty** or equals the logged port.
+3. Confirm Variables include distinct ≥32-char JWTs, `CORS_ORIGIN`, `DATABASE_URL`, `REDIS_URL`.
+4. Hit `https://<api>/health` (should return `{"ok":true,...}`).
 
 ## Compose smoke
 
