@@ -25,8 +25,8 @@ Copy from `.env.example`, then set:
 NODE_ENV=production
 DATABASE_URL=...
 REDIS_URL=...
-JWT_SECRET=<long random>
-JWT_REFRESH_SECRET=<different long random>
+JWT_SECRET=<long random ≥32 chars, not containing "change-me">
+JWT_REFRESH_SECRET=<different long random ≥32 chars>
 CORS_ORIGIN=https://your-web-origin
 S3_ENDPOINT=...
 S3_BUCKET=...
@@ -41,6 +41,26 @@ PUBLIC_MIN_HOUSEHOLDS=3
 ```
 
 Boot fails fast if production secrets are weak/missing or `CORS_ORIGIN` is unset.
+
+**Railway Variables (API service) — required for boot:**
+
+| Variable | Notes |
+|---|---|
+| `DATABASE_URL` | From Railway Postgres plugin |
+| `REDIS_URL` | From Railway Redis plugin |
+| `JWT_SECRET` | `openssl rand -base64 48` — must not contain `change-me`, ≥32 chars |
+| `JWT_REFRESH_SECRET` | Another `openssl rand -base64 48` — **must differ** from `JWT_SECRET` |
+| `CORS_ORIGIN` | Public web origin, e.g. `https://your-app.up.railway.app` |
+| `ALLOW_MOCK_EXTRACTION` | `true` until Anthropic is wired; else set `ANTHROPIC_API_KEY` |
+
+Generate secrets locally:
+
+```bash
+openssl rand -base64 48
+openssl rand -base64 48
+```
+
+Paste each into a separate Railway variable. Redeploy after saving.
 
 Web build:
 

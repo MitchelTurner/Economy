@@ -54,13 +54,24 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): AppEnv {
     if (!data.CORS_ORIGIN?.trim()) {
       throw new Error('Invalid environment: CORS_ORIGIN is required in production');
     }
-    if (
-      data.JWT_SECRET.includes('change-me') ||
-      data.JWT_REFRESH_SECRET.includes('change-me') ||
-      data.JWT_SECRET === data.JWT_REFRESH_SECRET
-    ) {
+    if (data.JWT_SECRET.includes('change-me')) {
       throw new Error(
-        'Invalid environment: use strong distinct JWT_SECRET and JWT_REFRESH_SECRET in production',
+        'Invalid environment: JWT_SECRET still contains "change-me" — set a long random value in Railway Variables',
+      );
+    }
+    if (data.JWT_REFRESH_SECRET.includes('change-me')) {
+      throw new Error(
+        'Invalid environment: JWT_REFRESH_SECRET still contains "change-me" — set a different long random value in Railway Variables',
+      );
+    }
+    if (data.JWT_SECRET === data.JWT_REFRESH_SECRET) {
+      throw new Error(
+        'Invalid environment: JWT_SECRET and JWT_REFRESH_SECRET must be different values',
+      );
+    }
+    if (data.JWT_SECRET.length < 32 || data.JWT_REFRESH_SECRET.length < 32) {
+      throw new Error(
+        'Invalid environment: JWT_SECRET and JWT_REFRESH_SECRET must each be at least 32 characters',
       );
     }
     const allowMock = (data.ALLOW_MOCK_EXTRACTION ?? 'true').toLowerCase() !== 'false';

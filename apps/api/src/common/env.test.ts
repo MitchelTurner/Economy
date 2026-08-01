@@ -37,6 +37,32 @@ describe('validateEnv', () => {
     ).toThrow(/CORS_ORIGIN|JWT/);
   });
 
+  it('rejects production when JWT secrets are identical', () => {
+    expect(() =>
+      validateEnv({
+        ...base,
+        NODE_ENV: 'production',
+        CORS_ORIGIN: 'https://app.example.com',
+        JWT_SECRET: 'prod-shared-secret-32chars-min!!',
+        JWT_REFRESH_SECRET: 'prod-shared-secret-32chars-min!!',
+        ALLOW_MOCK_EXTRACTION: 'true',
+      }),
+    ).toThrow(/must be different/);
+  });
+
+  it('rejects production JWT secrets shorter than 32 chars', () => {
+    expect(() =>
+      validateEnv({
+        ...base,
+        NODE_ENV: 'production',
+        CORS_ORIGIN: 'https://app.example.com',
+        JWT_SECRET: 'short-but-not-change-me-1',
+        JWT_REFRESH_SECRET: 'short-but-not-change-me-2',
+        ALLOW_MOCK_EXTRACTION: 'true',
+      }),
+    ).toThrow(/at least 32 characters/);
+  });
+
   it('accepts production with CORS and strong distinct secrets', () => {
     const env = validateEnv({
       ...base,
