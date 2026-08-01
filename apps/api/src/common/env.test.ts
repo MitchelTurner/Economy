@@ -56,8 +56,8 @@ describe('validateEnv', () => {
         ...base,
         NODE_ENV: 'production',
         CORS_ORIGIN: 'https://app.example.com',
-        JWT_SECRET: 'short-but-not-change-me-1',
-        JWT_REFRESH_SECRET: 'short-but-not-change-me-2',
+        JWT_SECRET: 'short-access-secret-1',
+        JWT_REFRESH_SECRET: 'short-refresh-secret-2',
         ALLOW_MOCK_EXTRACTION: 'true',
       }),
     ).toThrow(/at least 32 characters/);
