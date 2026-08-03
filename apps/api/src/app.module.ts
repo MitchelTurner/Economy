@@ -17,6 +17,7 @@ import { AlertsModule } from './alerts/alerts.module';
 import { HouseholdModule } from './household/household.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { HealthController } from './health.controller';
+import { RootController } from './root.controller';
 import { RequestIdMiddleware } from './common/request-id.middleware';
 import { redisConnectionFromUrl } from './common/redis-connection';
 
@@ -47,7 +48,7 @@ import { redisConnectionFromUrl } from './common/redis-connection';
     AlertsModule,
     HouseholdModule,
   ],
-  controllers: [HealthController],
+  controllers: [RootController, HealthController],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
