@@ -27,7 +27,7 @@ FROM nginx:1.27-alpine AS runner
 # Railway injects PORT at runtime; compose sets PORT=80
 ENV PORT=80
 # Only substitute PORT — do not let envsubst touch nginx vars like $uri / $host
-ENV NGINX_ENVSUBST_FILTER=PORT
+ENV NGINX_ENVSUBST_FILTER=^PORT$
 COPY --from=build /app/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
