@@ -92,11 +92,10 @@ services:
       context: apps/web
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: /api
+        # Browser calls API directly (nginx is SPA-only; no compose "api" upstream)
+        VITE_API_URL: http://localhost:3000
     environment:
       PORT: "80"
-      # host:port for nginx variable proxy (see apps/web/nginx.conf.template)
-      API_UPSTREAM: api:3000
     depends_on:
       api:
         condition: service_healthy

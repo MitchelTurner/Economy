@@ -88,7 +88,7 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
      Example: `https://island-ledger-api-production.up.railway.app`  
      Do **not** use `/api` on Railway (that only works in docker-compose with the nginx proxy).
    - Networking: public domain, **target port empty** (nginx listens on Railway `PORT`)
-   - Do **not** set `API_UPSTREAM=http://api:3000` on Railway (that compose hostname does not exist and used to crash nginx). Leave `API_UPSTREAM` unset; the SPA should call the API via absolute `VITE_API_URL`.
+   - Web nginx is **SPA-only** (no `/api` proxy). The browser calls `VITE_API_URL` directly.
 7. On the **API** service set `CORS_ORIGIN` to the **web** public origin (e.g. `https://island-ledger-web-production.up.railway.app`). Redeploy API after changing CORS.
 8. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
@@ -103,8 +103,7 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 | Root directory | `apps/web` |
 | Dockerfile path | `Dockerfile` |
 | `VITE_API_URL` | Full public API URL, no trailing slash |
-| `API_UPSTREAM` | Leave unset (do not copy compose `api:3000`) |
-| Target port | Empty (auto) |
+| Target port | **Empty (auto)** — do not hard-code 80 or 3000 |
 | Healthcheck | `/` (optional) |
 
 If the web service was created with Railpack, open **Settings → Build** and switch to Dockerfile, set root directory + Dockerfile path above, set `VITE_API_URL`, then **Redeploy**. Rebuild is required after changing `VITE_API_URL` (it is baked into the JS bundle).
@@ -113,9 +112,15 @@ If the web service was created with Railpack, open **Settings → Build** and sw
 
 If the public URL shows **Application failed to respond**:
 
+**Web service**
+1. Deploy logs must show `Configuration complete; ready for start up` with **no** `[emerg]`.
+2. Settings → Networking → **target port empty** (nginx listens on Railway `$PORT`, not necessarily 80).
+3. `VITE_API_URL` must be the public API origin; rebuild after changing it.
+
+**API service**
 1. Deploy logs must show `Island Ledger API listening on 0.0.0.0:<port>` — if not, boot crashed (JWT / CORS / migrate) or hung before listen.
-2. Confirm Settings → Networking → target port is **empty** or equals the logged port.
-3. Confirm Variables include distinct ≥32-char JWTs, `CORS_ORIGIN`, `DATABASE_URL`, `REDIS_URL`.
+2. Settings → Networking → **target port empty** (or equal to the logged port — not a hard-coded `3000` unless that is the logged port).
+3. Variables: distinct ≥32-char `JWT_SECRET` + `JWT_REFRESH_SECRET`, `CORS_ORIGIN` = web origin (not `localhost`), `DATABASE_URL`, `REDIS_URL`, `TRUST_PROXY=1`.
 4. Hit `https://<api>/health` (should return `{"ok":true,...}`).
 
 ## Compose smoke

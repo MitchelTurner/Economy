@@ -1,11 +1,11 @@
-# Island Ledger web — Vite build + nginx
+# Island Ledger web — Vite build + nginx (SPA only)
 # Build context: apps/web (NOT the monorepo root)
 # Railway:
 #   Root Directory = apps/web
 #   Builder = Dockerfile
-#   Dockerfile path = Dockerfile  (or leave default)
+#   Dockerfile path = Dockerfile
 #   Set VITE_API_URL=https://<your-api>.up.railway.app (no trailing slash)
-#   Leave public networking target port empty (listens on $PORT)
+#   Networking target port: leave EMPTY (nginx listens on $PORT)
 #
 # Local / CI:
 #   docker build -f apps/web/Dockerfile -t island-web apps/web
@@ -24,14 +24,11 @@ COPY src ./src
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runner
-# Railway injects PORT; compose sets PORT=80
+# Railway injects PORT at runtime; compose sets PORT=80
 ENV PORT=80
-# host:port only (see nginx.conf.template). Default is always-resolvable so Railway
-# boot does not require a compose hostname "api". Compose overrides to api:3000.
-# Unused when the SPA is built with an absolute VITE_API_URL.
-ENV API_UPSTREAM=127.0.0.1:65535
+# Only substitute PORT — do not let envsubst touch nginx vars like $uri / $host
+ENV NGINX_ENVSUBST_FILTER=PORT
 COPY --from=build /app/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
-# Official nginx image runs envsubst on /etc/nginx/templates/*.template
 CMD ["nginx", "-g", "daemon off;"]
