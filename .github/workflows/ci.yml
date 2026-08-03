@@ -77,4 +77,4 @@ jobs:
       - name: Docker image build (API + web)
         run: |
           docker build -f apps/api/Dockerfile -t island-api:ci .
-          docker build -f apps/web/Dockerfile -t island-web:ci .
+          docker build -f apps/web/Dockerfile -t island-web:ci apps/web

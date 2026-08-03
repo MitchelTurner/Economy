@@ -1,0 +1,15 @@
+# Config-as-code for the Railway Web service.
+# In the Railway UI, set this service's "Config as Code" path to apps/web/railway.toml
+# (or set Root Directory = apps/web so this file is discovered).
+#
+# Do NOT use the repo-root railway.toml for Web — that file targets the API (Railpack).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

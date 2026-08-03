@@ -81,8 +81,9 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 5. Attach **Postgres + Redis** plugins and reference their `DATABASE_URL` / `REDIS_URL` on the API service. Without Redis, HTTP can still come up, but queues/schedulers/auth refresh won’t work.
 6. Create **Web** as a **separate** Railway service (same repo). Critical settings:
    - **Builder:** Dockerfile (not Railpack — root `railway.toml` is for the API)
-   - **Dockerfile path:** `apps/web/Dockerfile`
-   - **Root directory:** leave empty / repo root (build context must be monorepo root)
+   - **Root directory:** `apps/web` (build context is the web app only)
+   - **Dockerfile path:** `Dockerfile` (not `apps/web/Dockerfile` — that doubles the path when root is already `apps/web`)
+   - Optional: Config-as-code path `apps/web/railway.toml`
    - **Variable / build-arg `VITE_API_URL`:** `https://<your-api-public-host>` with **no trailing slash**  
      Example: `https://island-ledger-api-production.up.railway.app`  
      Do **not** use `/api` on Railway (that only works in docker-compose with the nginx proxy).
@@ -98,12 +99,15 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 | Setting | Value |
 |---|---|
 | Builder | Dockerfile |
-| Dockerfile path | `apps/web/Dockerfile` |
+| Root directory | `apps/web` |
+| Dockerfile path | `Dockerfile` |
 | `VITE_API_URL` | Full public API URL, no trailing slash |
 | Target port | Empty (auto) |
 | Healthcheck | `/` (optional) |
 
-If the web service was created with Railpack, open **Settings → Build** and switch to Dockerfile, set the path above, set `VITE_API_URL`, then **Redeploy**. Rebuild is required after changing `VITE_API_URL` (it is baked into the JS bundle).
+If the web service was created with Railpack, open **Settings → Build** and switch to Dockerfile, set root directory + Dockerfile path above, set `VITE_API_URL`, then **Redeploy**. Rebuild is required after changing `VITE_API_URL` (it is baked into the JS bundle).
+
+**Build error `/apps/web: not found`:** the Dockerfile expects context `apps/web`, but Railway is using the monorepo root (or the reverse mismatch). Set **Root directory = `apps/web`** and **Dockerfile path = `Dockerfile`**, then redeploy with a clean build.
 
 If the public URL shows **Application failed to respond**:
 
