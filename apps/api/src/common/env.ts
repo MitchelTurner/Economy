@@ -41,6 +41,14 @@ export type AppEnv = z.infer<typeof EnvSchema>;
 
 /** Validate process.env at boot. Throws with a clear message on failure. */
 export function validateEnv(env: NodeJS.ProcessEnv = process.env): AppEnv {
+  if (!env.JWT_SECRET?.trim() || !env.JWT_REFRESH_SECRET?.trim()) {
+    throw new Error(
+      'Invalid environment: JWT_SECRET and JWT_REFRESH_SECRET are missing from process.env. ' +
+        'In Railway, open the API service → Variables → add both (Raw Editor). ' +
+        'Shared/project variables must be linked to the API service. Redeploy after saving.',
+    );
+  }
+
   const parsed = EnvSchema.safeParse(env);
   if (!parsed.success) {
     const detail = parsed.error.issues

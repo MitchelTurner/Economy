@@ -26,6 +26,17 @@ describe('validateEnv', () => {
     expect(listenPort(env)).toBe(4000);
   });
 
+  it('rejects missing JWT secrets with Railway guidance', () => {
+    expect(() =>
+      validateEnv({
+        DATABASE_URL: base.DATABASE_URL,
+        REDIS_URL: base.REDIS_URL,
+        NODE_ENV: 'production',
+        CORS_ORIGIN: 'https://app.example.com',
+      }),
+    ).toThrow(/missing from process\.env|Railway/);
+  });
+
   it('rejects production with open CORS and weak JWT secrets', () => {
     expect(() =>
       validateEnv({
