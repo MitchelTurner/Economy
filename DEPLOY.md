@@ -103,6 +103,7 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 | Root directory | `apps/web` |
 | Dockerfile path | `Dockerfile` |
 | `VITE_API_URL` | Full public API URL, no trailing slash |
+| `API_UPSTREAM` | Leave unset (do not copy compose `api:3000`) |
 | Target port | Empty (auto) |
 | Healthcheck | `/` (optional) |
 
