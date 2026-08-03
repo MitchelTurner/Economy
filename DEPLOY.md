@@ -60,7 +60,9 @@ openssl rand -base64 48
 openssl rand -base64 48
 ```
 
-Paste each into a separate Railway variable. Redeploy after saving.
+Paste each into a separate Railway variable on the **API** service.
+
+**Railway Variables gotcha:** new/edited variables often appear with a **purple / staged** background and are **not** injected until you click **Deploy** (or Apply) on that service. Saving alone is not enough. After deploy, API logs must show `JWT_SECRET=yes JWT_REFRESH_SECRET=yes`. If they show `MISSING`, the vars are on the wrong service or still staged.
 
 Web build:
 
