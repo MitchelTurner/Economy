@@ -95,7 +95,8 @@ services:
         VITE_API_URL: /api
     environment:
       PORT: "80"
-      API_UPSTREAM: http://api:3000/
+      # host:port for nginx variable proxy (see apps/web/nginx.conf.template)
+      API_UPSTREAM: api:3000
     depends_on:
       api:
         condition: service_healthy

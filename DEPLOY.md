@@ -88,6 +88,7 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
      Example: `https://island-ledger-api-production.up.railway.app`  
      Do **not** use `/api` on Railway (that only works in docker-compose with the nginx proxy).
    - Networking: public domain, **target port empty** (nginx listens on Railway `PORT`)
+   - Do **not** set `API_UPSTREAM=http://api:3000` on Railway (that compose hostname does not exist and used to crash nginx). Leave `API_UPSTREAM` unset; the SPA should call the API via absolute `VITE_API_URL`.
 7. On the **API** service set `CORS_ORIGIN` to the **web** public origin (e.g. `https://island-ledger-web-production.up.railway.app`). Redeploy API after changing CORS.
 8. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`

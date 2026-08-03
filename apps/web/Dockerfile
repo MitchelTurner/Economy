@@ -26,8 +26,10 @@ RUN npm run build
 FROM nginx:1.27-alpine AS runner
 # Railway injects PORT; compose sets PORT=80
 ENV PORT=80
-# Used only when SPA calls /api/* (VITE_API_URL=/api). Absolute VITE_API_URL skips this.
-ENV API_UPSTREAM=http://api:3000/
+# host:port only (see nginx.conf.template). Default is always-resolvable so Railway
+# boot does not require a compose hostname "api". Compose overrides to api:3000.
+# Unused when the SPA is built with an absolute VITE_API_URL.
+ENV API_UPSTREAM=127.0.0.1:65535
 COPY --from=build /app/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
