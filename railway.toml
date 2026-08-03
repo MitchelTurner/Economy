@@ -1,5 +1,6 @@
-# Island Ledger API — Railway / Railpack defaults for the monorepo root service.
-# Web should be a separate service (Dockerfile apps/web/Dockerfile) with VITE_API_URL.
+# Default config for the API service (Railpack).
+# Web MUST be a second Railway service with Builder=Dockerfile (see DEPLOY.md).
+# Do not point the web service at Railpack — this file would build the API again.
 
 [build]
 builder = "RAILPACK"

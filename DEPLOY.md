@@ -77,12 +77,31 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
 3. Set env vars above. Repo `railway.toml` uses health check **`/health`** (liveness). Do **not** point Railway’s healthcheck at `/health/ready` unless Redis is linked — ready returns 503 without Redis and the edge will 502.
 4. Networking: leave the public domain **target port empty** (auto) so it follows Railway’s `PORT`. If you hard-code target port `3000` while the app listens on another `PORT`, you get **Application failed to respond**.
 5. Attach **Postgres + Redis** plugins and reference their `DATABASE_URL` / `REDIS_URL` on the API service. Without Redis, HTTP can still come up, but queues/schedulers/auth refresh won’t work.
-6. Create **Web** as a **separate** service with Dockerfile `apps/web/Dockerfile`, build arg `VITE_API_URL=https://<api-public-url>`.
-7. Point custom domains; ensure `CORS_ORIGIN` matches the web origin (and the public API URL if the SPA calls it cross-origin).
+6. Create **Web** as a **separate** Railway service (same repo). Critical settings:
+   - **Builder:** Dockerfile (not Railpack — root `railway.toml` is for the API)
+   - **Dockerfile path:** `apps/web/Dockerfile`
+   - **Root directory:** leave empty / repo root (build context must be monorepo root)
+   - **Variable / build-arg `VITE_API_URL`:** `https://<your-api-public-host>` with **no trailing slash**  
+     Example: `https://island-ledger-api-production.up.railway.app`  
+     Do **not** use `/api` on Railway (that only works in docker-compose with the nginx proxy).
+   - Networking: public domain, **target port empty** (nginx listens on Railway `PORT`)
+7. On the **API** service set `CORS_ORIGIN` to the **web** public origin (e.g. `https://island-ledger-web-production.up.railway.app`). Redeploy API after changing CORS.
 8. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
    Or set `SEED_ON_BOOT=reference` once on the API service (runs after migrate on container start; leave `off` afterward).
 9. Optional demo household + 6 months of synthetic history: `npm run db:seed` (`SEED_DEMO=1`, default) or `SEED_ON_BOOT=demo`
+
+### Web service checklist (Railway)
+
+| Setting | Value |
+|---|---|
+| Builder | Dockerfile |
+| Dockerfile path | `apps/web/Dockerfile` |
+| `VITE_API_URL` | Full public API URL, no trailing slash |
+| Target port | Empty (auto) |
+| Healthcheck | `/` (optional) |
+
+If the web service was created with Railpack, open **Settings → Build** and switch to Dockerfile, set the path above, set `VITE_API_URL`, then **Redeploy**. Rebuild is required after changing `VITE_API_URL` (it is baked into the JS bundle).
 
 If the public URL shows **Application failed to respond**:
 

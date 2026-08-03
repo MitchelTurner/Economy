@@ -1,22 +1,25 @@
-# Local/compose reference. The Docker image uses nginx.conf.template (PORT + API_UPSTREAM).
-# Keep in sync with nginx.conf.template aside from listen/proxy_pass templating.
 server {
-  listen 80;
+  listen ${PORT};
   server_name _;
   root /usr/share/nginx/html;
   index index.html;
 
+  # Security headers (HSTS only when TLS terminates in front — see DEPLOY.md)
   add_header X-Content-Type-Options "nosniff" always;
   add_header Referrer-Policy "strict-origin-when-cross-origin" always;
   add_header X-Frame-Options "SAMEORIGIN" always;
   add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob:; connect-src 'self' https: http:; worker-src 'self' blob:; manifest-src 'self'" always;
 
+  # SPA fallback
   location / {
     try_files $uri $uri/ /index.html;
   }
 
+  # Same-origin API proxy when the SPA was built with VITE_API_URL=/api
+  # Compose: API_UPSTREAM=http://api:3000/
+  # Railway: prefer baking an absolute VITE_API_URL instead of relying on this proxy
   location /api/ {
-    proxy_pass http://api:3000/;
+    proxy_pass ${API_UPSTREAM};
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;

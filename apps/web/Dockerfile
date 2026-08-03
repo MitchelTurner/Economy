@@ -1,4 +1,9 @@
 # Island Ledger web — Vite build + nginx
+# Build context: monorepo root
+# Railway: Builder=Dockerfile, Dockerfile path=apps/web/Dockerfile
+#   Build/runtime: set VITE_API_URL=https://<your-api>.up.railway.app (no trailing slash)
+#   Leave public networking target port empty (listens on $PORT)
+
 FROM node:20-alpine AS build
 WORKDIR /app
 ARG VITE_API_URL=/api
@@ -12,7 +17,12 @@ WORKDIR /app/apps/web
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runner
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# Railway injects PORT; compose sets PORT=80
+ENV PORT=80
+# Used only when SPA calls /api/* (VITE_API_URL=/api). Absolute VITE_API_URL skips this.
+ENV API_UPSTREAM=http://api:3000/
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
+# Official nginx image runs envsubst on /etc/nginx/templates/*.template
 CMD ["nginx", "-g", "daemon off;"]
