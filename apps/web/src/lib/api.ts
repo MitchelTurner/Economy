@@ -32,7 +32,10 @@ export async function probeApiReachable(timeoutMs = 5000): Promise<boolean> {
       cache: 'no-store',
       mode: 'cors',
     });
-    return res.ok;
+    if (!res.ok) return false;
+    // SPA fallback can 200 HTML for wrong API bases like `/api/health` on the web host.
+    const ct = res.headers.get('content-type') ?? '';
+    return ct.includes('application/json');
   } catch {
     return false;
   } finally {

@@ -24,8 +24,9 @@ export type FlushResult = {
 export function classifySyncFailure(err: unknown): SyncFailureKind {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'device-offline';
   const msg = (err as Error)?.message ?? String(err);
+  // Only treat opaque network failures as API-unreachable when they look like our API client errors.
+  // Presigned S3/MinIO PUT failures also surface as "Failed to fetch" and must not use this label.
   if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) {
-    // Browser is online but the API origin is unreachable (wrong VITE_API_URL, CORS, API down).
     return 'api-unreachable';
   }
   return 'error';
@@ -55,12 +56,17 @@ async function uploadFromOutbox(meta: OutboxMeta): Promise<string> {
   if (uploadUrl.startsWith('memory://')) {
     imageBase64 = await blobToBase64(blob);
   } else {
-    const put = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'image/jpeg' },
-      body: blob,
-    });
-    if (!put.ok) {
+    try {
+      const put = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg' },
+        body: blob,
+      });
+      if (!put.ok) {
+        imageBase64 = await blobToBase64(blob);
+      }
+    } catch {
+      // Presigned host unreachable from the browser (e.g. localhost MinIO) — send bytes to API.
       imageBase64 = await blobToBase64(blob);
     }
   }

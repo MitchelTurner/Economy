@@ -11,14 +11,32 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createHash, randomUUID } from 'crypto';
 import { Readable } from 'stream';
 
+function isLocalOnlyS3Endpoint(endpoint: string | undefined): boolean {
+  if (!endpoint?.trim()) return true;
+  try {
+    const u = new URL(endpoint);
+    return (
+      u.hostname === 'localhost' ||
+      u.hostname === '127.0.0.1' ||
+      u.hostname === '::1' ||
+      u.hostname === 'host.docker.internal'
+    );
+  } catch {
+    return true;
+  }
+}
+
 @Injectable()
 export class StorageService {
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly localFallback = new Map<string, Buffer>();
+  /** When true, never hand the browser a presigned URL (localhost MinIO is unreachable from clients). */
+  private readonly memoryUploadsOnly: boolean;
 
   constructor(private readonly config: ConfigService) {
     const endpoint = config.get<string>('S3_ENDPOINT');
+    this.memoryUploadsOnly = isLocalOnlyS3Endpoint(endpoint);
     this.bucket = config.get('S3_BUCKET') ?? 'island-ledger-receipts';
     this.client = new S3Client({
       region: config.get('S3_REGION') ?? 'us-east-1',
@@ -36,6 +54,10 @@ export class StorageService {
   }
 
   async createUploadUrl(imageKey: string, contentType = 'image/jpeg') {
+    // Railway/prod often still has compose MinIO defaults — browsers cannot PUT to localhost:9000.
+    if (this.memoryUploadsOnly) {
+      return { uploadUrl: `memory://${imageKey}`, imageKey };
+    }
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucket,
