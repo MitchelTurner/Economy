@@ -36,7 +36,11 @@ async function bootstrap() {
   app.use(json({ limit: bodyLimit }));
   app.use(urlencoded({ extended: true, limit: bodyLimit }));
 
-  const origins = env.CORS_ORIGIN?.split(',').map((s) => s.trim()).filter(Boolean);
+  // Strip trailing slashes — browser Origin never includes a path/slash.
+  const origins = env.CORS_ORIGIN?.split(',')
+    .map((s) => s.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+  console.log(`[boot] CORS origins: ${origins?.length ? origins.join(', ') : '(open/dev)'}`);
   if (env.NODE_ENV === 'production') {
     app.enableCors({ origin: origins, credentials: true });
   } else {

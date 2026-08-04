@@ -13,20 +13,18 @@ export default defineConfig({
       workbox: {
         navigateFallback: '/index.html',
         globPatterns: ['**/*.{js,css,html,svg,ico,png,woff2}'],
+        globIgnores: ['**/runtime-config.js'],
         runtimeCaching: [
           {
-            // Never serve API responses from the service worker cache (relative /api or absolute VITE_API_URL).
-            urlPattern: ({ url }) => {
-              const api = (process.env.VITE_API_URL ?? '/api').replace(/\/$/, '');
-              if (api.startsWith('http')) {
-                try {
-                  return url.origin === new URL(api).origin;
-                } catch {
-                  return false;
-                }
-              }
-              return url.pathname.startsWith('/api') || url.origin.includes('localhost:3000');
-            },
+            urlPattern: ({ url }) => url.pathname === '/runtime-config.js',
+            handler: 'NetworkOnly',
+          },
+          {
+            // Never cache API GETs (relative /api, localhost, or any absolute API host).
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith('/api') ||
+              url.origin.includes('localhost:3000') ||
+              url.hostname.includes('up.railway.app'),
             handler: 'NetworkOnly',
             method: 'GET',
           },

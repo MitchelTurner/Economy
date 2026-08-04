@@ -5,6 +5,7 @@
 #   Builder = Dockerfile
 #   Dockerfile path = Dockerfile
 #   Set VITE_API_URL=https://<your-api>.up.railway.app (no trailing slash)
+#     → injected at container start via /runtime-config.js (redeploy, no rebuild required)
 #   Networking target port: leave EMPTY (nginx listens on $PORT)
 #
 # Local / CI:
@@ -12,10 +13,10 @@
 
 FROM node:20-alpine AS build
 WORKDIR /app
+# Optional bake-in for non-nginx hosts; Railway prefers runtime VITE_API_URL below.
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 COPY package.json ./
-# Lockfile lives at monorepo root; install from this package.json alone.
 RUN npm install
 COPY nginx.conf.template ./nginx.conf.template
 COPY index.html tsconfig.json vite.config.ts vitest.config.ts eslint.config.mjs ./
@@ -24,10 +25,10 @@ COPY src ./src
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runner
-# Railway injects PORT at runtime; compose sets PORT=80
 ENV PORT=80
-# Only substitute PORT — do not let envsubst touch nginx vars like $uri / $host
-ENV NGINX_ENVSUBST_FILTER=^PORT$
+# Runtime (Railway Variables) — must be the public API origin, e.g. https://….up.railway.app
+ENV VITE_API_URL=
+ENV NGINX_ENVSUBST_FILTER=^(PORT|VITE_API_URL)$
 COPY --from=build /app/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

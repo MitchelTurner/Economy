@@ -91,11 +91,10 @@ services:
     build:
       context: apps/web
       dockerfile: Dockerfile
-      args:
-        # Browser calls API directly (nginx is SPA-only; no compose "api" upstream)
-        VITE_API_URL: http://localhost:3000
     environment:
       PORT: "80"
+      # Injected at container start via /runtime-config.js
+      VITE_API_URL: http://localhost:3000
     depends_on:
       api:
         condition: service_healthy

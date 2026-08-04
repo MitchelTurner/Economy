@@ -8,9 +8,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { getApiBaseUrl } from '../lib/api';
 import { formatCents } from '../lib/money';
-
-const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 type PublicIndex = {
   region: string;
@@ -62,7 +61,7 @@ export function PublicIndexPage() {
     setLoading(true);
     setError(null);
     void Promise.all([
-      fetch(`${API_URL}/public/index?region=${encodeURIComponent(region)}`).then(
+      fetch(`${getApiBaseUrl()}/public/index?region=${encodeURIComponent(region)}`).then(
         async (r) => {
           if (!r.ok) {
             let detail: { message?: string } | undefined;
@@ -79,7 +78,7 @@ export function PublicIndexPage() {
           return r.json() as Promise<PublicIndex>;
         },
       ),
-      fetch(`${API_URL}/public/staples`).then(async (r) => {
+      fetch(`${getApiBaseUrl()}/public/staples`).then(async (r) => {
         if (!r.ok) {
           let detail: { message?: string } | undefined;
           try {
@@ -122,7 +121,7 @@ export function PublicIndexPage() {
     setPricesLoading(true);
     setPricesError(null);
     void fetch(
-      `${API_URL}/public/prices/${encodeURIComponent(productId)}?region=${encodeURIComponent(region)}`,
+      `${getApiBaseUrl()}/public/prices/${encodeURIComponent(productId)}?region=${encodeURIComponent(region)}`,
     )
       .then(async (r) => {
         if (!r.ok) {

@@ -84,11 +84,12 @@ VITE_API_URL=https://your-api.example.com npm run build -w @island-ledger/web
    - **Root directory:** `apps/web` (build context is the web app only)
    - **Dockerfile path:** `Dockerfile` (not `apps/web/Dockerfile` — that doubles the path when root is already `apps/web`)
    - Optional: Config-as-code path `apps/web/railway.toml`
-   - **Variable / build-arg `VITE_API_URL`:** `https://<your-api-public-host>` with **no trailing slash**  
+   - **Variable `VITE_API_URL`:** `https://<your-api-public-host>` with **no trailing slash**  
      Example: `https://island-ledger-api-production.up.railway.app`  
-     Do **not** use `/api` on Railway (that only works in docker-compose with the nginx proxy).
+     Injected at **container start** via `/runtime-config.js` (set the var → **Redeploy** web; no image rebuild required).  
+     Do **not** use `/api` on Railway. Opening `/health` in a tab can succeed while the SPA still fails if `CORS_ORIGIN` is wrong — browser `fetch` needs CORS.
    - Networking: public domain, **target port empty** (nginx listens on Railway `PORT`)
-   - Web nginx is **SPA-only** (no `/api` proxy). The browser calls `VITE_API_URL` directly.
+   - Web nginx is **SPA-only**. Confirm in the browser: `https://<web>/runtime-config.js` should contain your API URL.
 7. On the **API** service set `CORS_ORIGIN` to the **web** public origin (e.g. `https://island-ledger-web-production.up.railway.app`). Redeploy API after changing CORS.
 8. After first deploy run **reference seed** (catalog, baselines, shipping lanes) without wiping real households:
    `railway run -s api npm run db:seed:reference -w @island-ledger/api`
@@ -115,8 +116,8 @@ If the public URL shows **Application failed to respond**:
 **Web service**
 1. Deploy logs must show `Configuration complete; ready for start up` with **no** `[emerg]`.
 2. Settings → Networking → **target port empty** (nginx listens on Railway `$PORT`, not necessarily 80).
-3. `VITE_API_URL` must be the public API origin; rebuild after changing it.
-4. If Capture says **API unreachable** while your phone has internet: the SPA cannot call the API (wrong/missing `VITE_API_URL`, or API `CORS_ORIGIN` is not the web origin). Settings shows the baked-in API base URL.
+3. `VITE_API_URL` must be the public API origin on the **web** service; redeploy web after changing it. Check `https://<web>/runtime-config.js`.
+4. If Capture says **API unreachable** while your phone has internet: usually CORS — API `CORS_ORIGIN` must exactly match the web origin (https, no trailing slash). Settings shows the active API base URL.
 
 **API service**
 1. Deploy logs must show `Island Ledger API listening on 0.0.0.0:<port>` — if not, boot crashed (JWT / CORS / migrate) or hung before listen.

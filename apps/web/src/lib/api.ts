@@ -1,8 +1,20 @@
-const API_URL = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/$/, '');
+declare global {
+  interface Window {
+    /** Set by /runtime-config.js (nginx on Railway) before the app bundle loads. */
+    __ISLAND_API_URL__?: string;
+  }
+}
+
+function resolveApiUrl(): string {
+  const runtime =
+    typeof window !== 'undefined' ? window.__ISLAND_API_URL__?.trim() : undefined;
+  const raw = runtime || import.meta.env.VITE_API_URL || '/api';
+  return String(raw).replace(/\/$/, '');
+}
 
 /** Public API origin used by the SPA (absolute on Railway, `/api` in Vite proxy). */
 export function getApiBaseUrl() {
-  return API_URL;
+  return resolveApiUrl();
 }
 
 /**
@@ -10,13 +22,15 @@ export function getApiBaseUrl() {
  * from navigator.onLine.
  */
 export async function probeApiReachable(timeoutMs = 5000): Promise<boolean> {
+  const base = getApiBaseUrl();
   const ctrl = new AbortController();
   const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${API_URL}/health`, {
+    const res = await fetch(`${base}/health`, {
       method: 'GET',
       signal: ctrl.signal,
       cache: 'no-store',
+      mode: 'cors',
     });
     return res.ok;
   } catch {
@@ -53,7 +67,7 @@ async function refreshAccess(): Promise<string | null> {
   refreshInFlight = (async () => {
     const tokens = getTokens();
     if (!tokens?.refreshToken) return null;
-    const res = await fetch(`${API_URL}/auth/refresh`, {
+    const res = await fetch(`${getApiBaseUrl()}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: tokens.refreshToken }),
@@ -113,7 +127,7 @@ export async function api<T>(
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
   }
 
-  let res = await fetch(`${API_URL}${path}`, {
+  let res = await fetch(`${getApiBaseUrl()}${path}`, {
     ...init,
     headers,
     body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
@@ -123,7 +137,7 @@ export async function api<T>(
     const next = await refreshAccess();
     if (next) {
       headers.set('Authorization', `Bearer ${next}`);
-      res = await fetch(`${API_URL}${path}`, {
+      res = await fetch(`${getApiBaseUrl()}${path}`, {
         ...init,
         headers,
         body: init.json !== undefined ? JSON.stringify(init.json) : init.body,
@@ -152,12 +166,12 @@ export async function fetchAuthedBlobUrl(path: string): Promise<string> {
   if (tokens?.accessToken) {
     headers.set('Authorization', `Bearer ${tokens.accessToken}`);
   }
-  let res = await fetch(`${API_URL}${path}`, { headers });
+  let res = await fetch(`${getApiBaseUrl()}${path}`, { headers });
   if (res.status === 401) {
     const next = await refreshAccess();
     if (next) {
       headers.set('Authorization', `Bearer ${next}`);
-      res = await fetch(`${API_URL}${path}`, { headers });
+      res = await fetch(`${getApiBaseUrl()}${path}`, { headers });
     }
   }
   if (!res.ok) {
