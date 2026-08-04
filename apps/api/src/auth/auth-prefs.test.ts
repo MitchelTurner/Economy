@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('AuthService.updateMe', () => {
   it('persists emailDigest and emailAlerts', async () => {
@@ -25,6 +26,7 @@ describe('AuthService.updateMe', () => {
         JWT_REFRESH_SECRET: 'y'.repeat(32),
         REDIS_URL: 'redis://localhost:6379',
       }),
+      new NotificationsService(new ConfigService({ MAIL_PROVIDER: 'log' })),
     );
     const me = await svc.updateMe('u1', { emailDigest: false });
     expect(update).toHaveBeenCalledWith(

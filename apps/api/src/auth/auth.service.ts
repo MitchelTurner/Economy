@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -6,16 +7,22 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
+import { createHash, randomBytes } from 'crypto';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   ChangePasswordDto,
+  ForgotPasswordDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
+  ResetPasswordDto,
   UpdateMeDto,
 } from './auth.dto';
 import { redisConnectionFromUrl } from '../common/redis-connection';
+
+const RESET_TTL_SECONDS = 60 * 60; // 1 hour
 
 @Injectable()
 export class AuthService {
@@ -25,6 +32,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     this.redis = new Redis({
       ...redisConnectionFromUrl(
@@ -176,6 +184,80 @@ export class AuthService {
     });
     const revoked = await this.revokeAllSessions(userId);
     return { ok: true, sessionsRevoked: revoked };
+  }
+
+  /**
+   * Always returns { ok: true } (no email enumeration).
+   * When the account exists, stores a one-time Redis token and emails a reset link.
+   */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const email = dto.email.toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, email: true },
+    });
+    if (!user) return { ok: true as const };
+
+    const token = randomBytes(32).toString('hex');
+    const tokenHash = this.resetTokenHash(token);
+    const prevHash = await this.redis
+      .get(this.resetUserKey(user.id))
+      .catch(() => null);
+    if (prevHash) {
+      await this.redis.del(this.resetKey(prevHash)).catch(() => undefined);
+    }
+    await this.redis
+      .set(this.resetKey(tokenHash), user.id, 'EX', RESET_TTL_SECONDS)
+      .catch(() => undefined);
+    await this.redis
+      .set(this.resetUserKey(user.id), tokenHash, 'EX', RESET_TTL_SECONDS)
+      .catch(() => undefined);
+
+    const origin =
+      this.config.get<string>('CORS_ORIGIN')?.split(',')[0]?.trim() ||
+      'http://localhost:5173';
+    const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}`;
+    await this.notifications.sendPasswordReset({ to: user.email, resetUrl });
+    return { ok: true as const };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = this.resetTokenHash(dto.token);
+    const userId = await this.redis.get(this.resetKey(tokenHash)).catch(() => null);
+    if (!userId) {
+      throw new BadRequestException('Reset link is invalid or expired');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) {
+      await this.redis.del(this.resetKey(tokenHash)).catch(() => undefined);
+      throw new BadRequestException('Reset link is invalid or expired');
+    }
+
+    const passwordHash = await argon2.hash(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+    await this.redis.del(this.resetKey(tokenHash)).catch(() => undefined);
+    await this.redis.del(this.resetUserKey(userId)).catch(() => undefined);
+    const sessionsRevoked = await this.revokeAllSessions(userId);
+    return { ok: true as const, sessionsRevoked };
+  }
+
+  private resetTokenHash(token: string) {
+    return createHash('sha256').update(token).digest('hex');
+  }
+
+  private resetKey(tokenHash: string) {
+    return `password-reset:${tokenHash}`;
+  }
+
+  private resetUserKey(userId: string) {
+    return `password-reset-user:${userId}`;
   }
 
   /** Delete all Redis refresh sessions for a user (password change / security). */

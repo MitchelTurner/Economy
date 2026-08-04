@@ -67,3 +67,23 @@ export class ChangePasswordDto {
   currentPassword!: string;
   newPassword!: string;
 }
+
+export const ForgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+@ZodBody(ForgotPasswordSchema)
+export class ForgotPasswordDto {
+  email!: string;
+}
+
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(20).max(200),
+  newPassword: z.string().min(8).max(128),
+});
+
+@ZodBody(ResetPasswordSchema)
+export class ResetPasswordDto {
+  token!: string;
+  newPassword!: string;
+}

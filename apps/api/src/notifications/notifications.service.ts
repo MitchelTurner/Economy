@@ -175,6 +175,28 @@ export class NotificationsService {
       }),
     });
   }
+
+  async sendPasswordReset(opts: { to: string; resetUrl: string }) {
+    const text = [
+      'We received a request to reset your Island Ledger password.',
+      '',
+      `Reset your password: ${opts.resetUrl}`,
+      '',
+      'This link expires in 1 hour. If you did not request a reset, you can ignore this email.',
+    ].join('\n');
+    return this.sendEmail({
+      to: opts.to,
+      subject: 'Reset your Island Ledger password',
+      text,
+      html: brandedHtml({
+        title: 'Password reset',
+        bodyHtml:
+          '<p>We received a request to reset your Island Ledger password.</p><p>This link expires in 1 hour. If you did not request a reset, you can ignore this email.</p>',
+        ctaLabel: 'Choose a new password',
+        ctaHref: opts.resetUrl,
+      }),
+    });
+  }
 }
 
 function appOrigin(config: ConfigService) {

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthService } from './auth.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('AuthService.refresh', () => {
   it('rejects refresh when the user row was deleted', async () => {
@@ -22,6 +23,7 @@ describe('AuthService.refresh', () => {
         JWT_REFRESH_SECRET: 'y'.repeat(32),
         REDIS_URL: 'redis://localhost:6379',
       }),
+      new NotificationsService(new ConfigService({ MAIL_PROVIDER: 'log' })),
     );
     const key = `session:refresh:gone:${refreshToken.slice(-24)}`;
     const get = vi.fn().mockResolvedValue('1');

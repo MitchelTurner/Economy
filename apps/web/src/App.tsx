@@ -41,6 +41,12 @@ const ManualEntryPage = lazy(() =>
 const InviteAcceptPage = lazy(() =>
   import('./pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
 );
+const ForgotPasswordPage = lazy(() =>
+  import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
+);
+const ResetPasswordPage = lazy(() =>
+  import('./pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
+);
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -78,6 +84,22 @@ export default function App() {
           element={
             <Lazy>
               <InviteAcceptPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <Lazy>
+              <ForgotPasswordPage />
+            </Lazy>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <Lazy>
+              <ResetPasswordPage />
             </Lazy>
           }
         />

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { AuthService } from './auth.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('AuthService.changePassword', () => {
   it('updates hash and revokes all refresh sessions', async () => {
@@ -25,6 +26,7 @@ describe('AuthService.changePassword', () => {
         JWT_REFRESH_SECRET: 'y'.repeat(32),
         REDIS_URL: 'redis://localhost:6379',
       }),
+      new NotificationsService(new ConfigService({ MAIL_PROVIDER: 'log' })),
     );
     const keys = vi
       .fn()

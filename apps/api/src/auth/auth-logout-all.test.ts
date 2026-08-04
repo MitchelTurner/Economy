@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 describe('AuthService.logoutAll', () => {
   it('revokes all refresh sessions', async () => {
@@ -13,6 +14,7 @@ describe('AuthService.logoutAll', () => {
         JWT_REFRESH_SECRET: 'y'.repeat(32),
         REDIS_URL: 'redis://localhost:6379',
       }),
+      new NotificationsService(new ConfigService({ MAIL_PROVIDER: 'log' })),
     );
     const keys = vi.fn().mockResolvedValue(['session:refresh:u1:a']);
     const del = vi.fn().mockResolvedValue(1);

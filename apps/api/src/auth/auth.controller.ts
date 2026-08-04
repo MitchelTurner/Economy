@@ -3,9 +3,11 @@ import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import {
   ChangePasswordDto,
+  ForgotPasswordDto,
   LoginDto,
   RefreshDto,
   RegisterDto,
+  ResetPasswordDto,
   UpdateMeDto,
 } from './auth.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -97,5 +99,23 @@ export class AuthController {
       name: 'auth:change-password',
     });
     return this.auth.changePassword(user.userId, dto);
+  }
+
+  @Post('forgot-password')
+  async forgotPassword(@Req() req: Request, @Body() dto: ForgotPasswordDto) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:forgot-password',
+    });
+    return this.auth.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Req() req: Request, @Body() dto: ResetPasswordDto) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:reset-password',
+    });
+    return this.auth.resetPassword(dto);
   }
 }

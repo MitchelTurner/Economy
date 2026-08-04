@@ -42,6 +42,10 @@ describe('NotificationsService', () => {
       inviteUrl: 'https://app.example.com/invite?token=abc',
       invitedBy: 'Pat',
     });
+    await svc.sendPasswordReset({
+      to: 'c@example.com',
+      resetUrl: 'https://app.example.com/reset-password?token=xyz',
+    });
     const msgs = svc.drainSent();
     expect(msgs[0]!.subject).toContain('Milk');
     expect(msgs[0]!.text).toContain('$4.49');
@@ -51,5 +55,8 @@ describe('NotificationsService', () => {
     expect(msgs[1]!.html).toContain('Open insights');
     expect(msgs[2]!.html).toContain('Accept invite');
     expect(msgs[2]!.html).toContain('token=abc');
+    expect(msgs[3]!.subject).toMatch(/reset/i);
+    expect(msgs[3]!.html).toContain('Choose a new password');
+    expect(msgs[3]!.html).toContain('token=xyz');
   });
 });

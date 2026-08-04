@@ -35,7 +35,7 @@ S3_SECRET_ACCESS_KEY=...
 EXTRACTION_PROVIDER=anthropic
 ANTHROPIC_API_KEY=...
 ALLOW_MOCK_EXTRACTION=false
-RESEND_API_KEY=...   # optional; else mail logs
+RESEND_API_KEY=...   # optional; else mail logs (needed for forgot-password emails)
 MAIL_FROM=Island Ledger <noreply@yourdomain>
 PUBLIC_MIN_HOUSEHOLDS=3
 ```

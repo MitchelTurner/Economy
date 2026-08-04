@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiErrorMessage } from '../lib/api';
 
@@ -96,7 +96,13 @@ export function LoginPage() {
               <span className="mt-1 block text-xs text-[var(--ink-muted)]">
                 At least 8 characters
               </span>
-            ) : null}
+            ) : (
+              <span className="mt-1 block text-right text-xs">
+                <Link to="/forgot-password" className="font-semibold text-[var(--brand-soft)]">
+                  Forgot password?
+                </Link>
+              </span>
+            )}
           </label>
 
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}

@@ -25,6 +25,8 @@ npm run dev:web   # :5173
 
 Demo login (after seed): `demo@islandledger.local` / `demo-password-123`
 
+Forgot password: Sign in → **Forgot password?** → email with a 1-hour reset link (`CORS_ORIGIN` must be the web origin). Needs Redis for the token and `RESEND_API_KEY` (+ `MAIL_FROM`) for real delivery; otherwise the link is logged by the API.
+
 Set `EXTRACTION_PROVIDER=mock` (default when no `ANTHROPIC_API_KEY`) to run the upload → extract → review loop without a vision model.
 
 ## Monorepo layout
