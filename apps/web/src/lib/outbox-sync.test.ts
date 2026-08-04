@@ -36,7 +36,7 @@ describe('flushPendingOutbox', () => {
     Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
   });
 
-  it('classifies network failures as offlineLikely', async () => {
+  it('classifies network failures as api-unreachable when the device is online', async () => {
     pendingOutbox.mockResolvedValue([
       { id: '1', hash: 'h', createdAt: new Date().toISOString(), status: 'queued' },
     ]);
@@ -46,6 +46,7 @@ describe('flushPendingOutbox', () => {
     const { flushPendingOutbox } = await import('./outbox-sync');
     const result = await flushPendingOutbox();
     expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]!.kind).toBe('api-unreachable');
     expect(result.failures[0]!.offlineLikely).toBe(true);
     expect(patchOutbox).toHaveBeenCalledWith(
       '1',
@@ -53,7 +54,7 @@ describe('flushPendingOutbox', () => {
     );
   });
 
-  it('classifies API errors as not offline', async () => {
+  it('classifies API errors as hard failures', async () => {
     pendingOutbox.mockResolvedValue([
       { id: '2', hash: 'h', createdAt: new Date().toISOString(), status: 'queued' },
     ]);
@@ -62,7 +63,21 @@ describe('flushPendingOutbox', () => {
 
     const { flushPendingOutbox } = await import('./outbox-sync');
     const result = await flushPendingOutbox();
+    expect(result.failures[0]!.kind).toBe('error');
     expect(result.failures[0]!.offlineLikely).toBe(false);
+  });
+
+  it('classifies device offline separately', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    pendingOutbox.mockResolvedValue([
+      { id: '3', hash: 'h', createdAt: new Date().toISOString(), status: 'queued' },
+    ]);
+    getOutboxBlob.mockResolvedValue(new Blob(['x']));
+    api.mockRejectedValue(new Error('Failed to fetch'));
+
+    const { flushPendingOutbox } = await import('./outbox-sync');
+    const result = await flushPendingOutbox();
+    expect(result.failures[0]!.kind).toBe('device-offline');
   });
 
   it('is single-flight (second call shares the same result)', async () => {

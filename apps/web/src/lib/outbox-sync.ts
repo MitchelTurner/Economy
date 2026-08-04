@@ -8,15 +8,37 @@ import {
   type OutboxMeta,
 } from './outbox';
 
+export type SyncFailureKind = 'device-offline' | 'api-unreachable' | 'error';
+
 export type FlushResult = {
   reviewIds: string[];
-  failures: Array<{ id: string; message: string; offlineLikely: boolean }>;
+  failures: Array<{
+    id: string;
+    message: string;
+    kind: SyncFailureKind;
+    /** @deprecated use kind — true when sync should retry later */
+    offlineLikely: boolean;
+  }>;
 };
 
-function isOfflineLikely(err: unknown): boolean {
-  if (!navigator.onLine) return true;
+export function classifySyncFailure(err: unknown): SyncFailureKind {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return 'device-offline';
   const msg = (err as Error)?.message ?? String(err);
-  return /Failed to fetch|NetworkError|Load failed|offline/i.test(msg);
+  if (/Failed to fetch|NetworkError|Load failed|abort/i.test(msg)) {
+    // Browser is online but the API origin is unreachable (wrong VITE_API_URL, CORS, API down).
+    return 'api-unreachable';
+  }
+  return 'error';
+}
+
+export function syncFailureUserMessage(kind: SyncFailureKind, detail?: string): string {
+  if (kind === 'device-offline') {
+    return 'Device offline — receipts stay queued until you reconnect.';
+  }
+  if (kind === 'api-unreachable') {
+    return 'Can’t reach the API — check that the web build’s VITE_API_URL matches your API and CORS_ORIGIN allows this site.';
+  }
+  return detail || 'Upload failed';
 }
 
 async function uploadFromOutbox(meta: OutboxMeta): Promise<string> {
@@ -96,13 +118,17 @@ export function flushPendingOutbox(
         onItem?.(meta.id, 'Done');
       } catch (err) {
         const message = apiErrorMessage(err, 'Upload failed');
-        const offlineLikely = isOfflineLikely(err);
+        const kind = classifySyncFailure(err);
+        const offlineLikely = kind !== 'error';
         await patchOutbox(meta.id, { status: 'failed', error: message });
-        onItem?.(
-          meta.id,
-          offlineLikely ? 'Queued (offline)' : `Failed: ${message}`,
-        );
-        failures.push({ id: meta.id, message, offlineLikely });
+        const label =
+          kind === 'device-offline'
+            ? 'Queued (offline)'
+            : kind === 'api-unreachable'
+              ? 'Queued (API unreachable)'
+              : `Failed: ${message}`;
+        onItem?.(meta.id, label);
+        failures.push({ id: meta.id, message, kind, offlineLikely });
       }
     }
     return { reviewIds, failures };

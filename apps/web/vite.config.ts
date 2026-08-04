@@ -15,9 +15,18 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,ico,png,woff2}'],
         runtimeCaching: [
           {
-            urlPattern: ({ url }) =>
-              url.pathname.startsWith('/api') ||
-              url.origin.includes('localhost:3000'),
+            // Never serve API responses from the service worker cache (relative /api or absolute VITE_API_URL).
+            urlPattern: ({ url }) => {
+              const api = (process.env.VITE_API_URL ?? '/api').replace(/\/$/, '');
+              if (api.startsWith('http')) {
+                try {
+                  return url.origin === new URL(api).origin;
+                } catch {
+                  return false;
+                }
+              }
+              return url.pathname.startsWith('/api') || url.origin.includes('localhost:3000');
+            },
             handler: 'NetworkOnly',
             method: 'GET',
           },

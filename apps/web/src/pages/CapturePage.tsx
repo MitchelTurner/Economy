@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiErrorMessage } from '../lib/api';
+import { apiErrorMessage, getApiBaseUrl, probeApiReachable } from '../lib/api';
 import { preprocessReceiptImage } from '../lib/image';
 import {
   enqueueOutbox,
@@ -9,10 +9,14 @@ import {
   removeOutbox,
   type OutboxMeta,
 } from '../lib/outbox';
-import { flushPendingOutbox } from '../lib/outbox-sync';
+import {
+  flushPendingOutbox,
+  syncFailureUserMessage,
+} from '../lib/outbox-sync';
 import { toast } from '../lib/toast';
 
 type QueueItem = { id: string; previewUrl: string; status: string };
+type ConnStatus = 'checking' | 'online' | 'device-offline' | 'api-unreachable';
 
 export function CapturePage() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -20,9 +24,7 @@ export function CapturePage() {
   const [error, setError] = useState<string | null>(null);
   const [flushing, setFlushing] = useState(false);
   const [discardingId, setDiscardingId] = useState<string | null>(null);
-  const [online, setOnline] = useState(
-    typeof navigator !== 'undefined' ? navigator.onLine : true,
-  );
+  const [conn, setConn] = useState<ConnStatus>('checking');
   const navigate = useNavigate();
   const previewUrlsRef = useRef<Map<string, string>>(new Map());
 
@@ -57,14 +59,29 @@ export function CapturePage() {
     }
   }
 
+  async function refreshConnectivity() {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setConn('device-offline');
+      return;
+    }
+    setConn('checking');
+    const ok = await probeApiReachable();
+    setConn(ok ? 'online' : 'api-unreachable');
+  }
+
   useEffect(() => {
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
+    void refreshConnectivity();
+    const onOnline = () => {
+      void refreshConnectivity();
+    };
+    const onOffline = () => setConn('device-offline');
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    const t = window.setInterval(() => void refreshConnectivity(), 30_000);
     return () => {
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      window.clearInterval(t);
       for (const url of previewUrlsRef.current.values()) URL.revokeObjectURL(url);
       previewUrlsRef.current.clear();
     };
@@ -90,14 +107,14 @@ export function CapturePage() {
 
       // Reconcile after shared single-flight (Shell may own the onItem callbacks).
       await hydrateQueueFromOutbox();
+      await refreshConnectivity();
 
       if (failures.length) {
         const first = failures[0]!;
-        const msg = first.offlineLikely
-          ? 'Offline — receipts saved locally and will upload when you reconnect.'
-          : first.message;
+        const msg = syncFailureUserMessage(first.kind, first.message);
         setError(msg);
-        if (!first.offlineLikely) toast(msg, 'danger');
+        if (first.kind === 'error') toast(msg, 'danger');
+        else if (first.kind === 'api-unreachable') toast(msg, 'neutral');
       } else if (reviewIds.length > 0) {
         toast(
           reviewIds.length === 1
@@ -199,6 +216,7 @@ export function CapturePage() {
     (q) =>
       q.status.includes('Queued') ||
       q.status.includes('offline') ||
+      q.status.includes('API unreachable') ||
       q.status.includes('Uploading') ||
       q.status.startsWith('Failed'),
   );
@@ -212,7 +230,12 @@ export function CapturePage() {
           IndexedDB until upload succeeds.
         </p>
         <p className="mt-1 text-xs text-[var(--ink-muted)]" aria-live="polite">
-          {online ? 'Online' : 'Offline — photos stay queued until you reconnect.'}
+          {conn === 'checking' && 'Checking connection…'}
+          {conn === 'online' && `Online · API ${getApiBaseUrl()}`}
+          {conn === 'device-offline' &&
+            'Device offline — photos stay queued until you reconnect.'}
+          {conn === 'api-unreachable' &&
+            `Internet is up, but the API is unreachable (${getApiBaseUrl()}). Confirm VITE_API_URL on the web service and CORS_ORIGIN on the API.`}
         </p>
       </section>
 
@@ -256,7 +279,7 @@ export function CapturePage() {
       {canRetry && (
         <button
           type="button"
-          disabled={flushing || !online}
+          disabled={flushing || conn === 'device-offline'}
           aria-busy={flushing}
           onClick={() => void runFlush()}
           className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
@@ -298,7 +321,12 @@ export function CapturePage() {
 
 function labelFor(m: OutboxMeta) {
   if (m.status === 'failed') {
-    if (m.error && !/offline|Failed to fetch|NetworkError/i.test(m.error)) {
+    if (m.error && /Failed to fetch|NetworkError|Load failed/i.test(m.error)) {
+      return typeof navigator !== 'undefined' && !navigator.onLine
+        ? 'Queued (offline)'
+        : 'Queued (API unreachable)';
+    }
+    if (m.error && !/offline/i.test(m.error)) {
       return `Failed: ${m.error}`;
     }
     return 'Queued (offline)';

@@ -1,4 +1,30 @@
-const API_URL = import.meta.env.VITE_API_URL ?? '/api';
+const API_URL = (import.meta.env.VITE_API_URL ?? '/api').replace(/\/$/, '');
+
+/** Public API origin used by the SPA (absolute on Railway, `/api` in Vite proxy). */
+export function getApiBaseUrl() {
+  return API_URL;
+}
+
+/**
+ * Lightweight reachability check (no auth). Distinguishes "device online but API down/CORS/wrong URL"
+ * from navigator.onLine.
+ */
+export async function probeApiReachable(timeoutMs = 5000): Promise<boolean> {
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_URL}/health`, {
+      method: 'GET',
+      signal: ctrl.signal,
+      cache: 'no-store',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 type Tokens = { accessToken: string; refreshToken: string };
 

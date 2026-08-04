@@ -116,6 +116,7 @@ If the public URL shows **Application failed to respond**:
 1. Deploy logs must show `Configuration complete; ready for start up` with **no** `[emerg]`.
 2. Settings → Networking → **target port empty** (nginx listens on Railway `$PORT`, not necessarily 80).
 3. `VITE_API_URL` must be the public API origin; rebuild after changing it.
+4. If Capture says **API unreachable** while your phone has internet: the SPA cannot call the API (wrong/missing `VITE_API_URL`, or API `CORS_ORIGIN` is not the web origin). Settings shows the baked-in API base URL.
 
 **API service**
 1. Deploy logs must show `Island Ledger API listening on 0.0.0.0:<port>` — if not, boot crashed (JWT / CORS / migrate) or hung before listen.

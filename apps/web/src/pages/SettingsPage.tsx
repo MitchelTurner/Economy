@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { api, apiErrorMessage, setTokens } from '../lib/api';
+import { api, apiErrorMessage, getApiBaseUrl, setTokens } from '../lib/api';
 import { toast } from '../lib/toast';
 
 type Household = {
@@ -208,6 +208,9 @@ export function SettingsPage() {
         <p className="text-sm text-[var(--ink-muted)]">
           Role: {user?.role ?? 'member'}
           {household ? ` · ${household.users.length} members` : ''}
+        </p>
+        <p className="text-xs text-[var(--ink-muted)]">
+          API: <code className="break-all">{getApiBaseUrl()}</code>
         </p>
         <label className="block text-sm">
           Display name
