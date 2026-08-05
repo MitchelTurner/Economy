@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Line,
   LineChart,
@@ -8,6 +9,7 @@ import {
   YAxis,
 } from 'recharts';
 import { api, apiErrorMessage } from '../lib/api';
+import { insightHref } from '../lib/insight-links';
 import { formatCents } from '../lib/money';
 import { toast } from '../lib/toast';
 
@@ -168,7 +170,9 @@ export function InsightsPage() {
                   <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
                     {i.severity} · {i.type.replace(/_/g, ' ')}
                   </p>
-                  <p className="mt-1 font-semibold">{i.title}</p>
+                  <Link to={insightHref(i.type)} className="mt-1 block font-semibold hover:underline">
+                    {i.title}
+                  </Link>
                   <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
                   {i.estimatedSavingsCents != null && (
                     <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
@@ -176,11 +180,17 @@ export function InsightsPage() {
                     </p>
                   )}
                   <EvidenceChart data={i.data} type={i.type} />
+                  <Link
+                    to={insightHref(i.type)}
+                    className="mt-2 inline-block text-xs font-semibold text-[var(--brand-soft)]"
+                  >
+                    Open related
+                  </Link>
                 </div>
                 {showActive ? (
                   <button
                     type="button"
-                    className="text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
+                    className="min-h-11 shrink-0 px-2 text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
                     disabled={actionId === i.id}
                     aria-busy={actionId === i.id}
                     onClick={() => void dismiss(i.id)}
@@ -190,7 +200,7 @@ export function InsightsPage() {
                 ) : (
                   <button
                     type="button"
-                    className="text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                    className="min-h-11 shrink-0 px-2 text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
                     disabled={actionId === i.id}
                     aria-busy={actionId === i.id}
                     onClick={() => void restore(i.id)}

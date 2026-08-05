@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, apiErrorMessage, type ReceiptSummary } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { receiptStatusLabel, receiptStatusTone } from '../lib/receipt-status';
 import { toast } from '../lib/toast';
 
 const STATUS_FILTERS = [
@@ -31,6 +32,8 @@ export function ReceiptsPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [storesError, setStoresError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     void api<Store[]>('/catalog/stores')
@@ -56,6 +59,7 @@ export function ReceiptsPage() {
     if (q.trim()) qs.set('q', q.trim());
     const query = qs.toString();
     setLoading(true);
+    setLoadError(null);
     void api<{ items: ReceiptSummary[]; nextCursor: string | null }>(
       `/receipts${query ? `?${query}` : ''}`,
     )
@@ -66,10 +70,12 @@ export function ReceiptsPage() {
       .catch((err) => {
         setItems([]);
         setNextCursor(null);
-        toast(apiErrorMessage(err, 'Could not load receipts'), 'danger');
+        const msg = apiErrorMessage(err, 'Could not load receipts');
+        setLoadError(msg);
+        toast(msg, 'danger');
       })
       .finally(() => setLoading(false));
-  }, [status, from, to, storeId, q]);
+  }, [status, from, to, storeId, q, reloadToken]);
 
   const hasInFlight = items.some(
     (r) => r.status === 'UPLOADED' || r.status === 'EXTRACTING',
@@ -286,16 +292,29 @@ export function ReceiptsPage() {
         </label>
       </div>
 
+      {loadError && !loading && (
+        <div className="space-y-2 border-l-4 border-[var(--danger)] bg-[var(--surface)] px-3 py-2">
+          <p className="text-sm text-[var(--danger)]">{loadError}</p>
+          <button
+            type="button"
+            className="rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
+            onClick={() => setReloadToken((n) => n + 1)}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <p className="py-8 text-center text-[var(--ink-muted)]">Loading receipts…</p>
       ) : (
         <>
           <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
             {items.map((r) => (
-              <li key={r.id} className="flex items-center gap-3 py-3">
+              <li key={r.id} className="flex items-center gap-2 py-3">
                 <Link
                   to={`/receipts/${r.id}`}
-                  className="flex min-w-0 flex-1 items-center justify-between gap-3"
+                  className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-3"
                 >
                   <div className="min-w-0">
                     <p className="font-semibold">{r.store?.name ?? 'Unknown store'}</p>
@@ -303,7 +322,10 @@ export function ReceiptsPage() {
                       {r.purchasedAt
                         ? new Date(r.purchasedAt).toLocaleDateString()
                         : 'No date'}{' '}
-                      · {r._count.lines} lines · {r.status}
+                      · {r._count.lines} lines ·{' '}
+                      <span className={receiptStatusTone(r.status)}>
+                        {receiptStatusLabel(r.status)}
+                      </span>
                     </p>
                   </div>
                   <p className="shrink-0 font-semibold tabular-nums">
@@ -313,7 +335,7 @@ export function ReceiptsPage() {
                 {canRetry(r) ? (
                   <button
                     type="button"
-                    className="shrink-0 text-xs font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                    className="shrink-0 rounded-md px-3 py-2 text-xs font-semibold text-[var(--brand-soft)] disabled:opacity-50"
                     disabled={retryingId === r.id}
                     aria-busy={retryingId === r.id}
                     onClick={() => void retryExtract(r.id)}
@@ -323,7 +345,7 @@ export function ReceiptsPage() {
                 ) : null}
                 <button
                   type="button"
-                  className="shrink-0 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
+                  className="shrink-0 rounded-md px-3 py-2 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
                   disabled={deletingId === r.id}
                   aria-busy={deletingId === r.id}
                   onClick={() => void remove(r.id)}
@@ -332,7 +354,7 @@ export function ReceiptsPage() {
                 </button>
               </li>
             ))}
-            {items.length === 0 && (
+            {items.length === 0 && !loadError && (
               <li className="space-y-3 py-8 text-center text-[var(--ink-muted)]">
                 <p>No receipts match these filters.</p>
                 <p>
