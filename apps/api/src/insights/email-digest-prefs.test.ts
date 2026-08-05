@@ -21,14 +21,19 @@ describe('InsightsService.emailWeeklyDigest prefs', () => {
         ]),
       },
     };
+    const summarizeDigest = vi.fn().mockResolvedValue('Watch dairy prices this week.');
     const svc = new InsightsService(
       prisma as never,
-      { narrateMany: vi.fn() } as never,
+      { narrateMany: vi.fn(), summarizeDigest } as never,
       { sendWeeklyDigest } as never,
     );
     const result = await svc.emailWeeklyDigest('h1');
     expect(result).toEqual({ sent: 1, skipped: 1 });
+    expect(summarizeDigest).toHaveBeenCalledOnce();
     expect(sendWeeklyDigest).toHaveBeenCalledOnce();
     expect(sendWeeklyDigest.mock.calls[0]![0].to).toBe('on@example.com');
+    expect(sendWeeklyDigest.mock.calls[0]![0].aiSummary).toBe(
+      'Watch dairy prices this week.',
+    );
   });
 });
