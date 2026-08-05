@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiErrorMessage } from '../lib/api';
 import { formatCents } from '../lib/money';
-import { insightHref } from '../lib/insight-links';
+import { insightCtaLabel, insightHref } from '../lib/insight-links';
 import { toast } from '../lib/toast';
 import {
   Bar,
@@ -15,7 +15,12 @@ import {
 
 type SpendResponse = {
   totalCents: number;
-  groups: Array<{ key: string; label: string; totalCents: number }>;
+  groups: Array<{
+    key: string;
+    label: string;
+    totalCents: number;
+    lineCount?: number;
+  }>;
 };
 
 type Insight = {
@@ -25,6 +30,7 @@ type Insight = {
   severity: string;
   type: string;
   estimatedSavingsCents: number | null;
+  data?: Record<string, unknown>;
 };
 
 type Budget = {
@@ -421,16 +427,68 @@ export function DashboardPage() {
         {loading || chartLoading ? (
           <p className="text-[var(--ink-muted)]">Loading spend…</p>
         ) : chartSpend && chartSpend.groups.length > 0 ? (
-          <div className="h-56 w-full">
-            <ResponsiveContainer>
-              <BarChart data={chartSpend.groups.slice(0, 6)}>
-                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => `$${v / 100}`} width={48} tick={{ fontSize: 12 }} />
-                <Tooltip formatter={(v: number) => formatCents(v)} />
-                <Bar dataKey="totalCents" fill="#0c4a3e" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <>
+            <div className="h-56 w-full">
+              <ResponsiveContainer>
+                <BarChart data={chartSpend.groups.slice(0, 6)}>
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tickFormatter={(v) => `$${v / 100}`} width={48} tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(v: number) => formatCents(v)} />
+                  <Bar dataKey="totalCents" fill="#0c4a3e" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                  Breakdown · {formatCents(chartSpend.totalCents)} total
+                </p>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-[var(--brand-soft)]"
+                  onClick={() => downloadSpendCsv(chartSpend, spendGroupBy)}
+                >
+                  Export CSV
+                </button>
+              </div>
+              <table className="w-full min-w-[20rem] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--line)] text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                    <th className="py-2 pr-3 font-semibold">
+                      {spendGroupBy === 'category'
+                        ? 'Category'
+                        : spendGroupBy === 'store'
+                          ? 'Store'
+                          : 'Month'}
+                    </th>
+                    <th className="py-2 pr-3 font-semibold tabular-nums">Amount</th>
+                    <th className="py-2 pr-3 font-semibold tabular-nums">Share</th>
+                    <th className="py-2 font-semibold tabular-nums">Lines</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chartSpend.groups.map((g) => {
+                    const share =
+                      chartSpend.totalCents > 0
+                        ? Math.round((g.totalCents / chartSpend.totalCents) * 100)
+                        : 0;
+                    return (
+                      <tr key={g.key} className="border-b border-[var(--line)]/70">
+                        <td className="py-2 pr-3 font-medium">{g.label}</td>
+                        <td className="py-2 pr-3 tabular-nums">{formatCents(g.totalCents)}</td>
+                        <td className="py-2 pr-3 tabular-nums text-[var(--ink-muted)]">
+                          {share}%
+                        </td>
+                        <td className="py-2 tabular-nums text-[var(--ink-muted)]">
+                          {g.lineCount ?? '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <p className="text-[var(--ink-muted)]">
             No confirmed receipts yet. Scan one to start the ledger.
@@ -458,19 +516,29 @@ export function DashboardPage() {
           </p>
         ) : (
           <ul className="space-y-3">
-            {insights.map((i) => (
+            {insights.map((i) => {
+              const href = insightHref(i.type, i.data);
+              return (
               <li
                 key={i.id}
                 className="border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <Link to={insightHref(i.type)} className="min-w-0 flex-1">
-                    <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                      {i.type.replace(/_/g, ' ')}
-                    </p>
-                    <p className="font-semibold">{i.title}</p>
-                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
-                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <Link to={href} className="block">
+                      <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                        {i.severity} · {i.type.replace(/_/g, ' ')}
+                      </p>
+                      <p className="font-semibold">{i.title}</p>
+                      <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+                    </Link>
+                    <Link
+                      to={href}
+                      className="mt-2 inline-block text-xs font-semibold text-[var(--brand-soft)]"
+                    >
+                      {insightCtaLabel(i.type)}
+                    </Link>
+                  </div>
                   <button
                     type="button"
                     className="shrink-0 text-xs font-semibold text-[var(--ink-muted)] disabled:opacity-50"
@@ -493,7 +561,8 @@ export function DashboardPage() {
                   </button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>
@@ -537,6 +606,39 @@ function monthsAgoIso(monthsBack: number) {
   return new Date(
     Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - monthsBack, 1, 0, 0, 0, 0),
   ).toISOString();
+}
+
+function downloadSpendCsv(
+  spend: SpendResponse,
+  groupBy: SpendGroupBy,
+) {
+  const header = ['label', 'amount_cents', 'amount_dollars', 'share_pct', 'line_count'];
+  const rows = spend.groups.map((g) => {
+    const share =
+      spend.totalCents > 0
+        ? Math.round((g.totalCents / spend.totalCents) * 1000) / 10
+        : 0;
+    return [
+      csvEscape(g.label),
+      String(g.totalCents),
+      (g.totalCents / 100).toFixed(2),
+      String(share),
+      String(g.lineCount ?? ''),
+    ].join(',');
+  });
+  const csv = [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `island-ledger-spend-by-${groupBy}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value: string) {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
 }
 
 function startOfWeekIso() {

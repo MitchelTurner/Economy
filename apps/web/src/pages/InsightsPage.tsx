@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Line,
@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts';
 import { api, apiErrorMessage } from '../lib/api';
-import { insightHref } from '../lib/insight-links';
+import { insightCtaLabel, insightHref } from '../lib/insight-links';
 import { formatCents } from '../lib/money';
 import { toast } from '../lib/toast';
 
@@ -31,6 +31,8 @@ type Digest = {
   insights: Insight[];
 };
 
+type SeverityFilter = 'ALL' | 'WARNING' | 'OPPORTUNITY' | 'INFO';
+
 export function InsightsPage() {
   const [items, setItems] = useState<Insight[]>([]);
   const [digest, setDigest] = useState<Digest | null>(null);
@@ -38,6 +40,7 @@ export function InsightsPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showActive, setShowActive] = useState(true);
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('ALL');
 
   async function load(active = showActive) {
     setItems(await api<Insight[]>(`/insights?active=${active ? 'true' : 'false'}`));
@@ -54,6 +57,11 @@ export function InsightsPage() {
       })
       .finally(() => setLoading(false));
   }, [showActive]);
+
+  const filtered = useMemo(() => {
+    if (severityFilter === 'ALL') return items;
+    return items.filter((i) => i.severity === severityFilter);
+  }, [items, severityFilter]);
 
   async function dismiss(id: string) {
     setActionId(id);
@@ -100,8 +108,8 @@ export function InsightsPage() {
         <div>
           <h1 className="text-3xl font-semibold">Insights</h1>
           <p className="mt-1 text-[var(--ink-muted)]">
-            Rules compute the numbers; AI sharpens the wording and weekly summary. Dollar
-            figures always come from stored data. Digests send when enabled in Settings.
+            Ranked by severity and dollars at stake. Rules compute the numbers; AI
+            sharpens wording. Digests send when enabled in Settings.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -158,76 +166,130 @@ export function InsightsPage() {
         </section>
       )}
 
+      {!loading && items.length > 0 && (
+        <div
+          className="flex flex-wrap gap-2 text-sm"
+          role="group"
+          aria-label="Severity filter"
+        >
+          {(
+            [
+              ['ALL', 'All'],
+              ['WARNING', 'Warnings'],
+              ['OPPORTUNITY', 'Opportunities'],
+              ['INFO', 'Info'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={severityFilter === value}
+              onClick={() => setSeverityFilter(value)}
+              className={[
+                'rounded-md px-3 py-1.5 font-semibold',
+                severityFilter === value
+                  ? 'bg-[var(--brand)] text-white'
+                  : 'border border-[var(--line)] text-[var(--ink-muted)]',
+              ].join(' ')}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {!loading && (
         <ul className="space-y-4">
-          {items.map((i) => (
-            <li
-              key={i.id}
-              className="border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                    {i.severity} · {i.type.replace(/_/g, ' ')}
-                  </p>
-                  <Link to={insightHref(i.type)} className="mt-1 block font-semibold hover:underline">
-                    {i.title}
-                  </Link>
-                  <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
-                  {i.estimatedSavingsCents != null && (
-                    <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
-                      ~{formatCents(i.estimatedSavingsCents)} at stake
+          {filtered.map((i) => {
+            const href = insightHref(i.type, i.data);
+            const cta = insightCtaLabel(i.type);
+            return (
+              <li
+                key={i.id}
+                className="border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                      {i.severity} · {i.type.replace(/_/g, ' ')}
                     </p>
-                  )}
-                  <EvidenceChart data={i.data} type={i.type} />
-                  <Link
-                    to={insightHref(i.type)}
-                    className="mt-2 inline-block text-xs font-semibold text-[var(--brand-soft)]"
-                  >
-                    Open related
-                  </Link>
+                    <Link to={href} className="mt-1 block font-semibold hover:underline">
+                      {i.title}
+                    </Link>
+                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+                    {i.estimatedSavingsCents != null && (
+                      <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
+                        ~{formatCents(i.estimatedSavingsCents)} at stake
+                      </p>
+                    )}
+                    <EvidenceChart data={i.data} type={i.type} />
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <Link
+                        to={href}
+                        className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
+                      >
+                        {cta}
+                      </Link>
+                      {showActive ? (
+                        <button
+                          type="button"
+                          className="min-h-11 text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
+                          disabled={actionId === i.id}
+                          aria-busy={actionId === i.id}
+                          onClick={() => void dismiss(i.id)}
+                        >
+                          Dismiss
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="min-h-11 text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                          disabled={actionId === i.id}
+                          aria-busy={actionId === i.id}
+                          onClick={() => void restore(i.id)}
+                        >
+                          Restore
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                {showActive ? (
-                  <button
-                    type="button"
-                    className="min-h-11 shrink-0 px-2 text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
-                    disabled={actionId === i.id}
-                    aria-busy={actionId === i.id}
-                    onClick={() => void dismiss(i.id)}
-                  >
-                    Dismiss
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="min-h-11 shrink-0 px-2 text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
-                    disabled={actionId === i.id}
-                    aria-busy={actionId === i.id}
-                    onClick={() => void restore(i.id)}
-                  >
-                    Restore
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
           {items.length === 0 && (
             <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
               {showActive ? (
-                <>
-                  No active insights yet. Confirm a few receipts, then hit Generate — or open the{' '}
-                  <button
-                    type="button"
-                    className="font-semibold text-[var(--brand-soft)]"
-                    onClick={() => void regenerate()}
-                  >
-                    weekly digest
-                  </button>{' '}
-                  after seed data is loaded.
-                </>
+                <div className="space-y-3">
+                  <p>
+                    No active insights yet. Confirm a few receipts so rules have spend and
+                    price history to work with.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <Link
+                      to="/capture"
+                      className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white"
+                    >
+                      Capture a receipt
+                    </Link>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="inline-flex min-h-11 items-center rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                      onClick={() => void regenerate()}
+                    >
+                      {busy ? 'Running…' : 'Generate now'}
+                    </button>
+                  </div>
+                </div>
               ) : (
                 'No dismissed insights yet.'
               )}
+            </li>
+          )}
+          {items.length > 0 && filtered.length === 0 && (
+            <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-center text-[var(--ink-muted)]">
+              No insights match this severity. Try All.
             </li>
           )}
         </ul>
@@ -237,6 +299,32 @@ export function InsightsPage() {
 }
 
 function EvidenceChart({ data, type }: { data: Record<string, unknown>; type: string }) {
+  if (type === 'category_creep' && Array.isArray(data.months)) {
+    const series = (data.months as Array<{
+      spendCents?: number;
+      fixedBasketSpendCents?: number;
+      key?: string;
+    }>).map((m, i) => ({
+      i: m.key ?? String(i + 1),
+      spend: Number(m.spendCents ?? 0) / 100,
+      basket: Number(m.fixedBasketSpendCents ?? m.spendCents ?? 0) / 100,
+    }));
+    if (series.length < 2) return null;
+    return (
+      <div className="mt-3 h-28 w-full">
+        <ResponsiveContainer>
+          <LineChart data={series}>
+            <XAxis dataKey="i" hide />
+            <YAxis width={36} tick={{ fontSize: 10 }} tickFormatter={(v) => `$${v}`} />
+            <Tooltip formatter={(v: number) => `$${v.toFixed(2)}`} />
+            <Line type="monotone" dataKey="spend" stroke="#c45c26" strokeWidth={2} dot={false} name="Spend" />
+            <Line type="monotone" dataKey="basket" stroke="#0c4a3e" strokeWidth={2} dot={false} name="Fixed basket" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  }
+
   const series = buildEvidenceSeries(data, type);
   if (!series || series.length < 2) return null;
   return (
@@ -271,8 +359,12 @@ function buildEvidenceSeries(
   }
 
   if (type === 'store_switch' && data.storeTotals && typeof data.storeTotals === 'object') {
+    const names =
+      data.storeNames && typeof data.storeNames === 'object'
+        ? (data.storeNames as Record<string, string>)
+        : {};
     return Object.entries(data.storeTotals as Record<string, number>).map(([k, v], i) => ({
-      i: k.slice(0, 8) || String(i + 1),
+      i: names[k] ?? k.slice(0, 8) ?? String(i + 1),
       value: v / 100,
     }));
   }
@@ -289,20 +381,13 @@ function buildEvidenceSeries(
     ];
   }
 
-  if (type === 'category_creep' && Array.isArray(data.months)) {
-    return (data.months as Array<{ spendCents?: number; key?: string }>).map((m, i) => ({
-      i: m.key ?? String(i + 1),
-      value: Number(m.spendCents ?? 0) / 100,
-    }));
-  }
-
   if (type === 'island_premium') {
     const local = Number(data.local ?? 0);
     const baseline = Number(data.baseline ?? 0);
     if (!local && !baseline) return null;
     return [
-      { i: 'baseline', value: baseline },
-      { i: 'local', value: local },
+      { i: 'baseline', value: baseline / 100 },
+      { i: 'local', value: local / 100 },
     ];
   }
 
