@@ -6,6 +6,7 @@ export const RegisterSchema = z.object({
   password: z.string().min(8).max(128),
   displayName: z.string().min(1).max(80).optional(),
   householdName: z.string().min(1).max(120).optional(),
+  rememberNetwork: z.boolean().optional(),
 });
 
 @ZodBody(RegisterSchema)
@@ -14,17 +15,21 @@ export class RegisterDto {
   password!: string;
   displayName?: string;
   householdName?: string;
+  rememberNetwork?: boolean;
 }
 
 export const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  /** Persist email for this client IP so return visits can prefill (never stores password). */
+  rememberNetwork: z.boolean().optional(),
 });
 
 @ZodBody(LoginSchema)
 export class LoginDto {
   email!: string;
   password!: string;
+  rememberNetwork?: boolean;
 }
 
 export const RefreshSchema = z.object({

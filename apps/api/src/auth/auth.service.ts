@@ -24,6 +24,8 @@ import {
 import { redisConnectionFromUrl } from '../common/redis-connection';
 
 const RESET_TTL_SECONDS = 60 * 60; // 1 hour
+/** How long to remember an email for a given client IP (login prefill only). */
+const SAVED_LOGIN_TTL_SECONDS = 90 * 24 * 60 * 60;
 
 export const DEMO_EMAIL = 'demo@islandledger.local';
 export const DEMO_PASSWORD = 'demo-password-123';
@@ -49,7 +51,7 @@ export class AuthService {
     });
   }
 
-  async register(dto: RegisterDto) {
+  async register(dto: RegisterDto, clientIp?: string) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('Email already registered');
 
@@ -70,10 +72,11 @@ export class AuthService {
     });
 
     const user = household.users[0];
+    await this.applyRememberNetwork(clientIp, user.email, dto.rememberNetwork);
     return this.issueTokens(user.id, user.householdId, user.email);
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, clientIp?: string) {
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase() },
     });
@@ -82,7 +85,59 @@ export class AuthService {
     const ok = await argon2.verify(user.passwordHash, dto.password);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
 
+    await this.applyRememberNetwork(clientIp, user.email, dto.rememberNetwork);
     return this.issueTokens(user.id, user.householdId, user.email);
+  }
+
+  /** Prefill helper — email only, keyed by hashed client IP. */
+  async getSavedLogin(clientIp: string): Promise<{ email: string | null }> {
+    if (!clientIp || clientIp === 'unknown') return { email: null };
+    try {
+      const raw = await this.redis.get(this.savedLoginKey(clientIp));
+      if (!raw) return { email: null };
+      const parsed = JSON.parse(raw) as { email?: string };
+      const email = typeof parsed.email === 'string' ? parsed.email.toLowerCase() : null;
+      return { email };
+    } catch {
+      return { email: null };
+    }
+  }
+
+  async clearSavedLogin(clientIp: string): Promise<{ ok: true }> {
+    if (!clientIp || clientIp === 'unknown') return { ok: true };
+    await this.redis.del(this.savedLoginKey(clientIp)).catch(() => undefined);
+    return { ok: true };
+  }
+
+  private async applyRememberNetwork(
+    clientIp: string | undefined,
+    email: string,
+    rememberNetwork?: boolean,
+  ) {
+    if (!clientIp || clientIp === 'unknown') return;
+    if (rememberNetwork) {
+      await this.redis
+        .set(
+          this.savedLoginKey(clientIp),
+          JSON.stringify({ email: email.toLowerCase() }),
+          'EX',
+          SAVED_LOGIN_TTL_SECONDS,
+        )
+        .catch(() => undefined);
+      return;
+    }
+    // Explicit false clears; undefined leaves any prior saved email alone.
+    if (rememberNetwork === false) {
+      await this.redis.del(this.savedLoginKey(clientIp)).catch(() => undefined);
+    }
+  }
+
+  private savedLoginKey(clientIp: string) {
+    const digest = createHash('sha256')
+      .update(`saved-login:${clientIp}`)
+      .digest('hex')
+      .slice(0, 32);
+    return `auth:saved-login:${digest}`;
   }
 
   /**

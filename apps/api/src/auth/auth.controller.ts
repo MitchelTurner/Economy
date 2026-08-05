@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import {
@@ -32,7 +32,7 @@ export class AuthController {
       ...authLimit(),
       name: 'auth:register',
     });
-    return this.auth.register(dto);
+    return this.auth.register(dto, clientKeyFromReq(req));
   }
 
   @Post('login')
@@ -41,7 +41,26 @@ export class AuthController {
       ...authLimit(),
       name: 'auth:login',
     });
-    return this.auth.login(dto);
+    return this.auth.login(dto, clientKeyFromReq(req));
+  }
+
+  /** Email remembered for this client IP (password is never stored). */
+  @Get('saved-login')
+  async savedLogin(@Req() req: Request) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:saved-login',
+    });
+    return this.auth.getSavedLogin(clientKeyFromReq(req));
+  }
+
+  @Delete('saved-login')
+  async clearSavedLogin(@Req() req: Request) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:saved-login-clear',
+    });
+    return this.auth.clearSavedLogin(clientKeyFromReq(req));
   }
 
   @Get('demo')

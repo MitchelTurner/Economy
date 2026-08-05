@@ -3,20 +3,54 @@ import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { api, apiErrorMessage } from '../lib/api';
 
+const LOCAL_EMAIL_KEY = 'island.savedEmail';
+
 export function LoginPage() {
   const { user, login, demoLogin, register, loading } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [rememberNetwork, setRememberNetwork] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [demoEnabled, setDemoEnabled] = useState(false);
+  const [savedHint, setSavedHint] = useState(false);
 
   useEffect(() => {
     void api<{ enabled: boolean }>('/auth/demo', { auth: false })
       .then((s) => setDemoEnabled(s.enabled))
       .catch(() => setDemoEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // Local device fallback, then server IP-keyed email for this network.
+      const local = localStorage.getItem(LOCAL_EMAIL_KEY)?.trim() ?? '';
+      if (local && !cancelled) {
+        setEmail(local);
+        setRememberNetwork(true);
+        setSavedHint(true);
+      }
+      try {
+        const saved = await api<{ email: string | null }>('/auth/saved-login', {
+          auth: false,
+        });
+        if (cancelled) return;
+        if (saved.email) {
+          setEmail(saved.email);
+          setRememberNetwork(true);
+          setSavedHint(true);
+          localStorage.setItem(LOCAL_EMAIL_KEY, saved.email);
+        }
+      } catch {
+        // Prefill is best-effort — login still works without it.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!loading && user) return <Navigate to="/" replace />;
@@ -26,8 +60,26 @@ export function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'login') await login(email, password);
-      else await register({ email, password, displayName: displayName || undefined });
+      if (mode === 'login') {
+        await login(email, password, { rememberNetwork });
+      } else {
+        await register({
+          email,
+          password,
+          displayName: displayName || undefined,
+          rememberNetwork,
+        });
+      }
+      if (rememberNetwork) {
+        localStorage.setItem(LOCAL_EMAIL_KEY, email.trim().toLowerCase());
+      } else {
+        localStorage.removeItem(LOCAL_EMAIL_KEY);
+        try {
+          await api('/auth/saved-login', { method: 'DELETE', auth: false });
+        } catch {
+          // ignore
+        }
+      }
     } catch (err) {
       setError(apiErrorMessage(err, mode === 'login' ? 'Sign in failed' : 'Could not create account'));
     } finally {
@@ -44,6 +96,17 @@ export function LoginPage() {
       setError(apiErrorMessage(err, 'Demo login unavailable'));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function forgetNetwork() {
+    localStorage.removeItem(LOCAL_EMAIL_KEY);
+    setSavedHint(false);
+    setEmail('');
+    try {
+      await api('/auth/saved-login', { method: 'DELETE', auth: false });
+    } catch {
+      // ignore
     }
   }
 
@@ -141,6 +204,35 @@ export function LoginPage() {
               </span>
             )}
           </label>
+
+          <label className="flex items-start gap-2 text-sm text-[var(--ink)]">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={rememberNetwork}
+              onChange={(e) => setRememberNetwork(e.target.checked)}
+            />
+            <span>
+              Remember email on this network
+              <span className="mt-0.5 block text-xs text-[var(--ink-muted)]">
+                Saves your email for this IP so the next visit can prefill it. Password is never
+                stored.
+              </span>
+            </span>
+          </label>
+
+          {savedHint && (
+            <p className="text-xs text-[var(--ink-muted)]">
+              Email remembered for this network.{' '}
+              <button
+                type="button"
+                className="font-semibold text-[var(--brand-soft)]"
+                onClick={() => void forgetNetwork()}
+              >
+                Forget
+              </button>
+            </p>
+          )}
 
           {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
