@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as argon2 from 'argon2';
+import { CATEGORY_DEFS } from '../src/catalog/category-taxonomy';
 
 /** Keep in sync with apps/api/src/common/normalize.ts for seed-time aliases. */
 function normalizeRawText(raw: string): string {
@@ -26,24 +27,10 @@ function normalizeRawText(raw: string): string {
 
 const prisma = new PrismaClient();
 
-const CATEGORIES = [
-  { name: 'Groceries', slug: 'groceries', parent: null },
-  { name: 'Dairy', slug: 'dairy', parent: 'groceries' },
-  { name: 'Produce', slug: 'produce', parent: 'groceries' },
-  { name: 'Meat', slug: 'meat', parent: 'groceries' },
-  { name: 'Bakery', slug: 'bakery', parent: 'groceries' },
-  { name: 'Pantry', slug: 'pantry', parent: 'groceries' },
-  { name: 'Beverages', slug: 'beverages', parent: 'groceries' },
-  { name: 'Frozen', slug: 'frozen', parent: 'groceries' },
-  { name: 'Household', slug: 'household', parent: null },
-  { name: 'Personal Care', slug: 'personal-care', parent: null },
-  { name: 'Other', slug: 'other', parent: null },
-];
-
 async function seedCategories() {
   const bySlug = new Map<string, string>();
 
-  for (const cat of CATEGORIES.filter((c) => !c.parent)) {
+  for (const cat of CATEGORY_DEFS.filter((c) => !c.parent)) {
     const row = await prisma.category.upsert({
       where: { slug: cat.slug },
       update: { name: cat.name },
@@ -52,7 +39,7 @@ async function seedCategories() {
     bySlug.set(cat.slug, row.id);
   }
 
-  for (const cat of CATEGORIES.filter((c) => c.parent)) {
+  for (const cat of CATEGORY_DEFS.filter((c) => c.parent)) {
     const parentId = bySlug.get(cat.parent!);
     const row = await prisma.category.upsert({
       where: { slug: cat.slug },

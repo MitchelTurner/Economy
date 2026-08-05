@@ -8,7 +8,15 @@ import {
 describe('category taxonomy', () => {
   it('includes seed slugs', () => {
     expect(CATEGORY_SLUGS).toEqual(
-      expect.arrayContaining(['dairy', 'produce', 'other', 'personal-care']),
+      expect.arrayContaining([
+        'dairy',
+        'produce',
+        'other',
+        'personal-care',
+        'sporting-goods',
+        'alcohol',
+        'fuel',
+      ]),
     );
   });
 
@@ -16,6 +24,10 @@ describe('category taxonomy', () => {
     expect(normalizeCategorySlug('Dairy')).toBe('dairy');
     expect(normalizeCategorySlug('personal care')).toBe('personal-care');
     expect(normalizeCategorySlug('drinks')).toBe('beverages');
+    expect(normalizeCategorySlug('butter')).toBe('dairy');
+    expect(normalizeCategorySlug('guns')).toBe('sporting-goods');
+    expect(normalizeCategorySlug('ammo')).toBe('sporting-goods');
+    expect(normalizeCategorySlug('gasoline')).toBe('fuel');
     expect(normalizeCategorySlug('unknown-xyz')).toBeNull();
   });
 
@@ -23,5 +35,7 @@ describe('category taxonomy', () => {
     const p = categoryTaxonomyPrompt();
     expect(p).toContain('dairy');
     expect(p).toContain('personal-care');
+    expect(p).toContain('sporting-goods');
+    expect(p).toContain('butter → dairy');
   });
 });

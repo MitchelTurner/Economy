@@ -35,4 +35,13 @@ export class AnalyticsController {
   habits(@CurrentUser() user: AuthUser) {
     return this.analytics.habits(user);
   }
+
+  /** Inflation, tax paid, and category/product price movers for the island basket. */
+  @Get('economy')
+  economy(
+    @CurrentUser() user: AuthUser,
+    @Query('region') region?: string,
+  ) {
+    return this.analytics.economy(user, region?.trim() || 'ketchikan');
+  }
 }
