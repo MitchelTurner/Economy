@@ -76,6 +76,12 @@ export class StorageService {
   }
 
   async putObject(imageKey: string, body: Buffer, contentType = 'image/jpeg') {
+    // Always keep a process-local copy when S3 is localhost-only so reads survive
+    // failed MinIO PUTs and match createUploadUrl()'s memory:// mode.
+    if (this.memoryUploadsOnly) {
+      this.localFallback.set(imageKey, body);
+      return;
+    }
     try {
       await this.client.send(
         new PutObjectCommand({
