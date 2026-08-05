@@ -248,6 +248,18 @@ export function DashboardPage() {
           <p className="brand mt-2 text-5xl font-bold">
             {loading ? '…' : loadError ? '—' : formatCents(spend?.totalCents ?? 0)}
           </p>
+          {spend && (spend.taxPaidCents ?? 0) > 0 && (
+            <p className="mt-2 text-white/85">
+              Tax collected on receipts: {formatCents(spend.taxPaidCents ?? 0)}
+              {spend.effectiveTaxRatePct != null
+                ? ` (~${spend.effectiveTaxRatePct}% of pretax)`
+                : ''}
+              {' · '}
+              <Link to="/economy" className="underline decoration-white/40 underline-offset-2">
+                Island economy
+              </Link>
+            </p>
+          )}
           {groceryBudget && pacePct != null && (
             <p className="mt-2 text-white/85">
               {pacePct}% of {formatCents(groceryBudget.amountCents)}{' '}
