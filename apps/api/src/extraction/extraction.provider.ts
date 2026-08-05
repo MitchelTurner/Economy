@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { ExtractionResult, ExtractionResultSchema } from './extraction.schema';
@@ -74,19 +74,25 @@ export function looksLikeImageBytes(buf: Buffer): boolean {
 
 @Injectable()
 export class ExtractionProvider {
+  private readonly logger = new Logger(ExtractionProvider.name);
   private readonly anthropic: Anthropic | null;
   private readonly model: string;
   private readonly providerMode: string;
   private readonly allowMock: boolean;
 
   constructor(private readonly config: ConfigService) {
-    const key = config.get<string>('ANTHROPIC_API_KEY');
+    // Trim — Railway/paste often leaves trailing newlines that break the SDK.
+    const key = config.get<string>('ANTHROPIC_API_KEY')?.trim() || '';
     this.anthropic = key ? new Anthropic({ apiKey: key }) : null;
-    this.model = config.get('EXTRACTION_MODEL') ?? 'claude-sonnet-4-20250514';
-    this.providerMode = config.get('EXTRACTION_PROVIDER') ?? (key ? 'anthropic' : 'mock');
+    this.model = config.get('EXTRACTION_MODEL')?.trim() || 'claude-sonnet-4-20250514';
+    const configured = (config.get<string>('EXTRACTION_PROVIDER') ?? '').trim().toLowerCase();
+    this.providerMode = configured || (key ? 'anthropic' : 'mock');
     this.allowMock =
       (config.get('ALLOW_MOCK_EXTRACTION') ?? 'true').toLowerCase() !== 'false';
     const nodeEnv = (config.get('NODE_ENV') ?? process.env.NODE_ENV ?? 'development').toLowerCase();
+    this.logger.log(
+      `Extraction boot: EXTRACTION_PROVIDER=${this.providerMode} ANTHROPIC_API_KEY=${key ? 'yes' : 'NO'} model=${this.model}`,
+    );
     if (
       nodeEnv === 'production' &&
       (this.providerMode === 'mock' || !this.anthropic) &&
@@ -103,18 +109,41 @@ export class ExtractionProvider {
     mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' = 'image/jpeg',
     retryHint?: string,
   ): Promise<ExtractionCallResult> {
-    if (this.providerMode === 'mock' || !this.anthropic) {
+    // Real photos always use Claude when a key is present — leftover EXTRACTION_PROVIDER=mock
+    // from demo deploys must not force the canned basket / "key missing" failure.
+    const fixturePrefix = imageBytes.toString('utf8', 0, 64);
+    const isFixture = /^fixture:/i.test(fixturePrefix);
+    const useAnthropic =
+      Boolean(this.anthropic) &&
+      (this.providerMode === 'anthropic' || (looksLikeImageBytes(imageBytes) && !isFixture));
+
+    if (!useAnthropic) {
+      if (!this.anthropic && this.providerMode === 'anthropic') {
+        throw new Error(
+          'EXTRACTION_PROVIDER=anthropic but ANTHROPIC_API_KEY is missing on this API service. ' +
+            'Add ANTHROPIC_API_KEY (Variables → Deploy), check spelling, then redeploy.',
+        );
+      }
       if (!this.allowMock && this.providerMode !== 'mock') {
         throw new Error('ANTHROPIC_API_KEY missing and mock extraction is disabled');
       }
       return this.mockExtract(imageBytes, retryHint);
     }
 
+    return this.anthropicExtract(imageBytes, mediaType, retryHint);
+  }
+
+  private async anthropicExtract(
+    imageBytes: Buffer,
+    mediaType: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif',
+    retryHint?: string,
+  ): Promise<ExtractionCallResult> {
+    const client = this.anthropic!;
     const userText = retryHint
       ? `Your previous output failed arithmetic check: ${retryHint}. Re-read the image only — fix math using printed totals; do not invent new items.`
       : 'Transcribe this receipt into the JSON schema. Only include what you can actually read.';
 
-    const response = await this.anthropic.messages.create({
+    const response = await client.messages.create({
       model: this.model,
       max_tokens: 4096,
       system: SYSTEM_PROMPT,

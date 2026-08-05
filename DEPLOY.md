@@ -34,10 +34,11 @@ S3_ACCESS_KEY_ID=...
 S3_SECRET_ACCESS_KEY=...
 # If S3_ENDPOINT is localhost/unset, the API uses in-memory upload fallback (fine for demo; images do not persist across restarts).
 EXTRACTION_PROVIDER=anthropic
-ANTHROPIC_API_KEY=...
+ANTHROPIC_API_KEY=...          # exact name; trim spaces; on the API service; Deploy after save
 EXTRACTION_MODEL=claude-sonnet-4-20250514
 ALLOW_MOCK_EXTRACTION=false
-# Mock mode invents a canned basket for tests — never leave EXTRACTION_PROVIDER=mock on real photos.
+# If EXTRACTION_PROVIDER is still "mock" but a key is set, real photos now use Anthropic anyway.
+# Boot logs: "Extraction boot: EXTRACTION_PROVIDER=… ANTHROPIC_API_KEY=yes|NO"
 RESEND_API_KEY=...   # optional; else mail logs (needed for forgot-password emails)
 MAIL_FROM=Island Ledger <noreply@yourdomain>
 PUBLIC_MIN_HOUSEHOLDS=3

@@ -24,6 +24,21 @@ describe('ExtractionProvider mock', () => {
     expect(() => provider.mockExtract(jpeg)).toThrow(/Mock extraction cannot read/);
   });
 
+  it('uses Anthropic for real photos even when EXTRACTION_PROVIDER=mock if a key is set', async () => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+    const keyed = new ExtractionProvider(
+      new ConfigService({
+        EXTRACTION_PROVIDER: 'mock',
+        ANTHROPIC_API_KEY: 'sk-ant-test-key',
+      }),
+    );
+    // SDK will fail with a fake key — but must not take the mock "cannot read photos" path.
+    await expect(keyed.extract(jpeg)).rejects.toSatisfy((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      return !/Mock extraction cannot read/i.test(msg);
+    });
+  });
+
   it('catches intentionally corrupted extraction until retry hint', () => {
     const first = provider.mockExtract(Buffer.from('CORRUPT_EXTRACTION'));
     const bad = receiptArithmeticOk({
