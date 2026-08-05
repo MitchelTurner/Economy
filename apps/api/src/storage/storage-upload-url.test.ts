@@ -23,3 +23,17 @@ describe('StorageService.createUploadUrl', () => {
     expect(res.uploadUrl.startsWith('memory://')).toBe(true);
   });
 });
+
+describe('StorageService.createDownloadUrl', () => {
+  it('returns null for localhost S3 so the SPA uses the authed image route', async () => {
+    const svc = new StorageService(
+      new ConfigService({
+        S3_ENDPOINT: 'http://localhost:9000',
+        S3_BUCKET: 'island-ledger-receipts',
+        S3_ACCESS_KEY_ID: 'minioadmin',
+        S3_SECRET_ACCESS_KEY: 'minioadmin',
+      }),
+    );
+    await expect(svc.createDownloadUrl('receipts/h1/a.jpg')).resolves.toBeNull();
+  });
+});

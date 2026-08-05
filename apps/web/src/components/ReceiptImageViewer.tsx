@@ -1,6 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { apiErrorMessage, fetchAuthedBlobUrl } from '../lib/api';
 
+/** Skip MinIO/local signed URLs that browsers on Railway cannot reach. */
+function usableSignedImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const host = new URL(url).hostname;
+    if (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '::1' ||
+      host === 'host.docker.internal'
+    ) {
+      return null;
+    }
+    return url;
+  } catch {
+    return null;
+  }
+}
+
 export function ReceiptImageViewer({
   imageUrl,
   signedImageUrl,
@@ -26,8 +45,9 @@ export function ReceiptImageViewer({
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
       }
-      if (signedImageUrl) {
-        if (!cancelled) setSrc(signedImageUrl);
+      const signed = usableSignedImageUrl(signedImageUrl);
+      if (signed) {
+        if (!cancelled) setSrc(signed);
         return;
       }
       if (!imageUrl) {
