@@ -13,11 +13,14 @@ presence() {
   fi
 }
 
-echo "[boot] env presence: $(presence DATABASE_URL) $(presence REDIS_URL) $(presence JWT_SECRET) $(presence JWT_REFRESH_SECRET) $(presence CORS_ORIGIN) $(presence PORT) $(presence ALLOW_MOCK_EXTRACTION)"
+echo "[boot] env presence: $(presence DATABASE_URL) $(presence REDIS_URL) $(presence JWT_SECRET) $(presence JWT_REFRESH_SECRET) $(presence CORS_ORIGIN) $(presence PORT) $(presence ANTHROPIC_API_KEY) $(presence ALLOW_MOCK_EXTRACTION)"
 
-# Names only — catch typos like JWT_SECRETS / JWT_SECRET_KEY
-echo "[boot] env keys matching JWT|SECRET:"
-printenv | cut -d= -f1 | grep -E 'JWT|SECRET' | sort | tr '\n' ' ' || true
+# Non-secret extraction knobs (values are safe to print)
+echo "[boot] extraction: EXTRACTION_PROVIDER=${EXTRACTION_PROVIDER:-"(unset)"} ALLOW_MOCK_EXTRACTION=${ALLOW_MOCK_EXTRACTION:-"(unset)"} EXTRACTION_MODEL=${EXTRACTION_MODEL:-"(unset)"}"
+
+# Names only — catch typos like JWT_SECRETS / ANTHROPIC_KEY
+echo "[boot] env keys matching JWT|SECRET|ANTHROPIC|EXTRACTION|ALLOW_MOCK:"
+printenv | cut -d= -f1 | grep -E 'JWT|SECRET|ANTHROPIC|EXTRACTION|ALLOW_MOCK' | sort | tr '\n' ' ' || true
 echo
 
 if [ -z "${JWT_SECRET:-}" ] || [ -z "${JWT_REFRESH_SECRET:-}" ]; then

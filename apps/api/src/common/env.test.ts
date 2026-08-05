@@ -87,6 +87,34 @@ describe('validateEnv', () => {
     expect(env.TRUST_PROXY).toBe('1');
   });
 
+  it('rejects production when Anthropic key is missing and mock is disabled', () => {
+    expect(() =>
+      validateEnv({
+        ...base,
+        NODE_ENV: 'production',
+        CORS_ORIGIN: 'https://app.example.com',
+        JWT_SECRET: 'prod-access-secret-32chars-min!!',
+        JWT_REFRESH_SECRET: 'prod-refresh-secret-32chars-min!',
+        ALLOW_MOCK_EXTRACTION: 'false',
+        EXTRACTION_PROVIDER: 'anthropic',
+      }),
+    ).toThrow(/ANTHROPIC_API_KEY is MISSING/);
+  });
+
+  it('accepts production with Anthropic key even when mock is disabled', () => {
+    const env = validateEnv({
+      ...base,
+      NODE_ENV: 'production',
+      CORS_ORIGIN: 'https://app.example.com',
+      JWT_SECRET: 'prod-access-secret-32chars-min!!',
+      JWT_REFRESH_SECRET: 'prod-refresh-secret-32chars-min!',
+      ALLOW_MOCK_EXTRACTION: 'false',
+      EXTRACTION_PROVIDER: 'anthropic',
+      ANTHROPIC_API_KEY: '  sk-ant-test  ',
+    });
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-ant-test');
+  });
+
   it('defaults SEED_ON_BOOT to off', () => {
     const env = validateEnv(base);
     expect(env.SEED_ON_BOOT).toBe('off');

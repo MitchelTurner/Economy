@@ -82,13 +82,18 @@ export function validateEnv(env: NodeJS.ProcessEnv = process.env): AppEnv {
         'Invalid environment: JWT_SECRET and JWT_REFRESH_SECRET must each be at least 32 characters',
       );
     }
-    const allowMock = (data.ALLOW_MOCK_EXTRACTION ?? 'true').toLowerCase() !== 'false';
-    if (
-      (data.EXTRACTION_PROVIDER === 'mock' || !data.ANTHROPIC_API_KEY) &&
-      !allowMock
-    ) {
+    const allowMockRaw = (data.ALLOW_MOCK_EXTRACTION ?? 'true').trim().toLowerCase();
+    const allowMock = !['false', '0', 'off', 'no'].includes(allowMockRaw);
+    const anthropicKey = data.ANTHROPIC_API_KEY?.trim() ?? '';
+    data.ANTHROPIC_API_KEY = anthropicKey || undefined;
+    const provider = (data.EXTRACTION_PROVIDER ?? (anthropicKey ? 'anthropic' : 'mock')).toLowerCase();
+    if ((provider === 'mock' || !anthropicKey) && !allowMock) {
       throw new Error(
-        'Invalid environment: production extraction requires ANTHROPIC_API_KEY (or ALLOW_MOCK_EXTRACTION=true)',
+        'Invalid environment: production extraction needs a usable OCR setup. ' +
+          `ANTHROPIC_API_KEY is ${anthropicKey ? 'set' : 'MISSING'}, ` +
+          `EXTRACTION_PROVIDER=${provider}, ALLOW_MOCK_EXTRACTION=${allowMockRaw} (mock allowed=${allowMock}). ` +
+          'On the API service: add ANTHROPIC_API_KEY (exact name) and Deploy, or set ALLOW_MOCK_EXTRACTION=true. ' +
+          'Note: presence=yes only means the variable exists — false still disables mock.',
       );
     }
     if (data.TRUST_PROXY == null || data.TRUST_PROXY.trim() === '') {
