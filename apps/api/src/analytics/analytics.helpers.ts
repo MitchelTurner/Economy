@@ -150,3 +150,168 @@ export function parseSpendQuery(input: {
   }
   return { groupBy, from: input.from, to: input.to };
 }
+
+export type TaxReceiptInput = {
+  taxCents: number | null;
+  lineCount: number;
+  taxableLineCount: number;
+  lineNetCents: number;
+};
+
+export type TaxSummary = {
+  taxPaidCents: number;
+  pretaxSpendCents: number;
+  receiptCount: number;
+  lineCount: number;
+  taxableLineCount: number;
+  taxableLineSharePct: number | null;
+  effectiveTaxRatePct: number | null;
+};
+
+/** Receipt-level tax totals + taxable-line share (no invented line tax). */
+export function summarizeTax(receipts: TaxReceiptInput[]): TaxSummary {
+  let taxPaidCents = 0;
+  let pretaxSpendCents = 0;
+  let lineCount = 0;
+  let taxableLineCount = 0;
+  for (const r of receipts) {
+    taxPaidCents += r.taxCents ?? 0;
+    pretaxSpendCents += r.lineNetCents;
+    lineCount += r.lineCount;
+    taxableLineCount += r.taxableLineCount;
+  }
+  return {
+    taxPaidCents,
+    pretaxSpendCents,
+    receiptCount: receipts.length,
+    lineCount,
+    taxableLineCount,
+    taxableLineSharePct:
+      lineCount > 0
+        ? Math.round((taxableLineCount / lineCount) * 1000) / 10
+        : null,
+    effectiveTaxRatePct:
+      pretaxSpendCents > 0
+        ? Math.round((taxPaidCents / pretaxSpendCents) * 1000) / 10
+        : null,
+  };
+}
+
+/** Percent change between two index values; null if prior is 0. */
+export function pctChange(prior: number, current: number): number | null {
+  if (!Number.isFinite(prior) || !Number.isFinite(current) || prior === 0) {
+    return null;
+  }
+  return Math.round(((current - prior) / prior) * 1000) / 10;
+}
+
+export type CategoryPriceMover = {
+  categoryId: string;
+  categoryName: string;
+  priorSpendCents: number;
+  currentSpendCents: number;
+  deltaTotalCents: number;
+  deltaPriceCents: number;
+  deltaBehaviorCents: number;
+  priceChangePct: number | null;
+};
+
+export type CategoryBasketLine = {
+  categoryId: string;
+  categoryName: string;
+  key: string;
+  quantity: number;
+  unitPriceCents: number;
+};
+
+/**
+ * Per-category inflation vs behavior for the island basket.
+ * Uses prior quantities × current prices (same idea as household behavior split).
+ */
+export function categoryPriceMovers(
+  prior: CategoryBasketLine[],
+  current: CategoryBasketLine[],
+): CategoryPriceMover[] {
+  const catIds = new Set<string>();
+  for (const l of prior) catIds.add(l.categoryId);
+  for (const l of current) catIds.add(l.categoryId);
+
+  const out: CategoryPriceMover[] = [];
+  for (const categoryId of catIds) {
+    const p = prior.filter((l) => l.categoryId === categoryId);
+    const c = current.filter((l) => l.categoryId === categoryId);
+    if (p.length === 0 && c.length === 0) continue;
+
+    const categoryName =
+      c[0]?.categoryName ?? p[0]?.categoryName ?? 'Uncategorized';
+    const priorSpendCents = p.reduce(
+      (s, l) => s + Math.round(l.quantity * l.unitPriceCents),
+      0,
+    );
+    const currentSpendCents = c.reduce(
+      (s, l) => s + Math.round(l.quantity * l.unitPriceCents),
+      0,
+    );
+    const currentPrice = new Map(c.map((l) => [l.key, l.unitPriceCents]));
+    let fixedBasketCurrentCents = 0;
+    for (const l of p) {
+      const price = currentPrice.get(l.key) ?? l.unitPriceCents;
+      fixedBasketCurrentCents += Math.round(l.quantity * price);
+    }
+    const deltaTotalCents = currentSpendCents - priorSpendCents;
+    const deltaPriceCents = fixedBasketCurrentCents - priorSpendCents;
+    const deltaBehaviorCents = deltaTotalCents - deltaPriceCents;
+    out.push({
+      categoryId,
+      categoryName,
+      priorSpendCents,
+      currentSpendCents,
+      deltaTotalCents,
+      deltaPriceCents,
+      deltaBehaviorCents,
+      priceChangePct: pctChange(priorSpendCents, fixedBasketCurrentCents),
+    });
+  }
+
+  return out.sort(
+    (a, b) => Math.abs(b.deltaPriceCents) - Math.abs(a.deltaPriceCents),
+  );
+}
+
+export type ProductPriceMover = {
+  productId: string;
+  productName: string;
+  categoryName: string | null;
+  priorCents: number;
+  currentCents: number;
+  changePct: number;
+};
+
+/** Biggest unit-price movers from oldest→newest observation in window. */
+export function productPriceMovers(
+  series: Array<{
+    productId: string;
+    productName: string;
+    categoryName: string | null;
+    pricesOldestFirst: number[];
+  }>,
+  minAbsPct = 5,
+): ProductPriceMover[] {
+  const out: ProductPriceMover[] = [];
+  for (const s of series) {
+    if (s.pricesOldestFirst.length < 2) continue;
+    const priorCents = s.pricesOldestFirst[0]!;
+    const currentCents = s.pricesOldestFirst[s.pricesOldestFirst.length - 1]!;
+    const changePct = pctChange(priorCents, currentCents);
+    if (changePct == null || Math.abs(changePct) < minAbsPct) continue;
+    out.push({
+      productId: s.productId,
+      productName: s.productName,
+      categoryName: s.categoryName,
+      priorCents: Math.round(priorCents),
+      currentCents: Math.round(currentCents),
+      changePct,
+    });
+  }
+  return out.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+}

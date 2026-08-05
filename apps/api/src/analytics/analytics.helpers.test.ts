@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   bucketSpendLines,
+  categoryPriceMovers,
   parseSpendQuery,
+  pctChange,
+  productPriceMovers,
   summarizeHabits,
+  summarizeTax,
 } from './analytics.helpers';
 
 describe('bucketSpendLines', () => {
@@ -100,5 +104,81 @@ describe('parseSpendQuery', () => {
 
   it('rejects bad dates', () => {
     expect(() => parseSpendQuery({ from: 'not-a-date' })).toThrow(/from/);
+  });
+});
+
+describe('summarizeTax', () => {
+  it('sums receipt tax and taxable-line share', () => {
+    const s = summarizeTax([
+      {
+        taxCents: 250,
+        lineCount: 4,
+        taxableLineCount: 2,
+        lineNetCents: 5000,
+      },
+      {
+        taxCents: 100,
+        lineCount: 1,
+        taxableLineCount: 1,
+        lineNetCents: 2000,
+      },
+    ]);
+    expect(s.taxPaidCents).toBe(350);
+    expect(s.pretaxSpendCents).toBe(7000);
+    expect(s.taxableLineSharePct).toBe(60);
+    expect(s.effectiveTaxRatePct).toBe(5);
+  });
+});
+
+describe('pctChange / movers', () => {
+  it('computes percent change', () => {
+    expect(pctChange(100, 110)).toBe(10);
+    expect(pctChange(0, 10)).toBeNull();
+  });
+
+  it('splits category price vs behavior', () => {
+    const movers = categoryPriceMovers(
+      [
+        {
+          categoryId: 'dairy',
+          categoryName: 'Dairy',
+          key: 'butter',
+          quantity: 2,
+          unitPriceCents: 400,
+        },
+      ],
+      [
+        {
+          categoryId: 'dairy',
+          categoryName: 'Dairy',
+          key: 'butter',
+          quantity: 2,
+          unitPriceCents: 500,
+        },
+      ],
+    );
+    expect(movers).toHaveLength(1);
+    expect(movers[0]!.deltaPriceCents).toBe(200);
+    expect(movers[0]!.deltaBehaviorCents).toBe(0);
+    expect(movers[0]!.priceChangePct).toBe(25);
+  });
+
+  it('ranks product price movers', () => {
+    const movers = productPriceMovers([
+      {
+        productId: 'g1',
+        productName: 'Ammo',
+        categoryName: 'Sporting Goods',
+        pricesOldestFirst: [1000, 1300],
+      },
+      {
+        productId: 'b1',
+        productName: 'Butter',
+        categoryName: 'Dairy',
+        pricesOldestFirst: [400, 420],
+      },
+    ]);
+    expect(movers[0]!.productName).toBe('Ammo');
+    expect(movers[0]!.changePct).toBe(30);
   });
 });

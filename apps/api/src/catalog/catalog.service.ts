@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeRawText } from '../common/normalize';
 import { CreateAliasDto, CreateProductDto, CreateStoreDto } from './catalog.dto';
+import { CATEGORY_DEFS } from './category-taxonomy';
 import {
   extractGtin,
   MatchCandidate,
@@ -10,10 +11,47 @@ import {
 } from './matching';
 
 @Injectable()
-export class CatalogService {
+export class CatalogService implements OnModuleInit {
+  private readonly logger = new Logger(CatalogService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
-  listCategories() {
+  async onModuleInit() {
+    try {
+      await this.ensureTaxonomy();
+    } catch (err) {
+      this.logger.warn(
+        `Could not ensure category taxonomy: ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /** Upsert canonical slugs so AI categorize / review always have butter→dairy, guns→sporting-goods, etc. */
+  async ensureTaxonomy() {
+    const bySlug = new Map<string, string>();
+    for (const cat of CATEGORY_DEFS.filter((c) => !c.parent)) {
+      const row = await this.prisma.category.upsert({
+        where: { slug: cat.slug },
+        update: { name: cat.name },
+        create: { name: cat.name, slug: cat.slug },
+      });
+      bySlug.set(cat.slug, row.id);
+    }
+    for (const cat of CATEGORY_DEFS.filter((c) => c.parent)) {
+      const parentId = bySlug.get(cat.parent!);
+      if (!parentId) continue;
+      const row = await this.prisma.category.upsert({
+        where: { slug: cat.slug },
+        update: { name: cat.name, parentId },
+        create: { name: cat.name, slug: cat.slug, parentId },
+      });
+      bySlug.set(cat.slug, row.id);
+    }
+    return bySlug.size;
+  }
+
+  async listCategories() {
+    await this.ensureTaxonomy();
     return this.prisma.category.findMany({
       where: { parentId: null },
       orderBy: { name: 'asc' },

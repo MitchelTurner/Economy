@@ -89,15 +89,27 @@ export function PriceIndexPage() {
             </ResponsiveContainer>
           </div>
           <ul className="space-y-2 text-sm">
-            {points.map((p, i) => (
-              <li key={i} className="flex justify-between">
-                <span>{new Date(p.periodStart).toLocaleDateString()}</span>
-                <span className="tabular-nums">
-                  idx {Number(p.indexValue).toFixed(2)} · {formatCents(p.basketCostCents)} ·{' '}
-                  {Math.round(p.coverage * 100)}% coverage
-                </span>
-              </li>
-            ))}
+            {points.map((p, i) => {
+              const value = Number(p.indexValue);
+              const prior = i > 0 ? Number(points[i - 1]!.indexValue) : null;
+              const changePct =
+                prior && prior !== 0
+                  ? Math.round(((value - prior) / prior) * 1000) / 10
+                  : null;
+              return (
+                <li key={i} className="flex justify-between gap-3">
+                  <span>{new Date(p.periodStart).toLocaleDateString()}</span>
+                  <span className="tabular-nums text-right">
+                    idx {value.toFixed(2)}
+                    {changePct != null
+                      ? ` · ${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%`
+                      : ''}{' '}
+                    · {formatCents(p.basketCostCents)} · {Math.round(p.coverage * 100)}%
+                    coverage
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}

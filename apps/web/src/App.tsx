@@ -18,6 +18,9 @@ const PricesPage = lazy(() =>
 const PriceIndexPage = lazy(() =>
   import('./pages/PriceIndexPage').then((m) => ({ default: m.PriceIndexPage })),
 );
+const EconomyPage = lazy(() =>
+  import('./pages/EconomyPage').then((m) => ({ default: m.EconomyPage })),
+);
 const InsightsPage = lazy(() =>
   import('./pages/InsightsPage').then((m) => ({ default: m.InsightsPage })),
 );
@@ -145,6 +148,14 @@ export default function App() {
             element={
               <Lazy>
                 <PriceIndexPage />
+              </Lazy>
+            }
+          />
+          <Route
+            path="economy"
+            element={
+              <Lazy>
+                <EconomyPage />
               </Lazy>
             }
           />

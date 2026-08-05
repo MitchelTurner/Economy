@@ -22,6 +22,7 @@ const desktopPrimary: Array<{ to: string; label: string; end?: boolean }> = [
 ];
 
 const desktopSecondary: Array<{ to: string; label: string }> = [
+  { to: '/economy', label: 'Island economy' },
   { to: '/prices', label: 'Prices' },
   { to: '/budgets', label: 'Budgets' },
   { to: '/alerts', label: 'Alerts' },
