@@ -22,13 +22,18 @@ type User = {
 type AuthCtx = {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    opts?: { rememberNetwork?: boolean },
+  ) => Promise<void>;
   demoLogin: () => Promise<void>;
   register: (input: {
     email: string;
     password: string;
     displayName?: string;
     householdName?: string;
+    rememberNetwork?: boolean;
   }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -61,10 +66,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void loadMe();
   }, [loadMe]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string,
+    opts?: { rememberNetwork?: boolean },
+  ) => {
     const res = await api<{ accessToken: string; refreshToken: string }>(
       '/auth/login',
-      { method: 'POST', json: { email, password }, auth: false },
+      {
+        method: 'POST',
+        json: { email, password, rememberNetwork: opts?.rememberNetwork },
+        auth: false,
+      },
     );
     setTokens(res);
     await loadMe();
@@ -84,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string;
     displayName?: string;
     householdName?: string;
+    rememberNetwork?: boolean;
   }) => {
     const res = await api<{ accessToken: string; refreshToken: string }>(
       '/auth/register',
