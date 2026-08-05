@@ -39,6 +39,8 @@ EXTRACTION_MODEL=claude-sonnet-4-6
 # Do not use claude-sonnet-4-20250514 — Anthropic retired it (API returns 404 not_found).
 # The API remaps that old id, but set EXTRACTION_MODEL explicitly to claude-sonnet-4-6.
 ALLOW_MOCK_EXTRACTION=false    # only after the key is actually injected (boot must show ANTHROPIC_API_KEY=yes)
+AI_CATEGORIZE=auto             # auto|on|off — fill receipt line categories after match (needs Anthropic key)
+INSIGHT_NARRATION=auto         # auto|on|off — AI rewrite of insight copy + weekly digest summary
 # Boot checklist prints ANTHROPIC_API_KEY=yes|MISSING. "ALLOW_MOCK_EXTRACTION=yes" only means the
 # variable exists — if its value is false and the key is missing, the API will refuse to boot.
 RESEND_API_KEY=...   # optional; else mail logs (needed for forgot-password emails)

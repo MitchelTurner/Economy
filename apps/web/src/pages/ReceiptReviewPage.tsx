@@ -26,6 +26,7 @@ export function ReceiptReviewPage() {
   const [adding, setAdding] = useState(false);
   const [newRaw, setNewRaw] = useState('');
   const [newExt, setNewExt] = useState('');
+  const [categorizing, setCategorizing] = useState(false);
 
   async function reload() {
     if (!id) return;
@@ -443,6 +444,50 @@ export function ReceiptReviewPage() {
         />
 
         <div className="space-y-3">
+          {!readOnly && sortedLines.some((l) => !l.categoryId) && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2">
+              <p className="text-sm text-[var(--ink-muted)]">
+                {sortedLines.filter((l) => !l.categoryId).length} lines still need a category
+              </p>
+              <button
+                type="button"
+                disabled={categorizing || busy}
+                aria-busy={categorizing}
+                className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                onClick={() => {
+                  if (!id) return;
+                  setCategorizing(true);
+                  void api<{ enabled: boolean; updated: number }>(
+                    '/catalog/categorize-receipt',
+                    { method: 'POST', json: { receiptId: id } },
+                  )
+                    .then(async (res) => {
+                      await reload();
+                      if (!res.enabled) {
+                        toast(
+                          'AI categorize needs ANTHROPIC_API_KEY on the API service',
+                          'neutral',
+                        );
+                        return;
+                      }
+                      toast(
+                        res.updated
+                          ? `AI categorized ${res.updated} line${res.updated === 1 ? '' : 's'}`
+                          : 'No confident AI category suggestions',
+                        res.updated ? 'ok' : 'neutral',
+                      );
+                    })
+                    .catch((err) =>
+                      toast(apiErrorMessage(err, 'AI categorize failed'), 'danger'),
+                    )
+                    .finally(() => setCategorizing(false));
+                }}
+              >
+                {categorizing ? 'Categorizing…' : 'AI categorize missing'}
+              </button>
+            </div>
+          )}
+
           {sortedLines.map((line) => (
             <LineEditor
               key={line.id}
@@ -748,6 +793,12 @@ function LineEditor({
   const [extended, setExtended] = useState((line.extendedCents / 100).toFixed(2));
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Product[]>([]);
+  const [aiHint, setAiHint] = useState<{
+    categoryId: string;
+    name: string;
+    confidence: number;
+  } | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
 
   useEffect(() => {
     if (!search.trim()) {
@@ -759,6 +810,10 @@ function LineEditor({
     }, 200);
     return () => clearTimeout(t);
   }, [search]);
+
+  useEffect(() => {
+    setAiHint(null);
+  }, [line.id, line.categoryId, line.rawText]);
 
   async function bindProduct(productId: string) {
     onSave({ productId });
@@ -948,6 +1003,58 @@ function LineEditor({
           ))}
         </select>
       </label>
+
+      {!line.categoryId && !readOnly && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={aiBusy}
+            className="text-xs font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+            onClick={() => {
+              setAiBusy(true);
+              void api<{
+                enabled: boolean;
+                suggestions: Array<{
+                  categoryId: string;
+                  name: string;
+                  confidence: number;
+                } | null>;
+              }>('/catalog/categorize', {
+                method: 'POST',
+                json: { rawTexts: [line.rawText] },
+              })
+                .then((res) => {
+                  const s = res.suggestions[0];
+                  if (!res.enabled) {
+                    toast('AI categorize needs ANTHROPIC_API_KEY on the API', 'neutral');
+                    return;
+                  }
+                  if (!s) {
+                    toast('No confident category suggestion', 'neutral');
+                    return;
+                  }
+                  setAiHint(s);
+                })
+                .catch((err) => toast(apiErrorMessage(err, 'AI suggest failed'), 'danger'))
+                .finally(() => setAiBusy(false));
+            }}
+          >
+            {aiBusy ? 'Suggesting…' : 'Suggest category with AI'}
+          </button>
+          {aiHint && (
+            <button
+              type="button"
+              className="rounded-md border border-[var(--brand-soft)] px-2 py-1 text-xs font-semibold text-[var(--brand)]"
+              onClick={() => {
+                onSave({ categoryId: aiHint.categoryId });
+                setAiHint(null);
+              }}
+            >
+              Use {aiHint.name} ({Math.round(aiHint.confidence * 100)}%)
+            </button>
+          )}
+        </div>
+      )}
 
       {line.categoryId && !readOnly && (
         <button

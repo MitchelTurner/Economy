@@ -1,9 +1,16 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, AuthUser } from '../common/decorators/current-user.decorator';
 import { consumeRateLimit } from '../common/rate-limit';
+import { AiCategorizeService } from './ai-categorize.service';
 import { CatalogService } from './catalog.service';
-import { CreateAliasDto, CreateProductDto, CreateStoreDto } from './catalog.dto';
+import {
+  CategorizeLinesDto,
+  CategorizeReceiptDto,
+  CreateAliasDto,
+  CreateProductDto,
+  CreateStoreDto,
+} from './catalog.dto';
 
 function householdLimit() {
   return {
@@ -16,7 +23,10 @@ function householdLimit() {
 @Controller('catalog')
 @UseGuards(JwtAuthGuard)
 export class CatalogController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(
+    private readonly catalog: CatalogService,
+    private readonly aiCategorize: AiCategorizeService,
+  ) {}
 
   @Get('categories')
   categories() {
@@ -72,5 +82,41 @@ export class CatalogController {
       name: 'catalog:aliases',
     });
     return this.catalog.createAlias(dto);
+  }
+
+  /** Suggest categories for raw line texts (AI; taxonomy-constrained). */
+  @Post('categorize')
+  async categorize(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CategorizeLinesDto,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'catalog:categorize',
+    });
+    const suggestions = await this.aiCategorize.suggestWithIds(dto.rawTexts);
+    return {
+      enabled: this.aiCategorize.isEnabled(),
+      suggestions,
+    };
+  }
+
+  /** AI-fill uncategorized lines on a household receipt. */
+  @Post('categorize-receipt')
+  async categorizeReceipt(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CategorizeReceiptDto,
+  ) {
+    await consumeRateLimit(`${user.userId}:${user.householdId}`, {
+      ...householdLimit(),
+      name: 'catalog:categorize-receipt',
+    });
+    const receipt = await this.catalog.findHouseholdReceipt(
+      user.householdId,
+      dto.receiptId,
+    );
+    if (!receipt) throw new NotFoundException('Receipt not found');
+    const result = await this.aiCategorize.fillUncategorizedLines(dto.receiptId);
+    return { enabled: this.aiCategorize.isEnabled(), ...result };
   }
 }

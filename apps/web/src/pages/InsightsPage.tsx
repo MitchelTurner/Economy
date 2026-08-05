@@ -24,6 +24,8 @@ type Insight = {
 type Digest = {
   insightCount: number;
   estimatedSavingsCents: number;
+  aiSummary?: string | null;
+  narrationEnabled?: boolean;
   insights: Insight[];
 };
 
@@ -96,8 +98,8 @@ export function InsightsPage() {
         <div>
           <h1 className="text-3xl font-semibold">Insights</h1>
           <p className="mt-1 text-[var(--ink-muted)]">
-            Deterministic rules — every dollar figure comes from stored data. Weekly email
-            digests only send if enabled in Settings.
+            Rules compute the numbers; AI sharpens the wording and weekly summary. Dollar
+            figures always come from stored data. Digests send when enabled in Settings.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -142,12 +144,15 @@ export function InsightsPage() {
       {!loading && digest && (
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
           <p className="text-sm uppercase tracking-wide text-[var(--ink-muted)]">
-            Weekly digest
+            Weekly digest{digest.narrationEnabled ? ' · AI summary' : ''}
           </p>
           <p className="mt-1 text-lg font-semibold">
             {digest.insightCount} active tips · ~{formatCents(digest.estimatedSavingsCents)} at
             stake
           </p>
+          {digest.aiSummary && (
+            <p className="mt-2 text-sm leading-relaxed text-[var(--ink)]">{digest.aiSummary}</p>
+          )}
         </section>
       )}
 

@@ -21,6 +21,14 @@ export class CatalogService {
     });
   }
 
+  /** Returns the receipt when it belongs to the household; otherwise null. */
+  async findHouseholdReceipt(householdId: string, receiptId: string) {
+    return this.prisma.receipt.findFirst({
+      where: { id: receiptId, householdId },
+      select: { id: true },
+    });
+  }
+
   /**
    * Stores the household has shopped at, plus any other known island stores.
    * Prefer recent household receipts when ranking.

@@ -115,6 +115,7 @@ export class NotificationsService {
     householdName: string;
     insightCount: number;
     estimatedSavingsCents: number;
+    aiSummary?: string;
     highlights: Array<{ title: string; body: string }>;
   }) {
     const savings = (opts.estimatedSavingsCents / 100).toFixed(2);
@@ -128,10 +129,17 @@ export class NotificationsService {
           `<li style="margin:0 0 8px"><strong>${escapeHtml(h.title)}</strong><br/><span style="color:#4a6358">${escapeHtml(h.body)}</span></li>`,
       )
       .join('');
+    const summaryBlock = opts.aiSummary?.trim()
+      ? [`${opts.aiSummary.trim()}`, '']
+      : [];
+    const summaryHtml = opts.aiSummary?.trim()
+      ? `<p style="font-size:16px;line-height:1.45">${escapeHtml(opts.aiSummary.trim())}</p>`
+      : '';
     const text = [
       `Here's this week's digest for ${opts.householdName}.`,
       `${opts.insightCount} active insights · ~$${savings} estimated savings surfaced.`,
       '',
+      ...summaryBlock,
       ...lines,
       '',
       'Open Island Ledger → Insights for the full feed.',
@@ -142,7 +150,7 @@ export class NotificationsService {
       text,
       html: brandedHtml({
         title: 'Weekly digest',
-        bodyHtml: `<p>Here's this week's digest for <strong>${escapeHtml(opts.householdName)}</strong>.</p><p>${opts.insightCount} active insights · ~$${savings} estimated savings.</p><ul style="padding-left:18px">${listHtml}</ul>`,
+        bodyHtml: `<p>Here's this week's digest for <strong>${escapeHtml(opts.householdName)}</strong>.</p><p>${opts.insightCount} active insights · ~$${savings} estimated savings.</p>${summaryHtml}<ul style="padding-left:18px">${listHtml}</ul>`,
         ctaLabel: 'Open insights',
         ctaHref: appOrigin(this.config) + '/insights',
       }),

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { resolveClaudeModel } from '../common/claude-model';
+import { categoryTaxonomyPrompt } from '../catalog/category-taxonomy';
 import { ExtractionResult, ExtractionResultSchema } from './extraction.schema';
 import { MOCK_SCENARIOS } from './mock-scenarios';
 
@@ -47,6 +48,8 @@ Return ONLY valid JSON (no markdown) matching this shape:
   }],
   "confidence": number 0-1
 }
+${categoryTaxonomyPrompt()}
+guessedCategory must be one of those slugs (or null). Prefer the most specific child.
 If the image is not a receipt or nothing is readable, return lines: [] is NOT allowed by schema — instead return a single line with rawText "UNREADABLE" and extendedCents 0, totalCents null, confidence ≤0.2.
 Line extendedCents (minus discounts) + tax should approximately equal totalCents when totals are readable; if they do not, lower confidence and do not invent lines to force a match.`;
 
