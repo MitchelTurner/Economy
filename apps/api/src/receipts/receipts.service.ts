@@ -255,7 +255,14 @@ export class ReceiptsService {
     if (receipt.imageKey.startsWith('manual/')) {
       throw new NotFoundException('No image for manual receipt');
     }
-    const buffer = await this.storage.getObjectBuffer(receipt.imageKey);
+    let buffer: Buffer;
+    try {
+      buffer = await this.storage.getObjectBuffer(receipt.imageKey);
+    } catch (err) {
+      throw new NotFoundException(
+        (err as Error)?.message || 'Receipt image not found',
+      );
+    }
     const ext = receipt.imageKey.split('.').pop()?.toLowerCase();
     const contentType =
       ext === 'png'

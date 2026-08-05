@@ -94,15 +94,31 @@ export class StorageService {
     if (this.localFallback.has(imageKey)) {
       return this.localFallback.get(imageKey)!;
     }
-    const res = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: imageKey }),
-    );
-    const stream = res.Body as Readable;
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    // Demo/Railway with localhost MinIO: objects only live in process memory.
+    // Hitting S3 here throws opaque SDK errors that Nest surfaces as 500.
+    if (this.memoryUploadsOnly) {
+      throw new Error(
+        'Receipt image is no longer available (demo storage was cleared on restart). Re-upload the photo.',
+      );
     }
-    return Buffer.concat(chunks);
+    try {
+      const res = await this.client.send(
+        new GetObjectCommand({ Bucket: this.bucket, Key: imageKey }),
+      );
+      const stream = res.Body as Readable;
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(
+        detail?.trim()
+          ? `Could not read receipt image from storage: ${detail}`
+          : 'Could not read receipt image from storage',
+      );
+    }
   }
 
   async deleteObject(imageKey: string) {

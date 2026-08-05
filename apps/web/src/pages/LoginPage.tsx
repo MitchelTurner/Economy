@@ -44,8 +44,12 @@ export function LoginPage() {
           setSavedHint(true);
           localStorage.setItem(LOCAL_EMAIL_KEY, saved.email);
         }
-      } catch {
-        // Prefill is best-effort — login still works without it.
+      } catch (err) {
+        // 404 while API deploy lags, or Redis blip — never block login.
+        const status = (err as { status?: number })?.status;
+        if (status && status !== 404) {
+          console.warn('saved-login prefills unavailable', err);
+        }
       }
     })();
     return () => {
