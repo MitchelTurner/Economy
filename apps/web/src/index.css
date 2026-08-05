@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Align shell chrome + page sticky offsets at one desktop breakpoint */
+@theme {
+  --breakpoint-desk: 900px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -42,6 +47,7 @@
   --ok: #1f7a4c;
   --warn: #a15c12;
   --danger: #9b2c2c;
+  --desk: 900px;
   font-family: "Source Sans 3", sans-serif;
   color: var(--ink);
   background:
@@ -85,7 +91,27 @@ a {
   text-decoration: none;
 }
 
+/* Auth / public pages — centered narrow column on every viewport */
 .app-shell {
+  min-height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+@media (min-width: 900px) {
+  .app-shell {
+    max-width: 28rem;
+    padding-top: 2rem;
+    padding-bottom: 3rem;
+  }
+}
+
+/* ——— Authenticated app frame ——— */
+
+.app-frame {
   min-height: 100dvh;
   max-width: 480px;
   margin: 0 auto;
@@ -94,10 +120,158 @@ a {
   padding-right: max(1rem, env(safe-area-inset-right, 0px));
 }
 
+.app-sidebar {
+  display: none;
+}
+
+.app-mobile-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 0;
+}
+
+.app-mobile-nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  border-top: 1px solid var(--line);
+  background: rgba(238, 244, 240, 0.92);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  backdrop-filter: blur(10px);
+}
+
+.app-mobile-nav__list {
+  display: flex;
+  max-width: 480px;
+  margin: 0 auto;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  list-style: none;
+}
+
+.app-content {
+  min-width: 0;
+}
+
+.app-main {
+  min-width: 0;
+}
+
+/* Desktop: sidebar + wide content */
 @media (min-width: 900px) {
-  .app-shell {
-    max-width: 1100px;
-    padding-bottom: 2rem;
+  .app-frame {
+    display: grid;
+    grid-template-columns: 15.5rem minmax(0, 1fr);
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    min-height: 100dvh;
+  }
+
+  .app-sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    padding: 1.75rem 1.25rem;
+    border-right: 1px solid var(--line);
+    background: rgba(238, 244, 240, 0.78);
+    backdrop-filter: blur(12px);
+    overflow-y: auto;
+  }
+
+  .app-sidebar__brand .brand {
+    font-size: 2rem;
+    line-height: 1.1;
+  }
+
+  .app-mobile-header,
+  .app-mobile-nav {
+    display: none;
+  }
+
+  .app-content {
+    max-width: 72rem;
+    width: 100%;
+    margin: 0 auto;
+    padding: 1.75rem 2rem 3rem;
+  }
+}
+
+/* Page composition helpers */
+.dashboard-desk {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.insights-desk {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.capture-desk {
+  max-width: none;
+}
+
+@media (min-width: 900px) {
+  .dashboard-desk {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(17rem, 1fr);
+    gap: 2rem 2.5rem;
+    align-items: start;
+  }
+
+  .dashboard-desk__aside {
+    position: sticky;
+    top: 1.5rem;
+  }
+
+  .insights-desk {
+    display: grid;
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+    gap: 1.5rem 2rem;
+    align-items: start;
+  }
+
+  .insights-desk__aside {
+    position: sticky;
+    top: 1.5rem;
+  }
+
+  .capture-desk {
+    max-width: 36rem;
+  }
+
+  .page-header-desk {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+
+  .settings-more-mobile {
+    display: none;
+  }
+}
+
+/* Sticky review actions: clear mobile bottom nav; sit near edge on desktop */
+.sticky-action-bar {
+  position: sticky;
+  bottom: 5rem;
+  z-index: 10;
+}
+
+@media (min-width: 900px) {
+  .sticky-action-bar {
+    bottom: 1rem;
   }
 }
 

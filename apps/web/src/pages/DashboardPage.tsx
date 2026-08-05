@@ -272,7 +272,7 @@ export function DashboardPage() {
       </section>
 
       {(needsReview > 0 || failedCount > 0) && (
-        <div className="space-y-2">
+        <div className="space-y-2 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:gap-3 min-[900px]:space-y-0">
           {needsReview > 0 && (
             <Link
               to="/receipts?status=NEEDS_REVIEW"
@@ -309,6 +309,8 @@ export function DashboardPage() {
         </div>
       )}
 
+      <div className="dashboard-desk">
+      <div className="space-y-8">
       {habits && habits.tripCount > 0 && (
         <section className="space-y-3">
           <div>
@@ -498,7 +500,9 @@ export function DashboardPage() {
           <p className="mt-2 text-xs text-[var(--ink-muted)]">Showing the last 6 months.</p>
         )}
       </section>
+      </div>
 
+      <aside className="dashboard-desk__aside space-y-8">
       <section>
         <div className="mb-3 flex items-end justify-between">
           <h2 className="text-2xl font-semibold">Insights</h2>
@@ -567,7 +571,7 @@ export function DashboardPage() {
         )}
       </section>
 
-      <section className="grid gap-2 sm:grid-cols-2">
+      <section className="grid gap-2">
         <Link
           to="/prices/index"
           className="block border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3"
@@ -597,6 +601,8 @@ export function DashboardPage() {
           </p>
         </Link>
       </section>
+      </aside>
+      </div>
     </div>
   );
 }

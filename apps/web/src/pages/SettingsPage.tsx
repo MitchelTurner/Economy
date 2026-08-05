@@ -578,7 +578,7 @@ export function SettingsPage() {
         )}
       </section>
 
-      <ul className="space-y-2 text-[var(--brand-soft)]">
+      <ul className="settings-more-mobile space-y-2 text-[var(--brand-soft)]">
         <li>
           <Link to="/prices" className="font-semibold">
             Price search
@@ -605,6 +605,12 @@ export function SettingsPage() {
           </Link>
         </li>
       </ul>
+      <p className="hidden text-sm text-[var(--ink-muted)] min-[900px]:block">
+        Prices, budgets, alerts, and delivered cost live in the sidebar. Public island index:{' '}
+        <Link to="/island" className="font-semibold text-[var(--brand-soft)]">
+          /island
+        </Link>
+      </p>
 
       <div className="space-y-2">
         <label className="block text-sm text-[var(--danger)]">

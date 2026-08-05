@@ -472,7 +472,7 @@ export function ReceiptReviewPage() {
         </p>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <div className="grid gap-5 min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <ReceiptImageViewer
           imageUrl={receipt.imageUrl}
           signedImageUrl={receipt.signedImageUrl}
@@ -585,7 +585,7 @@ export function ReceiptReviewPage() {
         </div>
       </div>
 
-      <div className="sticky bottom-20 space-y-3 rounded-2xl border border-[var(--line)] bg-[rgba(238,244,240,0.95)] p-4 backdrop-blur md:bottom-4">
+      <div className="sticky-action-bar space-y-3 rounded-2xl border border-[var(--line)] bg-[rgba(238,244,240,0.95)] p-4 backdrop-blur">
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-sm text-[var(--ink-muted)]">Running total</p>

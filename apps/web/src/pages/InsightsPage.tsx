@@ -104,10 +104,10 @@ export function InsightsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-end justify-between gap-3">
+      <div className="page-header-desk flex flex-col gap-3 min-[900px]:flex-row min-[900px]:items-end min-[900px]:justify-between">
         <div>
           <h1 className="text-3xl font-semibold">Insights</h1>
-          <p className="mt-1 text-[var(--ink-muted)]">
+          <p className="mt-1 max-w-2xl text-[var(--ink-muted)]">
             Ranked by severity and dollars at stake. Rules compute the numbers; AI
             sharpens wording. Digests send when enabled in Settings.
           </p>
@@ -151,148 +151,152 @@ export function InsightsPage() {
 
       {loading && <p className="text-[var(--ink-muted)]">Loading insights…</p>}
 
-      {!loading && digest && (
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
-          <p className="text-sm uppercase tracking-wide text-[var(--ink-muted)]">
-            Weekly digest{digest.narrationEnabled ? ' · AI summary' : ''}
-          </p>
-          <p className="mt-1 text-lg font-semibold">
-            {digest.insightCount} active tips · ~{formatCents(digest.estimatedSavingsCents)} at
-            stake
-          </p>
-          {digest.aiSummary && (
-            <p className="mt-2 text-sm leading-relaxed text-[var(--ink)]">{digest.aiSummary}</p>
-          )}
-        </section>
-      )}
-
-      {!loading && items.length > 0 && (
-        <div
-          className="flex flex-wrap gap-2 text-sm"
-          role="group"
-          aria-label="Severity filter"
-        >
-          {(
-            [
-              ['ALL', 'All'],
-              ['WARNING', 'Warnings'],
-              ['OPPORTUNITY', 'Opportunities'],
-              ['INFO', 'Info'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={severityFilter === value}
-              onClick={() => setSeverityFilter(value)}
-              className={[
-                'rounded-md px-3 py-1.5 font-semibold',
-                severityFilter === value
-                  ? 'bg-[var(--brand)] text-white'
-                  : 'border border-[var(--line)] text-[var(--ink-muted)]',
-              ].join(' ')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
       {!loading && (
-        <ul className="space-y-4">
-          {filtered.map((i) => {
-            const href = insightHref(i.type, i.data);
-            const cta = insightCtaLabel(i.type);
-            return (
-              <li
-                key={i.id}
-                className="border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
+        <div className="insights-desk">
+          <aside className="insights-desk__aside space-y-4">
+            {digest && (
+              <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+                <p className="text-sm uppercase tracking-wide text-[var(--ink-muted)]">
+                  Weekly digest{digest.narrationEnabled ? ' · AI summary' : ''}
+                </p>
+                <p className="mt-1 text-lg font-semibold">
+                  {digest.insightCount} active tips · ~{formatCents(digest.estimatedSavingsCents)}{' '}
+                  at stake
+                </p>
+                {digest.aiSummary && (
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--ink)]">{digest.aiSummary}</p>
+                )}
+              </section>
+            )}
+
+            {items.length > 0 && (
+              <div
+                className="flex flex-wrap gap-2 text-sm min-[900px]:flex-col"
+                role="group"
+                aria-label="Severity filter"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
-                      {i.severity} · {i.type.replace(/_/g, ' ')}
-                    </p>
-                    <Link to={href} className="mt-1 block font-semibold hover:underline">
-                      {i.title}
-                    </Link>
-                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
-                    {i.estimatedSavingsCents != null && (
-                      <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
-                        ~{formatCents(i.estimatedSavingsCents)} at stake
+                {(
+                  [
+                    ['ALL', 'All'],
+                    ['WARNING', 'Warnings'],
+                    ['OPPORTUNITY', 'Opportunities'],
+                    ['INFO', 'Info'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={severityFilter === value}
+                    onClick={() => setSeverityFilter(value)}
+                    className={[
+                      'rounded-md px-3 py-1.5 font-semibold min-[900px]:w-full min-[900px]:text-left',
+                      severityFilter === value
+                        ? 'bg-[var(--brand)] text-white'
+                        : 'border border-[var(--line)] text-[var(--ink-muted)]',
+                    ].join(' ')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </aside>
+
+          <ul className="space-y-4">
+            {filtered.map((i) => {
+              const href = insightHref(i.type, i.data);
+              const cta = insightCtaLabel(i.type);
+              return (
+                <li
+                  key={i.id}
+                  className="border-l-4 border-[var(--brand)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
+                        {i.severity} · {i.type.replace(/_/g, ' ')}
                       </p>
-                    )}
-                    <EvidenceChart data={i.data} type={i.type} />
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                      <Link
-                        to={href}
-                        className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
-                      >
-                        {cta}
+                      <Link to={href} className="mt-1 block font-semibold hover:underline">
+                        {i.title}
                       </Link>
-                      {showActive ? (
-                        <button
-                          type="button"
-                          className="min-h-11 text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
-                          disabled={actionId === i.id}
-                          aria-busy={actionId === i.id}
-                          onClick={() => void dismiss(i.id)}
-                        >
-                          Dismiss
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="min-h-11 text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
-                          disabled={actionId === i.id}
-                          aria-busy={actionId === i.id}
-                          onClick={() => void restore(i.id)}
-                        >
-                          Restore
-                        </button>
+                      <p className="mt-1 text-sm text-[var(--ink-muted)]">{i.body}</p>
+                      {i.estimatedSavingsCents != null && (
+                        <p className="mt-2 text-sm font-semibold text-[var(--brand)]">
+                          ~{formatCents(i.estimatedSavingsCents)} at stake
+                        </p>
                       )}
+                      <EvidenceChart data={i.data} type={i.type} />
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <Link
+                          to={href}
+                          className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-white"
+                        >
+                          {cta}
+                        </Link>
+                        {showActive ? (
+                          <button
+                            type="button"
+                            className="min-h-11 text-sm font-semibold text-[var(--ink-muted)] disabled:opacity-50"
+                            disabled={actionId === i.id}
+                            aria-busy={actionId === i.id}
+                            onClick={() => void dismiss(i.id)}
+                          >
+                            Dismiss
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="min-h-11 text-sm font-semibold text-[var(--brand-soft)] disabled:opacity-50"
+                            disabled={actionId === i.id}
+                            aria-busy={actionId === i.id}
+                            onClick={() => void restore(i.id)}
+                          >
+                            Restore
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </li>
-            );
-          })}
-          {items.length === 0 && (
-            <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
-              {showActive ? (
-                <div className="space-y-3">
-                  <p>
-                    No active insights yet. Confirm a few receipts so rules have spend and
-                    price history to work with.
-                  </p>
-                  <div className="flex flex-wrap justify-center gap-3">
-                    <Link
-                      to="/capture"
-                      className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white"
-                    >
-                      Capture a receipt
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      className="inline-flex min-h-11 items-center rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
-                      onClick={() => void regenerate()}
-                    >
-                      {busy ? 'Running…' : 'Generate now'}
-                    </button>
+                </li>
+              );
+            })}
+            {items.length === 0 && (
+              <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-[var(--ink-muted)]">
+                {showActive ? (
+                  <div className="space-y-3">
+                    <p>
+                      No active insights yet. Confirm a few receipts so rules have spend and
+                      price history to work with.
+                    </p>
+                    <div className="flex flex-wrap justify-center gap-3">
+                      <Link
+                        to="/capture"
+                        className="inline-flex min-h-11 items-center rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Capture a receipt
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        className="inline-flex min-h-11 items-center rounded-md border border-[var(--line)] px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                        onClick={() => void regenerate()}
+                      >
+                        {busy ? 'Running…' : 'Generate now'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                'No dismissed insights yet.'
-              )}
-            </li>
-          )}
-          {items.length > 0 && filtered.length === 0 && (
-            <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-center text-[var(--ink-muted)]">
-              No insights match this severity. Try All.
-            </li>
-          )}
-        </ul>
+                ) : (
+                  'No dismissed insights yet.'
+                )}
+              </li>
+            )}
+            {items.length > 0 && filtered.length === 0 && (
+              <li className="rounded-xl border border-dashed border-[var(--line)] px-4 py-6 text-center text-[var(--ink-muted)]">
+                No insights match this severity. Try All.
+              </li>
+            )}
+          </ul>
+        </div>
       )}
     </div>
   );

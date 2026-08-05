@@ -127,6 +127,8 @@ export function PricesPage() {
         </div>
       </div>
 
+      <div className="grid gap-6 min-[900px]:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] min-[900px]:items-start">
+      <div className="space-y-3 min-[900px]:sticky min-[900px]:top-6">
       <label className="block text-sm">
         Search products
         <input
@@ -139,7 +141,13 @@ export function PricesPage() {
 
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
         {products.map((p) => (
-          <li key={p.id} className="flex items-center gap-2 py-3">
+          <li
+            key={p.id}
+            className={[
+              'flex items-center gap-2 py-3',
+              selected?.id === p.id ? 'bg-[var(--brand)]/5' : '',
+            ].join(' ')}
+          >
             <button
               type="button"
               className="flex-1 text-left"
@@ -177,8 +185,9 @@ export function PricesPage() {
           </li>
         )}
       </ul>
+      </div>
 
-      {selected && history && (
+      {selected && history ? (
         <section className="space-y-3">
           <h2 className="text-xl font-semibold">{selected.name}</h2>
           {premium?.premiumPct != null && premium.baseline && premium.local && (
@@ -262,7 +271,12 @@ export function PricesPage() {
             </>
           )}
         </section>
+      ) : (
+        <p className="hidden rounded-xl border border-dashed border-[var(--line)] px-4 py-10 text-center text-[var(--ink-muted)] min-[900px]:block">
+          Select a product to see price history and island premium.
+        </p>
       )}
+      </div>
 
       {compare && compare.products.length > 0 && (
         <section className="space-y-3">
