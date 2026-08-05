@@ -51,13 +51,24 @@ Line extendedCents (minus discounts) + tax should approximately equal totalCents
 
 /** True for JPEG/PNG/WebP/GIF payloads (real camera uploads), not eval fixture strings. */
 export function looksLikeImageBytes(buf: Buffer): boolean {
-  if (buf.length < 12) return false;
-  if (buf[0] === 0xff && buf[1] === 0xd8) return true; // JPEG
-  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true; // PNG
-  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true; // JPEG
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    return true; // PNG
+  }
+  if (
+    buf.length >= 12 &&
+    buf.toString('ascii', 0, 4) === 'RIFF' &&
+    buf.toString('ascii', 8, 12) === 'WEBP'
+  ) {
     return true;
   }
-  if (buf.toString('ascii', 0, 3) === 'GIF') return true;
+  if (buf.length >= 6 && buf.toString('ascii', 0, 3) === 'GIF') return true;
   return false;
 }
 
