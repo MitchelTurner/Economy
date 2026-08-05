@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   CartesianGrid,
   Legend,
@@ -27,6 +27,7 @@ type PremiumInfo = {
 };
 
 export function PricesPage() {
+  const [params] = useSearchParams();
   const [q, setQ] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [history, setHistory] = useState<PriceHistoryResponse | null>(null);
@@ -34,6 +35,7 @@ export function PricesPage() {
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [compare, setCompare] = useState<PriceCompareResponse | null>(null);
   const [premium, setPremium] = useState<PremiumInfo | null>(null);
+  const deepLinkProductId = params.get('productId');
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -59,6 +61,25 @@ export function PricesPage() {
       toast(apiErrorMessage(err, 'Could not load price history'), 'danger');
     }
   }
+
+  useEffect(() => {
+    if (!deepLinkProductId) return;
+    if (selected?.id === deepLinkProductId) return;
+    void api<PriceHistoryResponse>(`/prices/product/${deepLinkProductId}/history`)
+      .then(async (rows) => {
+        if (!rows.product) return;
+        setSelected(rows.product);
+        setHistory(rows);
+        setPremium(
+          await api<PremiumInfo>(`/prices/premium/${deepLinkProductId}`).catch(
+            () => null,
+          ),
+        );
+      })
+      .catch((err) =>
+        toast(apiErrorMessage(err, 'Could not open linked product'), 'danger'),
+      );
+  }, [deepLinkProductId, selected?.id]);
 
   function toggleCompare(id: string) {
     setCompareIds((prev) =>

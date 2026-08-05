@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, apiErrorMessage } from '../lib/api';
 import { formatCents, parseDollarsToCents } from '../lib/money';
 import { toast } from '../lib/toast';
@@ -22,6 +22,8 @@ type SpendResponse = {
 };
 
 export function BudgetsPage() {
+  const [params] = useSearchParams();
+  const highlightCategoryId = params.get('categoryId');
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [weekSpend, setWeekSpend] = useState<SpendResponse | null>(null);
@@ -35,6 +37,16 @@ export function BudgetsPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (highlightCategoryId) setCategoryId(highlightCategoryId);
+  }, [highlightCategoryId]);
+
+  useEffect(() => {
+    if (!highlightCategoryId || loading) return;
+    const el = document.getElementById(`budget-cat-${highlightCategoryId}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightCategoryId, loading, budgets]);
 
   async function load() {
     const weekFrom = startOfWeekIso();
@@ -228,8 +240,19 @@ export function BudgetsPage() {
             b.period === 'WEEKLY'
               ? 'this week'
               : 'this month';
+          const highlighted =
+            highlightCategoryId != null &&
+            (b.categoryId === highlightCategoryId ||
+              (!b.categoryId && highlightCategoryId === ''));
           return (
-            <li key={b.id} className="py-3">
+            <li
+              key={b.id}
+              id={b.categoryId ? `budget-cat-${b.categoryId}` : 'budget-overall'}
+              className={[
+                'py-3',
+                highlighted ? 'bg-[var(--brand)]/5 ring-1 ring-[var(--brand)]/30' : '',
+              ].join(' ')}
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <span>
                   {b.category?.name ?? 'Overall'} · {b.period.toLowerCase()}

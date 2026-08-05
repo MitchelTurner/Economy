@@ -83,6 +83,9 @@ export function evaluateStoreSwitch(ctx: StoreSwitchCtx): InsightDraft[] {
         storeTotals: Object.fromEntries(
           fullCoverage.map((id) => [id, Math.round(totals.get(id) ?? 0)]),
         ),
+        storeNames: Object.fromEntries(
+          fullCoverage.map((id) => [id, storeNames.get(id) ?? id]),
+        ),
         savingsPct,
       },
       periodStart: ctx.periodStart,

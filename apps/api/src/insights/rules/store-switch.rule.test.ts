@@ -33,6 +33,13 @@ describe('evaluateStoreSwitch', () => {
     expect(insights).toHaveLength(1);
     expect(insights[0]!.estimatedSavingsCents).toBe(100);
     expect(insights[0]!.body).toContain('Alaska General Store');
+    const data = insights[0]!.data as {
+      storeNames: Record<string, string>;
+      storeTotals: Record<string, number>;
+    };
+    expect(data.storeNames.ags).toBe('Alaska General Store');
+    expect(data.storeNames.safeway).toBe('Safeway');
+    expect(Object.keys(data.storeTotals).sort()).toEqual(['ags', 'safeway']);
   });
 
   it('requires at least 5 overlapping items', () => {

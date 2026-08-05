@@ -15,6 +15,7 @@ import { evaluateCategoryCreep } from './rules/category-creep.rule';
 import { evaluateRecurringChange } from './rules/recurring-change.rule';
 import { evaluateImpulsePattern } from './rules/impulse-pattern.rule';
 import { analyzeBehaviorChange } from './behavior';
+import { endOfUtcWeek, startOfUtcDay, startOfUtcWeek } from './period-windows';
 
 @Injectable()
 export class InsightsService {
@@ -34,7 +35,12 @@ export class InsightsService {
           ? { dismissedAt: null }
           : { dismissedAt: { not: null } }),
       },
-      orderBy: { createdAt: 'desc' },
+      // WARNING > OPPORTUNITY > INFO (enum declaration order), then $ at stake
+      orderBy: [
+        { severity: 'desc' },
+        { estimatedSavingsCents: 'desc' },
+        { createdAt: 'desc' },
+      ],
       take: 50,
     });
   }
@@ -123,37 +129,59 @@ export class InsightsService {
 
     const drafts: InsightDraft[] = [];
 
-    // --- budget_pace ---
+    // --- budget_pace (respect WEEKLY vs MONTHLY budget windows) ---
+    const weekStart = startOfUtcWeek(now);
+    const weekEnd = endOfUtcWeek(now);
     const budgets = await this.prisma.budget.findMany({
       where: { householdId },
       include: { category: true },
     });
-    const monthReceipts = await this.prisma.receipt.findMany({
+    const budgetFetchFrom =
+      weekStart.getTime() < periodStart.getTime() ? weekStart : periodStart;
+    const budgetFetchTo =
+      weekEnd.getTime() > periodEnd.getTime() ? weekEnd : periodEnd;
+    const budgetReceipts = await this.prisma.receipt.findMany({
       where: {
         householdId,
         status: ReceiptStatus.CONFIRMED,
-        purchasedAt: { gte: periodStart, lte: periodEnd },
+        purchasedAt: { gte: budgetFetchFrom, lte: budgetFetchTo },
       },
       include: { lines: true, store: true },
     });
+    const monthReceipts = budgetReceipts.filter((r) => {
+      const at = r.purchasedAt ?? r.createdAt;
+      return at >= periodStart && at <= periodEnd;
+    });
     for (const budget of budgets) {
+      const isWeekly = budget.period === 'WEEKLY';
+      const bStart = isWeekly ? weekStart : periodStart;
+      const bEnd = isWeekly ? weekEnd : periodEnd;
       let spent = 0;
-      for (const r of monthReceipts) {
+      for (const r of budgetReceipts) {
+        const at = r.purchasedAt ?? r.createdAt;
+        if (at < bStart || at > bEnd) continue;
         for (const l of r.lines) {
           if (budget.categoryId && l.categoryId !== budget.categoryId) continue;
           spent += l.extendedCents - l.discountCents;
         }
       }
-      drafts.push(
-        ...evaluateBudgetPace({
-          budgetAmountCents: budget.amountCents,
-          spentCents: spent,
-          periodStart,
-          periodEnd,
-          today: now,
-          categoryLabel: budget.category?.name ?? 'Overall',
-        }),
-      );
+      const paced = evaluateBudgetPace({
+        budgetAmountCents: budget.amountCents,
+        spentCents: spent,
+        periodStart: bStart,
+        periodEnd: bEnd,
+        today: now,
+        categoryLabel: budget.category?.name ?? 'Overall',
+      });
+      for (const draft of paced) {
+        draft.data = {
+          ...draft.data,
+          budgetId: budget.id,
+          categoryId: budget.categoryId,
+          period: budget.period,
+        };
+      }
+      drafts.push(...paced);
     }
 
     // --- price_spike + stock_up from observations ---
@@ -536,6 +564,3 @@ export class InsightsService {
   }
 }
 
-function startOfUtcDay(d: Date) {
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-}
