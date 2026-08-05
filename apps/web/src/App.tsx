@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Shell } from './components/Shell';
 import { ToastHost } from './components/ToastHost';
 import { LoginPage } from './pages/LoginPage';
@@ -67,6 +68,7 @@ function Lazy({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <ToastHost />
       <Routes>
@@ -189,5 +191,6 @@ export default function App() {
         </Route>
       </Routes>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }

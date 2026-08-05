@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { CameraCapture, canUseInAppCamera } from '../components/CameraCapture';
 import { apiErrorMessage, getApiBaseUrl, probeApiReachable } from '../lib/api';
 import { preprocessReceiptImage } from '../lib/image';
 import {
@@ -26,12 +27,15 @@ export function CapturePage() {
   const [flushing, setFlushing] = useState(false);
   const [discardingId, setDiscardingId] = useState<string | null>(null);
   const [conn, setConn] = useState<ConnStatus>('checking');
+  const [cameraOpen, setCameraOpen] = useState(false);
   const navigate = useNavigate();
   const previewUrlsRef = useRef<Map<string, string>>(new Map());
+  const mountedRef = useRef(true);
 
   async function hydrateQueueFromOutbox() {
     try {
       const existing = await listOutbox();
+      if (!mountedRef.current) return;
       const items: QueueItem[] = [];
       const keep = new Set<string>();
       for (const m of existing.filter((x) => x.status !== 'done')) {
@@ -39,6 +43,7 @@ export function CapturePage() {
         let previewUrl = previewUrlsRef.current.get(m.id) ?? '';
         if (!previewUrl) {
           const blob = await getOutboxBlob(m.id);
+          if (!mountedRef.current) return;
           if (blob) {
             previewUrl = URL.createObjectURL(blob);
             previewUrlsRef.current.set(m.id, previewUrl);
@@ -54,6 +59,7 @@ export function CapturePage() {
       }
       setQueue(items);
     } catch (err) {
+      if (!mountedRef.current) return;
       const msg = apiErrorMessage(err, 'Could not read offline outbox');
       setError(msg);
       toast(msg, 'danger');
@@ -67,21 +73,35 @@ export function CapturePage() {
     }
     setConn('checking');
     const ok = await probeApiReachable();
+    if (!mountedRef.current) return;
     setConn(ok ? 'online' : 'api-unreachable');
   }
 
   useEffect(() => {
+    mountedRef.current = true;
     void refreshConnectivity();
     const onOnline = () => {
       void refreshConnectivity();
     };
     const onOffline = () => setConn('device-offline');
+    // After system camera / file picker, mobile Safari may restore from bfcache — rehydrate.
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) void hydrateQueueFromOutbox();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void hydrateQueueFromOutbox();
+    };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    window.addEventListener('pageshow', onPageShow);
+    document.addEventListener('visibilitychange', onVisibility);
     const t = window.setInterval(() => void refreshConnectivity(), 30_000);
     return () => {
+      mountedRef.current = false;
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      window.removeEventListener('pageshow', onPageShow);
+      document.removeEventListener('visibilitychange', onVisibility);
       window.clearInterval(t);
       for (const url of previewUrlsRef.current.values()) URL.revokeObjectURL(url);
       previewUrlsRef.current.clear();
@@ -93,6 +113,7 @@ export function CapturePage() {
     setError(null);
     try {
       const { reviewIds, failures } = await flushPendingOutbox((id, status) => {
+        if (!mountedRef.current) return;
         setQueue((q) =>
           q.map((item) => (item.id === id ? { ...item, status } : item)),
         );
@@ -106,9 +127,13 @@ export function CapturePage() {
         }
       });
 
+      if (!mountedRef.current) return;
+
       // Reconcile after shared single-flight (Shell may own the onItem callbacks).
       await hydrateQueueFromOutbox();
       await refreshConnectivity();
+
+      if (!mountedRef.current) return;
 
       if (failures.length) {
         const first = failures[0]!;
@@ -131,11 +156,12 @@ export function CapturePage() {
         navigate('/receipts?status=NEEDS_REVIEW');
       }
     } catch (err) {
+      if (!mountedRef.current) return;
       const msg = apiErrorMessage(err, 'Outbox sync failed');
       setError(msg);
       toast(msg, 'danger');
     } finally {
-      setFlushing(false);
+      if (mountedRef.current) setFlushing(false);
     }
   }
 
@@ -143,7 +169,7 @@ export function CapturePage() {
     let cancelled = false;
     void (async () => {
       await hydrateQueueFromOutbox();
-      if (!cancelled && navigator.onLine) {
+      if (!cancelled && mountedRef.current && navigator.onLine) {
         await runFlush();
       }
     })();
@@ -171,11 +197,11 @@ export function CapturePage() {
     }
   }
 
-  async function handleFiles(files: FileList | null) {
-    if (!files?.length) return;
+  async function handleFiles(files: File[]) {
+    if (!files.length) return;
     setError(null);
 
-    for (const file of Array.from(files)) {
+    for (const file of files) {
       if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
         toast('Please choose a photo (JPEG, PNG, or HEIC)', 'danger');
         continue;
@@ -217,6 +243,21 @@ export function CapturePage() {
     }
   }
 
+  function onFileInputChange(input: HTMLInputElement) {
+    // Copy FileList before clearing — live lists empty when value is reset.
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    void handleFiles(files);
+  }
+
+  function openCamera() {
+    if (canUseInAppCamera()) {
+      setCameraOpen(true);
+      return;
+    }
+    cameraInputRef.current?.click();
+  }
+
   const canRetry = queue.some(
     (q) =>
       q.status.includes('Queued') ||
@@ -248,14 +289,14 @@ export function CapturePage() {
         <button
           type="button"
           aria-label="Take a receipt photo with the camera"
-          onClick={() => cameraInputRef.current?.click()}
+          onClick={() => openCamera()}
           className="flex min-h-[180px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--brand-soft)] bg-[var(--surface)] text-center backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
         >
           <span className="brand text-3xl text-[var(--brand)]" aria-hidden="true">
             Take photo
           </span>
           <span className="mt-2 max-w-xs px-3 text-sm text-[var(--ink-muted)]">
-            Opens the rear camera when available
+            Opens an in-app camera (stays on this page)
           </span>
         </button>
         <button
@@ -271,7 +312,7 @@ export function CapturePage() {
         </button>
       </div>
 
-      {/* Separate inputs: capture+multiple on one control breaks camera on many phones */}
+      {/* Fallback only — prefer in-app camera to avoid iOS capture white-screen */}
       <input
         ref={cameraInputRef}
         type="file"
@@ -280,10 +321,7 @@ export function CapturePage() {
         className="hidden"
         tabIndex={-1}
         aria-hidden="true"
-        onChange={(e) => {
-          void handleFiles(e.target.files);
-          e.target.value = '';
-        }}
+        onChange={(e) => onFileInputChange(e.target)}
       />
       <input
         ref={libraryInputRef}
@@ -293,10 +331,14 @@ export function CapturePage() {
         className="hidden"
         tabIndex={-1}
         aria-hidden="true"
-        onChange={(e) => {
-          void handleFiles(e.target.files);
-          e.target.value = '';
-        }}
+        onChange={(e) => onFileInputChange(e.target)}
+      />
+
+      <CameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={(file) => void handleFiles([file])}
+        onFallbackToSystemCamera={() => cameraInputRef.current?.click()}
       />
 
       <p className="text-center text-sm text-[var(--ink-muted)]">
@@ -304,6 +346,14 @@ export function CapturePage() {
         <Link to="/capture/manual" className="font-semibold text-[var(--brand-soft)]">
           Enter receipt manually
         </Link>
+        {' · '}
+        <button
+          type="button"
+          className="font-semibold text-[var(--brand-soft)]"
+          onClick={() => cameraInputRef.current?.click()}
+        >
+          System camera
+        </button>
       </p>
 
       {error && <p className="text-sm text-[var(--danger)]" role="alert">{error}</p>}

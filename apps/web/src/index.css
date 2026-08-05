@@ -100,3 +100,94 @@ a {
     padding-bottom: 2rem;
   }
 }
+
+/* In-app receipt camera — full viewport, stays inside the SPA */
+.camera-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: #0b1410;
+  color: #f4f7f5;
+}
+
+.camera-overlay__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px)) 1rem 0.75rem;
+}
+
+.camera-overlay__title {
+  font-family: "Fraunces", serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.camera-overlay__text-btn {
+  border: 0;
+  background: transparent;
+  color: #f4f7f5;
+  font-weight: 600;
+  padding: 0.5rem 0.25rem;
+}
+
+.camera-overlay__spacer {
+  width: 4.5rem;
+}
+
+.camera-overlay__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #050a08;
+}
+
+.camera-overlay__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #050a08;
+}
+
+.camera-overlay__hint,
+.camera-overlay__error {
+  position: absolute;
+  inset: auto 1rem 30%;
+  text-align: center;
+  max-width: 22rem;
+}
+
+.camera-overlay__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: rgba(11, 20, 16, 0.85);
+}
+
+.camera-overlay__controls {
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem 1rem max(1.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+.camera-overlay__shutter {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 9999px;
+  border: 3px solid #f4f7f5;
+  background: radial-gradient(circle at center, #f4f7f5 0 58%, transparent 60%);
+  box-shadow: 0 0 0 2px rgba(244, 247, 245, 0.35);
+}
+
+.camera-overlay__shutter:disabled {
+  opacity: 0.4;
+}
