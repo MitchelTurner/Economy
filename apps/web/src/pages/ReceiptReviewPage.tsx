@@ -191,7 +191,16 @@ export function ReceiptReviewPage() {
         json: { overrideArithmetic: override },
       });
       toast('Receipt confirmed', 'ok');
-      navigate('/receipts');
+      // Keep the review queue moving — next NEEDS_REVIEW, else home.
+      try {
+        const queue = await api<{ items: Array<{ id: string }> }>(
+          '/receipts?status=NEEDS_REVIEW&limit=5',
+        );
+        const next = queue.items.find((r) => r.id !== id);
+        navigate(next ? `/receipts/${next.id}` : '/');
+      } catch {
+        navigate('/receipts?status=NEEDS_REVIEW');
+      }
     } catch (err) {
       setError(apiErrorMessage(err, 'Confirm failed'));
       toast(apiErrorMessage(err, 'Confirm failed'), 'danger');
@@ -273,7 +282,33 @@ export function ReceiptReviewPage() {
   }
 
   if (!receipt) {
-    return <p className="text-[var(--ink-muted)]">{error ?? 'Loading receipt…'}</p>;
+    if (error) {
+      return (
+        <div className="space-y-3">
+          <p className="border-l-4 border-[var(--danger)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--danger)]">
+            {error}
+          </p>
+          <button
+            type="button"
+            className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white"
+            onClick={() => {
+              setError(null);
+              void reload().catch((e) =>
+                setError(apiErrorMessage(e, 'Could not load receipt')),
+              );
+            }}
+          >
+            Retry
+          </button>
+          <p>
+            <Link to="/receipts" className="text-sm font-semibold text-[var(--brand-soft)]">
+              Back to receipts
+            </Link>
+          </p>
+        </div>
+      );
+    }
+    return <p className="text-[var(--ink-muted)]">Loading receipt…</p>;
   }
 
   const delta = receipt.totalDeltaCents;

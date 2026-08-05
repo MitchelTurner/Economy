@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiErrorMessage } from '../lib/api';
 import { formatCents } from '../lib/money';
+import { insightHref } from '../lib/insight-links';
 import { toast } from '../lib/toast';
 import {
   Bar,
@@ -244,25 +245,22 @@ export function DashboardPage() {
           <p className="mt-2 max-w-md text-white/85">
             Confirmed grocery spend for your household. Tap Capture to add the next receipt.
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5">
             <Link
               to="/capture"
               className="inline-flex rounded-md bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white"
             >
               Capture receipt
             </Link>
-            <Link
-              to="/budgets"
-              className="inline-flex rounded-md border border-white/40 px-4 py-2.5 text-sm font-semibold text-white"
-            >
-              Budgets
-            </Link>
-            <Link
-              to="/insights"
-              className="inline-flex rounded-md border border-white/40 px-4 py-2.5 text-sm font-semibold text-white"
-            >
-              Weekly digest
-            </Link>
+            <p className="mt-3 text-sm text-white/75">
+              <Link to="/budgets" className="underline decoration-white/40 underline-offset-2">
+                Budgets
+              </Link>
+              {' · '}
+              <Link to="/insights" className="underline decoration-white/40 underline-offset-2">
+                Insights
+              </Link>
+            </p>
           </div>
         </div>
       </section>
@@ -466,7 +464,7 @@ export function DashboardPage() {
                 className="border-l-4 border-[var(--accent)] bg-[var(--surface)] px-4 py-3 backdrop-blur"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <Link to={insightHref(i)} className="min-w-0 flex-1">
+                  <Link to={insightHref(i.type)} className="min-w-0 flex-1">
                     <p className="text-xs uppercase tracking-wide text-[var(--ink-muted)]">
                       {i.type.replace(/_/g, ' ')}
                     </p>
@@ -532,21 +530,6 @@ export function DashboardPage() {
       </section>
     </div>
   );
-}
-
-function insightHref(i: Insight): string {
-  switch (i.type) {
-    case 'budget_pace':
-      return '/budgets';
-    case 'island_premium':
-      return '/delivered';
-    case 'store_switch':
-    case 'price_spike':
-    case 'stock_up':
-      return '/prices';
-    default:
-      return '/insights';
-  }
 }
 
 function monthsAgoIso(monthsBack: number) {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CameraCapture, canUseInAppCamera } from '../components/CameraCapture';
-import { apiErrorMessage, getApiBaseUrl, probeApiReachable } from '../lib/api';
+import { apiErrorMessage, probeApiReachable } from '../lib/api';
 import { preprocessReceiptImage } from '../lib/image';
 import {
   enqueueOutbox,
@@ -277,11 +277,11 @@ export function CapturePage() {
         </p>
         <p className="mt-1 text-xs text-[var(--ink-muted)]" aria-live="polite">
           {conn === 'checking' && 'Checking connection…'}
-          {conn === 'online' && `Online · API ${getApiBaseUrl()}`}
+          {conn === 'online' && 'Online — photos upload when ready.'}
           {conn === 'device-offline' &&
             'Device offline — photos stay queued until you reconnect.'}
           {conn === 'api-unreachable' &&
-            `Internet is up, but the API is unreachable (${getApiBaseUrl()}). Confirm VITE_API_URL on the web service and CORS_ORIGIN on the API.`}
+            'Internet is up, but the server is unreachable. Photos stay queued; check Settings → API if this persists.'}
         </p>
       </section>
 
@@ -386,7 +386,7 @@ export function CapturePage() {
               <span className="min-w-0 flex-1 text-sm font-medium">{item.status}</span>
               <button
                 type="button"
-                className="shrink-0 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
+                className="shrink-0 rounded-md px-3 py-2 text-xs font-semibold text-[var(--danger)] disabled:opacity-50"
                 disabled={discardingId === item.id || flushing}
                 aria-busy={discardingId === item.id}
                 onClick={() => void discard(item.id)}

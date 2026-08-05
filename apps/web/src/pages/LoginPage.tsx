@@ -131,7 +131,7 @@ export function LoginPage() {
               type="button"
               disabled={busy}
               onClick={() => void onDemo()}
-              className="w-full rounded-md bg-[var(--brand)] px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+              className="w-full rounded-md border border-[var(--brand-soft)] bg-white/70 px-4 py-2.5 font-semibold text-[var(--brand)] disabled:opacity-60"
             >
               {busy ? 'Starting demo…' : 'Continue with demo account'}
             </button>
@@ -243,7 +243,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md border border-[var(--line)] bg-white/80 px-4 py-2.5 font-semibold text-[var(--ink)] disabled:opacity-60"
+            className="w-full rounded-md bg-[var(--brand)] px-4 py-2.5 font-semibold text-white disabled:opacity-60"
           >
             {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
