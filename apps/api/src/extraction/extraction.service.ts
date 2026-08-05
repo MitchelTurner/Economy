@@ -8,6 +8,7 @@ import { StorageService } from '../storage/storage.service';
 import { ExtractionProvider } from './extraction.provider';
 import { ExtractionResultSchema } from './extraction.schema';
 import { receiptArithmeticOk, rankImplausibleLines } from '../common/money';
+import { normalizeCategorySlug } from '../catalog/category-taxonomy';
 import { QUEUE_RECEIPT_MATCH } from '../jobs/queues';
 
 @Injectable()
@@ -206,10 +207,13 @@ export class ExtractionService {
 
     await this.prisma.receiptLine.createMany({
       data: data.lines.map((l) => {
+        const normalized = normalizeCategorySlug(l.guessedCategory);
         const guess = l.guessedCategory?.toLowerCase() ?? null;
-        const categoryId = guess
-          ? (bySlug.get(guess) ?? byName.get(guess) ?? null)
-          : null;
+        const categoryId = normalized
+          ? (bySlug.get(normalized) ?? null)
+          : guess
+            ? (bySlug.get(guess) ?? byName.get(guess) ?? null)
+            : null;
         return {
           receiptId,
           lineNumber: l.lineNumber,

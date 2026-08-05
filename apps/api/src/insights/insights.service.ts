@@ -77,10 +77,21 @@ export class InsightsService {
       (s, i) => s + (i.estimatedSavingsCents ?? 0),
       0,
     );
+    const aiSummary = await this.narration.summarizeDigest(
+      insights.map((i) => ({
+        title: i.title,
+        body: i.body,
+        type: i.type,
+        estimatedSavingsCents: i.estimatedSavingsCents,
+      })),
+      savings,
+    );
     return {
       generatedAt: new Date(),
       insightCount: insights.length,
       estimatedSavingsCents: savings,
+      aiSummary,
+      narrationEnabled: this.narration.isEnabled(),
       insights,
     };
   }
@@ -392,6 +403,16 @@ export class InsightsService {
       (s, i) => s + (i.estimatedSavingsCents ?? 0),
       0,
     );
+    const aiSummary =
+      (await this.narration.summarizeDigest(
+        insights.map((i) => ({
+          title: i.title,
+          body: i.body,
+          type: i.type,
+          estimatedSavingsCents: i.estimatedSavingsCents,
+        })),
+        savings,
+      )) ?? undefined;
 
     let sent = 0;
     let skipped = 0;
@@ -405,6 +426,7 @@ export class InsightsService {
         householdName: household.name,
         insightCount: insights.length,
         estimatedSavingsCents: savings,
+        aiSummary,
         highlights: insights.map((i) => ({ title: i.title, body: i.body })),
       });
       sent += 1;

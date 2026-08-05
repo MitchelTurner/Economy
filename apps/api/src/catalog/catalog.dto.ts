@@ -53,3 +53,21 @@ export class CreateStoreDto {
   region!: string;
   chain?: string;
 }
+
+export const CategorizeLinesSchema = z.object({
+  rawTexts: z.array(z.string().min(1).max(200)).min(1).max(80),
+});
+
+@ZodBody(CategorizeLinesSchema)
+export class CategorizeLinesDto {
+  rawTexts!: string[];
+}
+
+export const CategorizeReceiptSchema = z.object({
+  receiptId: z.string().min(1),
+});
+
+@ZodBody(CategorizeReceiptSchema)
+export class CategorizeReceiptDto {
+  receiptId!: string;
+}
