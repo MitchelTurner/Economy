@@ -19,7 +19,8 @@ type QueueItem = { id: string; previewUrl: string; status: string };
 type ConnStatus = 'checking' | 'online' | 'device-offline' | 'api-unreachable';
 
 export function CapturePage() {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [flushing, setFlushing] = useState(false);
@@ -175,6 +176,10 @@ export function CapturePage() {
     setError(null);
 
     for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/') && !/\.(heic|heif)$/i.test(file.name)) {
+        toast('Please choose a photo (JPEG, PNG, or HEIC)', 'danger');
+        continue;
+      }
       const id = crypto.randomUUID();
       const previewUrl = URL.createObjectURL(file);
       previewUrlsRef.current.set(id, previewUrl);
@@ -226,8 +231,8 @@ export function CapturePage() {
       <section>
         <h1 className="text-3xl font-semibold">Capture</h1>
         <p className="mt-1 text-[var(--ink-muted)]">
-          One tap from home. HEIC is converted when needed; images resize to 1600px and queue in
-          IndexedDB until upload succeeds.
+          Photograph a receipt or pick one from your library. Images resize to 1600px and queue
+          until upload succeeds.
         </p>
         <p className="mt-1 text-xs text-[var(--ink-muted)]" aria-live="polite">
           {conn === 'checking' && 'Checking connection…'}
@@ -239,24 +244,51 @@ export function CapturePage() {
         </p>
       </section>
 
-      <button
-        type="button"
-        aria-label="Open camera or choose receipt photos"
-        onClick={() => inputRef.current?.click()}
-        className="flex min-h-[220px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--brand-soft)] bg-[var(--surface)] text-center backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
-      >
-        <span className="brand text-4xl text-[var(--brand)]" aria-hidden="true">
-          Open camera
-        </span>
-        <span className="mt-2 max-w-xs text-sm text-[var(--ink-muted)]">
-          Multi-shot queue works offline — sync resumes when you are back online.
-        </span>
-      </button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          aria-label="Take a receipt photo with the camera"
+          onClick={() => cameraInputRef.current?.click()}
+          className="flex min-h-[180px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--brand-soft)] bg-[var(--surface)] text-center backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+        >
+          <span className="brand text-3xl text-[var(--brand)]" aria-hidden="true">
+            Take photo
+          </span>
+          <span className="mt-2 max-w-xs px-3 text-sm text-[var(--ink-muted)]">
+            Opens the rear camera when available
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label="Choose receipt photos from your library"
+          onClick={() => libraryInputRef.current?.click()}
+          className="flex min-h-[180px] w-full flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--line)] bg-[var(--surface)] text-center backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
+        >
+          <span className="text-2xl font-semibold text-[var(--ink)]">Choose photos</span>
+          <span className="mt-2 max-w-xs px-3 text-sm text-[var(--ink-muted)]">
+            Pick one or more from your gallery
+          </span>
+        </button>
+      </div>
+
+      {/* Separate inputs: capture+multiple on one control breaks camera on many phones */}
       <input
-        ref={inputRef}
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          void handleFiles(e.target.files);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={libraryInputRef}
         type="file"
         accept="image/*,.heic,.heif"
-        capture="environment"
         multiple
         className="hidden"
         tabIndex={-1}
@@ -268,7 +300,7 @@ export function CapturePage() {
       />
 
       <p className="text-center text-sm text-[var(--ink-muted)]">
-        Photo failed?{' '}
+        Camera blocked?{' '}
         <Link to="/capture/manual" className="font-semibold text-[var(--brand-soft)]">
           Enter receipt manually
         </Link>

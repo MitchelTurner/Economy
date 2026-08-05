@@ -41,12 +41,33 @@ export async function ensureDecodableImage(
   }
 }
 
+/** Decode via createImageBitmap, with <img> fallback for picky mobile browsers. */
+async function decodeToBitmap(blob: Blob): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(blob);
+  } catch {
+    // Some Android/WebView builds reject createImageBitmap for camera JPEGs.
+  }
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('Browser could not decode this image'));
+      el.src = url;
+    });
+    return await createImageBitmap(img);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export async function preprocessReceiptImage(file: Blob & { name?: string; type?: string }): Promise<{
   blob: Blob;
   hash: string;
 }> {
   const decodable = await ensureDecodableImage(file);
-  const bitmap = await createImageBitmap(decodable);
+  const bitmap = await decodeToBitmap(decodable);
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
