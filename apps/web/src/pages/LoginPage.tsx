@@ -1,16 +1,23 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { apiErrorMessage } from '../lib/api';
+import { api, apiErrorMessage } from '../lib/api';
 
 export function LoginPage() {
-  const { user, login, register, loading } = useAuth();
+  const { user, login, demoLogin, register, loading } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('demo@islandledger.local');
-  const [password, setPassword] = useState('demo-password-123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [demoEnabled, setDemoEnabled] = useState(false);
+
+  useEffect(() => {
+    void api<{ enabled: boolean }>('/auth/demo', { auth: false })
+      .then((s) => setDemoEnabled(s.enabled))
+      .catch(() => setDemoEnabled(false));
+  }, []);
 
   if (!loading && user) return <Navigate to="/" replace />;
 
@@ -28,6 +35,18 @@ export function LoginPage() {
     }
   }
 
+  async function onDemo() {
+    setBusy(true);
+    setError(null);
+    try {
+      await demoLogin();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Demo login unavailable'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="app-shell flex min-h-dvh flex-col justify-center">
       <div className="mx-auto w-full max-w-md">
@@ -36,9 +55,25 @@ export function LoginPage() {
           Photograph a receipt. Track island prices. Know where the money goes.
         </p>
 
+        {demoEnabled && (
+          <div className="mt-8 space-y-2 rounded-2xl border border-[var(--brand-soft)]/40 bg-[var(--surface)] p-5">
+            <p className="text-sm text-[var(--ink-muted)]">
+              Jump in with a ready-made household — no password typing.
+            </p>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onDemo()}
+              className="w-full rounded-md bg-[var(--brand)] px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+            >
+              {busy ? 'Starting demo…' : 'Continue with demo account'}
+            </button>
+          </div>
+        )}
+
         <form
           onSubmit={onSubmit}
-          className="mt-8 space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 backdrop-blur"
+          className="mt-4 space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 backdrop-blur"
         >
           <div className="flex gap-2 text-sm font-semibold" role="group" aria-label="Auth mode">
             <button
@@ -76,6 +111,7 @@ export function LoginPage() {
             <input
               type="email"
               required
+              autoComplete="username"
               className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -88,6 +124,7 @@ export function LoginPage() {
               type="password"
               required
               minLength={8}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               className="mt-1 w-full rounded-md border border-[var(--line)] bg-white/80 px-3 py-2"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -110,7 +147,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-md bg-[var(--brand)] px-4 py-2.5 font-semibold text-white disabled:opacity-60"
+            className="w-full rounded-md border border-[var(--line)] bg-white/80 px-4 py-2.5 font-semibold text-[var(--ink)] disabled:opacity-60"
           >
             {busy ? 'Working…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>

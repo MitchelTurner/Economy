@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -23,6 +24,9 @@ import {
 import { redisConnectionFromUrl } from '../common/redis-connection';
 
 const RESET_TTL_SECONDS = 60 * 60; // 1 hour
+
+export const DEMO_EMAIL = 'demo@islandledger.local';
+export const DEMO_PASSWORD = 'demo-password-123';
 
 @Injectable()
 export class AuthService {
@@ -77,6 +81,72 @@ export class AuthService {
 
     const ok = await argon2.verify(user.passwordHash, dto.password);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
+
+    return this.issueTokens(user.id, user.householdId, user.email);
+  }
+
+  /**
+   * Demo login is on when ALLOW_DEMO_LOGIN=true, or (by default) when
+   * ALLOW_MOCK_EXTRACTION is not false — same “this is a demo deploy” signal.
+   * Set ALLOW_DEMO_LOGIN=false to lock it down even with mock extraction.
+   */
+  isDemoLoginEnabled(): boolean {
+    const explicit = (this.config.get<string>('ALLOW_DEMO_LOGIN') ?? '').toLowerCase();
+    if (explicit === 'false' || explicit === '0' || explicit === 'off') return false;
+    if (explicit === 'true' || explicit === '1' || explicit === 'on') return true;
+    const allowMock =
+      (this.config.get<string>('ALLOW_MOCK_EXTRACTION') ?? 'true').toLowerCase() !== 'false';
+    const nodeEnv = (
+      this.config.get<string>('NODE_ENV') ??
+      process.env.NODE_ENV ??
+      'development'
+    ).toLowerCase();
+    return allowMock || nodeEnv !== 'production';
+  }
+
+  demoStatus() {
+    return {
+      enabled: this.isDemoLoginEnabled(),
+      email: DEMO_EMAIL,
+    };
+  }
+
+  /**
+   * One-click demo: ensure the demo household/user exists, reset password to the
+   * known demo password, and issue tokens. No seed/history required.
+   */
+  async demoLogin() {
+    if (!this.isDemoLoginEnabled()) {
+      throw new ForbiddenException(
+        'Demo login is disabled. Set ALLOW_DEMO_LOGIN=true (or ALLOW_MOCK_EXTRACTION=true) on the API service.',
+      );
+    }
+
+    const passwordHash = await argon2.hash(DEMO_PASSWORD);
+    let user = await this.prisma.user.findUnique({ where: { email: DEMO_EMAIL } });
+    if (!user) {
+      const household = await this.prisma.household.create({
+        data: { name: 'Demo Household' },
+      });
+      user = await this.prisma.user.create({
+        data: {
+          email: DEMO_EMAIL,
+          passwordHash,
+          displayName: 'Demo User',
+          role: 'owner',
+          householdId: household.id,
+        },
+      });
+    } else {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          role: 'owner',
+          displayName: user.displayName ?? 'Demo User',
+        },
+      });
+    }
 
     return this.issueTokens(user.id, user.householdId, user.email);
   }

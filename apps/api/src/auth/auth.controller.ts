@@ -44,6 +44,20 @@ export class AuthController {
     return this.auth.login(dto);
   }
 
+  @Get('demo')
+  demoStatus() {
+    return this.auth.demoStatus();
+  }
+
+  @Post('demo-login')
+  async demoLogin(@Req() req: Request) {
+    await consumeRateLimit(clientKeyFromReq(req), {
+      ...authLimit(),
+      name: 'auth:demo-login',
+    });
+    return this.auth.demoLogin();
+  }
+
   @Post('refresh')
   async refresh(@Req() req: Request, @Body() dto: RefreshDto) {
     await consumeRateLimit(clientKeyFromReq(req), {

@@ -141,11 +141,13 @@ async function seedProductAliases() {
 
 async function seedDevHousehold() {
   const email = 'demo@islandledger.local';
+  const passwordHash = await argon2.hash('demo-password-123');
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
+    // Always reset the known demo password so login stays reliable after re-seed.
     return prisma.user.update({
       where: { id: existing.id },
-      data: { role: 'owner' },
+      data: { role: 'owner', passwordHash, displayName: existing.displayName ?? 'Demo User' },
     });
   }
 
@@ -153,7 +155,6 @@ async function seedDevHousehold() {
     data: { name: 'Demo Household' },
   });
 
-  const passwordHash = await argon2.hash('demo-password-123');
   return prisma.user.create({
     data: {
       email,

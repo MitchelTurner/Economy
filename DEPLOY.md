@@ -53,6 +53,7 @@ Boot fails fast if production secrets are weak/missing or `CORS_ORIGIN` is unset
 | `JWT_REFRESH_SECRET` | Another `openssl rand -base64 48` — **must differ** from `JWT_SECRET` |
 | `CORS_ORIGIN` | Public web origin, e.g. `https://your-app.up.railway.app` |
 | `ALLOW_MOCK_EXTRACTION` | `true` until Anthropic is wired; else set `ANTHROPIC_API_KEY` |
+| `ALLOW_DEMO_LOGIN` | Optional. Defaults on when mock extraction is allowed. One-click **Continue with demo account** on the web login page (`POST /auth/demo-login`). Set `false` for a locked-down production deploy. |
 
 Generate secrets locally:
 

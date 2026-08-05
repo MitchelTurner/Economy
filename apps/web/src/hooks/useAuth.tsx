@@ -23,6 +23,7 @@ type AuthCtx = {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  demoLogin: () => Promise<void>;
   register: (input: {
     email: string;
     password: string;
@@ -69,6 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadMe();
   };
 
+  const demoLogin = async () => {
+    const res = await api<{ accessToken: string; refreshToken: string }>(
+      '/auth/demo-login',
+      { method: 'POST', auth: false },
+    );
+    setTokens(res);
+    await loadMe();
+  };
+
   const register = async (input: {
     email: string;
     password: string;
@@ -102,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <Ctx.Provider
-      value={{ user, loading, login, register, logout, refreshUser: loadMe }}
+      value={{ user, loading, login, demoLogin, register, logout, refreshUser: loadMe }}
     >
       {children}
     </Ctx.Provider>
