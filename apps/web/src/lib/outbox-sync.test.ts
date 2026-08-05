@@ -33,7 +33,8 @@ describe('flushPendingOutbox', () => {
     patchOutbox.mockReset();
     removeOutbox.mockReset();
     api.mockReset();
-    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+    // vitest node env has no navigator — stub before reading onLine.
+    vi.stubGlobal('navigator', { onLine: true });
   });
 
   it('classifies network failures as api-unreachable when the device is online', async () => {
@@ -68,7 +69,7 @@ describe('flushPendingOutbox', () => {
   });
 
   it('classifies device offline separately', async () => {
-    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    vi.stubGlobal('navigator', { onLine: false });
     pendingOutbox.mockResolvedValue([
       { id: '3', hash: 'h', createdAt: new Date().toISOString(), status: 'queued' },
     ]);
