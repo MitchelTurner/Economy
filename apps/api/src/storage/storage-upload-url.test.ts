@@ -37,3 +37,32 @@ describe('StorageService.createDownloadUrl', () => {
     await expect(svc.createDownloadUrl('receipts/h1/a.jpg')).resolves.toBeNull();
   });
 });
+
+describe('StorageService.getObjectBuffer', () => {
+  it('throws a clear error for missing memory objects instead of an S3 500', async () => {
+    const svc = new StorageService(
+      new ConfigService({
+        S3_ENDPOINT: 'http://localhost:9000',
+        S3_BUCKET: 'island-ledger-receipts',
+        S3_ACCESS_KEY_ID: 'minioadmin',
+        S3_SECRET_ACCESS_KEY: 'minioadmin',
+      }),
+    );
+    await expect(svc.getObjectBuffer('receipts/h1/missing.jpg')).rejects.toThrow(
+      /no longer available|demo storage/i,
+    );
+  });
+
+  it('returns bytes from the in-memory fallback', async () => {
+    const svc = new StorageService(
+      new ConfigService({
+        S3_ENDPOINT: 'http://localhost:9000',
+        S3_BUCKET: 'island-ledger-receipts',
+      }),
+    );
+    svc.putLocal('receipts/h1/a.jpg', Buffer.from('hello'));
+    await expect(svc.getObjectBuffer('receipts/h1/a.jpg')).resolves.toEqual(
+      Buffer.from('hello'),
+    );
+  });
+});
