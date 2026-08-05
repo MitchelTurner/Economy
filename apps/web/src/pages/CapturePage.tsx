@@ -268,7 +268,7 @@ export function CapturePage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="capture-desk space-y-6">
       <section>
         <h1 className="text-3xl font-semibold">Capture</h1>
         <p className="mt-1 text-[var(--ink-muted)]">

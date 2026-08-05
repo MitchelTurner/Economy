@@ -1,7 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { OutboxSync } from './OutboxSync';
 
-const links = [
+const mobileLinks: Array<{
+  to: string;
+  label: string;
+  end?: boolean;
+  primary?: boolean;
+}> = [
   { to: '/', label: 'Home', end: true },
   { to: '/receipts', label: 'Receipts' },
   { to: '/capture', label: 'Capture', primary: true },
@@ -9,55 +14,141 @@ const links = [
   { to: '/settings', label: 'More' },
 ];
 
+const desktopPrimary: Array<{ to: string; label: string; end?: boolean }> = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/capture', label: 'Capture' },
+  { to: '/receipts', label: 'Receipts' },
+  { to: '/insights', label: 'Insights' },
+];
+
+const desktopSecondary: Array<{ to: string; label: string }> = [
+  { to: '/prices', label: 'Prices' },
+  { to: '/budgets', label: 'Budgets' },
+  { to: '/alerts', label: 'Alerts' },
+  { to: '/delivered', label: 'Delivered cost' },
+];
+
+function navClass({
+  isActive,
+  primary = false,
+}: {
+  isActive: boolean;
+  primary?: boolean;
+}) {
+  if (primary) {
+    return 'flex min-h-14 min-w-[64px] flex-col items-center justify-center rounded-md bg-[var(--accent)] px-3 py-2.5 text-xs font-semibold text-white shadow-md transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]';
+  }
+  return [
+    'flex min-h-11 min-w-[64px] flex-col items-center justify-center rounded-md px-3 py-2.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]',
+    isActive ? 'text-[var(--brand)]' : 'text-[var(--ink-muted)]',
+  ].join(' ');
+}
+
+function desktopLinkClass({ isActive }: { isActive: boolean }) {
+  return [
+    'block rounded-md px-3 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]',
+    isActive
+      ? 'bg-[var(--brand)] text-white'
+      : 'text-[var(--ink-muted)] hover:bg-white/50 hover:text-[var(--ink)]',
+  ].join(' ');
+}
+
 export function Shell() {
   return (
-    <div className="app-shell">
+    <div className="app-frame">
       <a href="#main" className="skip-link">
         Skip to content
       </a>
-      <header className="flex items-end justify-between gap-4 py-5">
-        <div>
-          <p className="brand text-3xl font-bold text-[var(--brand)] md:text-4xl">
-            Island Ledger
-          </p>
+
+      <aside className="app-sidebar" aria-label="Desktop navigation">
+        <div className="app-sidebar__brand">
+          <p className="brand text-3xl font-bold text-[var(--brand)]">Island Ledger</p>
           <p className="mt-1 text-sm text-[var(--ink-muted)]">
             Receipts → prices → island cost of goods
           </p>
         </div>
+
         <NavLink
           to="/capture"
-          className="hidden rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] md:inline-flex"
+          className="mt-6 inline-flex w-full items-center justify-center rounded-md bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]"
         >
           Scan receipt
         </NavLink>
-      </header>
 
-      <OutboxSync />
+        <nav className="mt-6 flex flex-1 flex-col gap-6" aria-label="Primary">
+          <ul className="space-y-1">
+            {desktopPrimary.map((l) => (
+              <li key={l.to}>
+                <NavLink to={l.to} end={l.end} className={desktopLinkClass}>
+                  {({ isActive }) => (
+                    <>
+                      {l.label}
+                      {isActive && <span className="sr-only"> (current)</span>}
+                    </>
+                  )}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+          <div>
+            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+              Analyze
+            </p>
+            <ul className="mt-1 space-y-1">
+              {desktopSecondary.map((l) => (
+                <li key={l.to}>
+                  <NavLink to={l.to} className={desktopLinkClass}>
+                    {({ isActive }) => (
+                      <>
+                        {l.label}
+                        {isActive && <span className="sr-only"> (current)</span>}
+                      </>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mt-auto border-t border-[var(--line)] pt-4">
+            <NavLink to="/settings" className={desktopLinkClass}>
+              {({ isActive }) => (
+                <>
+                  Settings
+                  {isActive && <span className="sr-only"> (current)</span>}
+                </>
+              )}
+            </NavLink>
+          </div>
+        </nav>
+      </aside>
 
-      <main id="main">
-        <Outlet />
-      </main>
+      <div className="app-content">
+        <header className="app-mobile-header">
+          <div>
+            <p className="brand text-3xl font-bold text-[var(--brand)]">Island Ledger</p>
+            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              Receipts → prices → island cost of goods
+            </p>
+          </div>
+        </header>
 
-      <nav
-        aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--line)] bg-[rgba(238,244,240,0.92)] pb-[env(safe-area-inset-bottom)] backdrop-blur md:static md:mt-10 md:border-0 md:bg-transparent md:pb-0 md:backdrop-blur-none"
-      >
-        <ul className="mx-auto flex max-w-[480px] items-stretch justify-between gap-1 px-2 py-2 md:max-w-none md:justify-start md:gap-3 md:px-0">
-          {links.map((l) => (
-            <li key={l.to} className={l.primary ? 'relative -mt-5 md:mt-0' : ''}>
+        <OutboxSync />
+
+        <main id="main" className="app-main">
+          <Outlet />
+        </main>
+      </div>
+
+      <nav className="app-mobile-nav" aria-label="Primary">
+        <ul className="app-mobile-nav__list">
+          {mobileLinks.map((l) => (
+            <li key={l.to} className={l.primary ? 'relative -mt-5' : ''}>
               <NavLink
                 to={l.to}
                 end={l.end}
                 aria-label={l.label}
                 className={({ isActive }) =>
-                  [
-                    'flex min-h-11 min-w-[64px] flex-col items-center justify-center rounded-md px-3 py-2.5 text-xs font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)]',
-                    l.primary
-                      ? 'min-h-14 bg-[var(--accent)] text-white shadow-md'
-                      : isActive
-                        ? 'text-[var(--brand)]'
-                        : 'text-[var(--ink-muted)]',
-                  ].join(' ')
+                  navClass({ isActive, primary: Boolean(l.primary) })
                 }
               >
                 {({ isActive }) => (

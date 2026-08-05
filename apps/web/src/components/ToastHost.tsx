@@ -20,8 +20,8 @@ export function ToastHost() {
       role="status"
       aria-live="polite"
       className={[
-        // Sit above sticky review Confirm bar + mobile bottom nav (both ~bottom-20).
-        'fixed bottom-36 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 rounded-md border bg-white/95 px-4 py-3 text-sm font-semibold shadow-md backdrop-blur md:bottom-6',
+        // Mobile: above sticky Confirm + bottom nav. Desktop: near bottom edge.
+        'fixed bottom-36 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 rounded-md border bg-white/95 px-4 py-3 text-sm font-semibold shadow-md backdrop-blur min-[900px]:bottom-6',
         toneClass,
       ].join(' ')}
     >
