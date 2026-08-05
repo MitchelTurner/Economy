@@ -242,6 +242,7 @@ export type ReceiptDetail = {
   paymentMethod: string | null;
   failureReason: string | null;
   confidence: number | null;
+  extractionModel?: string | null;
   store: { id: string; name: string; address: string | null } | null;
   lines: ReceiptLine[];
   unmatchedCount?: number;

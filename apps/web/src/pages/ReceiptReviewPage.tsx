@@ -308,6 +308,7 @@ export function ReceiptReviewPage() {
           >
             {receipt.status}
             {extracting ? ' — extraction in progress…' : ''}
+            {receipt.extractionModel ? ` · ${receipt.extractionModel}` : ''}
             {receipt.confidence != null
               ? ` · confidence ${(receipt.confidence * 100).toFixed(0)}%`
               : ''}

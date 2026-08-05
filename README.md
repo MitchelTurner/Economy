@@ -99,7 +99,7 @@ data/        abbreviation dictionary + staple basket seed data
 
 - See [`DEPLOY.md`](./DEPLOY.md) for Railway/compose deploy, health probes, backup, and reference vs demo seed.
 - Railway needs **two services**: API (Railpack / root `railway.toml`) and Web (**Root Directory `apps/web`**, Dockerfile `Dockerfile`, `VITE_API_URL=https://<api-host>`).
-- Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` outside local mock mode.
+- Set `EXTRACTION_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` for real receipt OCR (mock invents a fake basket and now fails on real photos).
 - Production refuses silent mock unless `ALLOW_MOCK_EXTRACTION=true`.
 - Optional: `RESEND_API_KEY` + `MAIL_FROM` for real email; otherwise mail is logged.
 - Optional: `INSIGHT_NARRATION=on|auto|off` (default `auto` — uses Anthropic when a key is present).

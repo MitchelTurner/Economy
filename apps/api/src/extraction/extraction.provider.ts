@@ -11,7 +11,19 @@ export type ExtractionCallResult = {
   outputTokens: number;
 };
 
-const SYSTEM_PROMPT = `You extract structured grocery receipt data from images.
+const SYSTEM_PROMPT = `You are a careful grocery-receipt OCR extractor. Your job is to transcribe ONLY what is visibly printed on the receipt image.
+
+Hard rules — violating any of these is a failure:
+- Do NOT invent products, prices, stores, dates, payment methods, or quantities.
+- Do NOT use typical grocery knowledge to "fill in" missing or blurry text.
+- If a field is unreadable or absent, use null (or omit the line). Never guess.
+- rawText must be the characters as printed (abbreviations, truncations, store codes). Do not expand "MLK" into "milk".
+- Include a line ONLY when you can read an item description AND a price (or quantity×unit price) on that line.
+- Skip headers, footers, loyalty messages, coupons without a clear charged amount, blank lines, and illegible rows.
+- Money fields are integer US cents (e.g. $5.49 → 549).
+- Prefer fewer accurate lines over a complete but fabricated basket.
+- Set confidence low (≤0.5) when the image is blurry, cropped, or many lines are uncertain; high (≥0.85) only when totals clearly match readable lines.
+
 Return ONLY valid JSON (no markdown) matching this shape:
 {
   "store": {"name": string|null, "address": string|null},
@@ -23,7 +35,7 @@ Return ONLY valid JSON (no markdown) matching this shape:
   "totalCents": int|null,
   "lines": [{
     "lineNumber": positive int,
-    "rawText": string (verbatim as printed — do not clean or expand abbreviations),
+    "rawText": string,
     "quantity": positive number,
     "unitPriceCents": int|null,
     "extendedCents": int,
@@ -34,7 +46,20 @@ Return ONLY valid JSON (no markdown) matching this shape:
   }],
   "confidence": number 0-1
 }
-Money fields are integer cents. Line extendedCents must sum (minus discounts) + tax ≈ totalCents.`;
+If the image is not a receipt or nothing is readable, return lines: [] is NOT allowed by schema — instead return a single line with rawText "UNREADABLE" and extendedCents 0, totalCents null, confidence ≤0.2.
+Line extendedCents (minus discounts) + tax should approximately equal totalCents when totals are readable; if they do not, lower confidence and do not invent lines to force a match.`;
+
+/** True for JPEG/PNG/WebP/GIF payloads (real camera uploads), not eval fixture strings. */
+export function looksLikeImageBytes(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  if (buf[0] === 0xff && buf[1] === 0xd8) return true; // JPEG
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true; // PNG
+  if (buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WEBP') {
+    return true;
+  }
+  if (buf.toString('ascii', 0, 3) === 'GIF') return true;
+  return false;
+}
 
 @Injectable()
 export class ExtractionProvider {
@@ -75,8 +100,8 @@ export class ExtractionProvider {
     }
 
     const userText = retryHint
-      ? `Your previous output failed arithmetic check: ${retryHint}. Re-extract carefully.`
-      : 'Extract the receipt into the JSON schema.';
+      ? `Your previous output failed arithmetic check: ${retryHint}. Re-read the image only — fix math using printed totals; do not invent new items.`
+      : 'Transcribe this receipt into the JSON schema. Only include what you can actually read.';
 
     const response = await this.anthropic.messages.create({
       model: this.model,
@@ -118,8 +143,17 @@ export class ExtractionProvider {
   /** Deterministic mock for local/dev and tests. Scenario via `fixture:<id>` buffer. */
   mockExtract(imageBytes: Buffer, retryHint?: string): ExtractionCallResult {
     const asText = imageBytes.toString('utf8');
-    const corrupt = asText.includes('CORRUPT_EXTRACTION');
     const fixtureMatch = asText.match(/^fixture:([a-z0-9-]+)/i);
+
+    // Real camera uploads must not get a canned Safeway basket — that looks like hallucination.
+    if (looksLikeImageBytes(imageBytes) && !fixtureMatch) {
+      throw new Error(
+        'Mock extraction cannot read receipt photos (it invents a fake basket). ' +
+          'Set EXTRACTION_PROVIDER=anthropic and ANTHROPIC_API_KEY on the API service, then re-extract.',
+      );
+    }
+
+    const corrupt = asText.includes('CORRUPT_EXTRACTION');
     const scenarioKey = fixtureMatch?.[1];
     const base =
       (scenarioKey && MOCK_SCENARIOS[scenarioKey]) ||
