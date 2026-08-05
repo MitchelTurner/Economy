@@ -148,8 +148,10 @@ export class StorageService {
     this.localFallback.set(imageKey, body);
   }
 
-  /** Presigned GET when S3 works; null when object is only in memory fallback. */
+  /** Presigned GET when S3 works; null when object is only in memory / localhost MinIO. */
   async createDownloadUrl(imageKey: string, expiresIn = 900): Promise<string | null> {
+    // Browsers cannot fetch localhost:9000 signed URLs from Railway — use /receipts/:id/image.
+    if (this.memoryUploadsOnly) return null;
     if (this.localFallback.has(imageKey)) return null;
     try {
       const command = new GetObjectCommand({

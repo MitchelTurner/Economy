@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { resolveClaudeModel } from '../common/claude-model';
 import { InsightDraft } from './rules/types';
 
 /**
@@ -21,10 +22,9 @@ export class NarrationService {
     const mode = (config.get('INSIGHT_NARRATION') ?? 'auto').toLowerCase();
     this.enabled =
       mode === 'on' || (mode === 'auto' && Boolean(this.anthropic));
-    this.model =
-      config.get('NARRATION_MODEL') ??
-      config.get('EXTRACTION_MODEL') ??
-      'claude-sonnet-4-20250514';
+    this.model = resolveClaudeModel(
+      config.get('NARRATION_MODEL') ?? config.get('EXTRACTION_MODEL'),
+    );
   }
 
   async narrateMany(drafts: InsightDraft[]): Promise<InsightDraft[]> {

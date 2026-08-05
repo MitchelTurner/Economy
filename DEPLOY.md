@@ -35,7 +35,9 @@ S3_SECRET_ACCESS_KEY=...
 # If S3_ENDPOINT is localhost/unset, the API uses in-memory upload fallback (fine for demo; images do not persist across restarts).
 EXTRACTION_PROVIDER=anthropic
 ANTHROPIC_API_KEY=sk-ant-...   # exact name on the **API** service (not Web); Deploy after save
-EXTRACTION_MODEL=claude-sonnet-4-20250514
+EXTRACTION_MODEL=claude-sonnet-4-6
+# Do not use claude-sonnet-4-20250514 — Anthropic retired it (API returns 404 not_found).
+# The API remaps that old id, but set EXTRACTION_MODEL explicitly to claude-sonnet-4-6.
 ALLOW_MOCK_EXTRACTION=false    # only after the key is actually injected (boot must show ANTHROPIC_API_KEY=yes)
 # Boot checklist prints ANTHROPIC_API_KEY=yes|MISSING. "ALLOW_MOCK_EXTRACTION=yes" only means the
 # variable exists — if its value is false and the key is missing, the API will refuse to boot.

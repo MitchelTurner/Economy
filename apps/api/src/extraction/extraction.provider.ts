@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
+import { resolveClaudeModel } from '../common/claude-model';
 import { ExtractionResult, ExtractionResultSchema } from './extraction.schema';
 import { MOCK_SCENARIOS } from './mock-scenarios';
 
@@ -84,7 +85,13 @@ export class ExtractionProvider {
     // Trim — Railway/paste often leaves trailing newlines that break the SDK.
     const key = config.get<string>('ANTHROPIC_API_KEY')?.trim() || '';
     this.anthropic = key ? new Anthropic({ apiKey: key }) : null;
-    this.model = config.get('EXTRACTION_MODEL')?.trim() || 'claude-sonnet-4-20250514';
+    const configuredModel = config.get<string>('EXTRACTION_MODEL');
+    this.model = resolveClaudeModel(configuredModel);
+    if (configuredModel?.trim() && configuredModel.trim() !== this.model) {
+      this.logger.warn(
+        `EXTRACTION_MODEL=${configuredModel.trim()} is retired on the Claude API; using ${this.model}`,
+      );
+    }
     const configured = (config.get<string>('EXTRACTION_PROVIDER') ?? '').trim().toLowerCase();
     this.providerMode = configured || (key ? 'anthropic' : 'mock');
     this.allowMock =
@@ -143,27 +150,39 @@ export class ExtractionProvider {
       ? `Your previous output failed arithmetic check: ${retryHint}. Re-read the image only — fix math using printed totals; do not invent new items.`
       : 'Transcribe this receipt into the JSON schema. Only include what you can actually read.';
 
-    const response = await client.messages.create({
-      model: this.model,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: imageBytes.toString('base64'),
+    let response;
+    try {
+      response = await client.messages.create({
+        model: this.model,
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: mediaType,
+                  data: imageBytes.toString('base64'),
+                },
               },
-            },
-            { type: 'text', text: userText },
-          ],
-        },
-      ],
-    });
+              { type: 'text', text: userText },
+            ],
+          },
+        ],
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/not_found_error|model:/i.test(msg)) {
+        throw new Error(
+          `Claude model "${this.model}" was not found (retired or typo). ` +
+            `Set EXTRACTION_MODEL=claude-sonnet-4-6 on the API service and redeploy. (${msg})`,
+        );
+      }
+      throw err;
+    }
 
     const text = response.content
       .filter((b) => b.type === 'text')
